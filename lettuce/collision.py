@@ -6,6 +6,7 @@ import torch
 
 from lettuce.equilibrium import QuadraticEquilibrium
 from lettuce.util import LettuceException
+import os
 
 
 class BGKCollision:
@@ -30,13 +31,17 @@ class BGKSmagorinskiCollision:
         self.tau = tau
         self.iterations = 2
         self.tau_eff = tau
+        self.S_shear = []
 
     def __call__(self, f):
         rho = self.lattice.rho(f)
         u_eq = 0 if self.force is None else self.force.u_eq(f)
         u = self.lattice.u(f) + u_eq
-        feq = self.lattice.equilibrium(rho, u)
-        S_shear = self.lattice.shear_tensor(f-feq)
+
+        self.feq = self.lattice.equilibrium(rho, u)
+        self.f = f
+        self.S_shear = f-self.feq
+        S_shear = self.lattice.shear_tensor(self.S_shear)
         S_shear /= ( 2.0*rho*self.lattice.cs*self.lattice.cs)
         self.tau_eff = self.tau
         nu = (self.tau - 0.5) / 3.0
@@ -47,13 +52,39 @@ class BGKSmagorinskiCollision:
             S = self.lattice.einsum('ab,ab->',[S,S])
 
             nu_t = CC * S
-            nu_eff = nu + nu_t
-            self.tau_eff = nu_eff*3.0+0.5
+            self.nu_eff = nu + nu_t
+            self.tau_eff = self.nu_eff*3.0+0.5
 
 
 
         Si = 0 if self.force is None else self.force.source_term(u)
-        return f - 1.0 / self.tau_eff * (f-feq) + Si
+        return f - 1.0 / self.tau_eff * (f-self.feq) + Si
+
+class BGKSmagorinskiCollision_net:
+    def __init__(self, lattice, tau, force=None):
+        self.force = force
+        self.lattice = lattice
+        self.tau = tau
+        self.iterations = 2
+        self.tau_eff = tau
+        if os.path.isfile('data_netz.pt'):
+            self.net = torch.load('data_netz.pt')
+
+    def __call__(self, f):
+        rho = self.lattice.rho(f)
+        u_eq = 0 if self.force is None else self.force.u_eq(f)
+        u = self.lattice.u(f) + u_eq
+
+        self.feq = self.lattice.equilibrium(rho, u)
+        self.f = f
+        input = f-self.feq
+        with torch.no_grad():
+            tau_eff = self.net(input.permute(1,2,3,0))
+
+
+
+        Si = 0 if self.force is None else self.force.source_term(u)
+        return f - 1.0 / tau_eff[:,:,:,0] * (f-self.feq) + Si
 
 
 class MRTCollision:
