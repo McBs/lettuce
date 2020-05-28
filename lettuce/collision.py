@@ -7,6 +7,7 @@ import torch
 from lettuce.equilibrium import QuadraticEquilibrium
 from lettuce.util import LettuceException
 import os
+import numpy as np
 
 
 class BGKCollision:
@@ -32,7 +33,7 @@ class BGKSmagorinskiCollision:
         self.iterations = 2
         self.tau_eff = tau
         self.S_shear = []
-
+        self.out = []
     def __call__(self, f):
         rho = self.lattice.rho(f)
         u_eq = 0 if self.force is None else self.force.u_eq(f)
@@ -56,19 +57,22 @@ class BGKSmagorinskiCollision:
             self.tau_eff = self.nu_eff*3.0+0.5
 
 
+        self.out.append(torch.sum(self.tau_eff).detach().cpu().numpy().item())
 
         Si = 0 if self.force is None else self.force.source_term(u)
         return f - 1.0 / self.tau_eff * (f-self.feq) + Si
 
 class BGKSmagorinskiCollision_net:
     def __init__(self, lattice, tau, force=None):
+
         self.force = force
         self.lattice = lattice
         self.tau = tau
         self.iterations = 2
         self.tau_eff = tau
-        if os.path.isfile('data_netz.pt'):
-            self.net = torch.load('data_netz.pt')
+        self.out = []
+        if os.path.isfile('net_tgv3d_Re1600_Res100.pt'):
+            self.net = torch.load('net_tgv3d_Re1600_Res100.pt')
 
     def __call__(self, f):
         rho = self.lattice.rho(f)
@@ -80,7 +84,7 @@ class BGKSmagorinskiCollision_net:
         input = f-self.feq
         with torch.no_grad():
             tau_eff = self.net(input.permute(1,2,3,0))
-
+            self.out.append(torch.sum(tau_eff).detach().cpu().numpy().item())
 
 
         Si = 0 if self.force is None else self.force.source_term(u)

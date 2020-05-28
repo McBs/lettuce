@@ -134,8 +134,9 @@ class EnergyReporter(GenericStepReporter):
 
     def parameter_function(self,i,t,f):
         dx = self.flow.units.convert_length_to_pu(1.0)
-
-        kinE = torch.sum(self.lattice.energy(f))
+        energy = 0.5 * self.lattice.einsum("d,d->", [self.flow.units.convert_velocity_to_pu(self.lattice.u(f)), self.flow.units.convert_velocity_to_pu(self.lattice.u(f))])
+        #kinE = torch.sum(self.lattice.energy(f))
+        kinE = torch.sum(energy)
         kinE *= dx ** self.lattice.D
         return kinE.item()
 
@@ -144,17 +145,23 @@ class EnstrophyReporter(GenericStepReporter):
     parameter = 'Enstrophy'
 
     def parameter_function(self,i,t,f):
-        u0 = self.lattice.u(f)[0].cpu().numpy()
-        u1 = self.lattice.u(f)[1].cpu().numpy()
+        u0 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f)[0].cpu().numpy())
+        u1 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f)[1].cpu().numpy())
         dx = self.flow.units.convert_length_to_pu(1.0)
         grad_u0 = np.gradient(u0,dx)
         grad_u1 = np.gradient(u1,dx)
         vorticity = np.sum((grad_u0[1] - grad_u1[0]) * (grad_u0[1] - grad_u1[0]))
         if (self.lattice.D == 3):
-            u2 = self.lattice.u(f)[2].cpu().numpy()
+            u2 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f)[2].cpu().numpy())
             grad_u2 = np.gradient(u2, dx)
-            vorticity+=np.sum((grad_u2[1] - grad_u1[2]) * (grad_u2[1] - grad_u1[2])+((grad_u0[2] - grad_u2[0]) * (grad_u0[2] - grad_u2[0])))
-        return vorticity.item()
+            vorticity+=np.sum((grad_u2[1] - grad_u1[2]) * (grad_u2[1] - grad_u1[2])+((grad_u0[2] - grad_u2[0]) * (grad_u0[2] - grad_u2[0]))+(grad_u1[0]-grad_u0[1])*(grad_u1[0]-grad_u0[1]))
+            x = (grad_u2[1] - grad_u1[2]) * (grad_u2[1] - grad_u1[2])
+            y = (grad_u0[2] - grad_u2[0]) * (grad_u0[2] - grad_u2[0])
+            z = (grad_u1[0] - grad_u0[1]) * (grad_u1[0] - grad_u0[1])
+            vorticity = np.sum(x)+np.sum(y)+np.sum(z)
+
+        enstrophy = self.flow.units.convert_length_to_pu(1.0)**self.lattice.D*vorticity
+        return enstrophy.item()
 
 class MassReporter(GenericStepReporter):
     """Reports the total mass"""

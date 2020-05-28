@@ -55,6 +55,7 @@ class TaylorGreenVortex3D:
             np.zeros_like(np.sin(x[0]))
         ])
         p = np.array([1 / 16. * (np.cos(2 * x[0]) + np.cos(2 * x[1])) * (np.cos(2 * x[2] + 2))])
+        #p = np.array([1 / 16. * (2 + np.cos(2*x[2])*(np.cos(2*x[0])+np.cos(2*x[1])))])
         return p, u
 
     @property
