@@ -3,6 +3,7 @@ Collision models
 """
 
 import torch
+import os
 
 from lettuce.equilibrium import QuadraticEquilibrium
 from lettuce.util import LettuceException
@@ -267,7 +268,7 @@ class KBCCollision3D:
 
 class SmagorinskyCollision:
     """Smagorinsky large eddy simulation (LES) collision model with BGK operator."""
-    def __init__(self, lattice, tau, smagorinsky_constant=0.17, force=None):
+    def __init__(self, lattice, tau, smagorinsky_constant=0.17, force=None, net=0):
         self.force = force
         self.lattice = lattice
         self.tau = tau
@@ -275,26 +276,107 @@ class SmagorinskyCollision:
         self.tau_eff = tau
         self.constant = smagorinsky_constant
 
+        self.S_shear = []
+        self.out = []
+        self.net = net
+        if self.net != 0:
+            if os.path.isfile(self.net):
+                self.net = torch.load(self.net)
+            else:
+                self.net = 0
+                print('No neuronal network data found!')
+
     def __call__(self, f):
         rho = self.lattice.rho(f)
         u_eq = 0 if self.force is None else self.force.u_eq(f)
         u = self.lattice.u(f) + u_eq
         feq = self.lattice.equilibrium(rho, u)
-        S_shear = self.lattice.shear_tensor(f-feq)
-        S_shear /= ( 2.0*rho*self.lattice.cs**2)
-        self.tau_eff = self.tau
-        nu = (self.tau - 0.5) / 3.0
+        if self.net != 0:
+            input = f - feq
+            with torch.no_grad():
+                tau_eff = self.net(input.permute(1, 2, 3, 0))
+        else:
+            self.S_shear = f-feq
+            S_shear = self.lattice.shear_tensor(self.S_shear)
+            S_shear /= ( 2.0*rho*self.lattice.cs**2)
+            self.tau_eff = self.tau
+            nu = (self.tau - 0.5) / 3.0
 
-        for i in range(self.iterations):
-            S = S_shear / self.tau_eff
-            S = self.lattice.einsum('ab,ab->',[S,S])
-            nu_t = self.constant**2 * S
-            nu_eff = nu + nu_t
-            self.tau_eff = nu_eff*3.0+0.5
+            for i in range(self.iterations):
+                S = S_shear / self.tau_eff
+                S = self.lattice.einsum('ab,ab->',[S,S])
+                nu_t = self.constant**2 * S
+                nu_eff = nu + nu_t
+                self.tau_eff = nu_eff*3.0+0.5
+
+        #self.out.append(torch.sum(self.tau_eff).detach().cpu().numpy().item())
         Si = 0 if self.force is None else self.force.source_term(u)
         return f - 1.0 / self.tau_eff * (f-feq) + Si
 
+class BGKSmagorinskiCollision:
+    def __init__(self, lattice, tau, force=None):
+        self.force = force
+        self.lattice = lattice
+        self.tau = tau
+        self.iterations = 2
+        self.tau_eff = tau
+        self.S_shear = []
+        self.out = []
+    def __call__(self, f):
+        rho = self.lattice.rho(f)
+        u_eq = 0 if self.force is None else self.force.u_eq(f)
+        u = self.lattice.u(f) + u_eq
 
+        self.feq = self.lattice.equilibrium(rho, u)
+        self.f = f
+        self.S_shear = f-self.feq
+        S_shear = self.lattice.shear_tensor(self.S_shear)
+        S_shear /= ( 2.0*rho*self.lattice.cs*self.lattice.cs)
+        self.tau_eff = self.tau
+        nu = (self.tau - 0.5) / 3.0
+        C = 0.2
+        CC = C*C
+        for i in range(self.iterations):
+            S = S_shear / self.tau_eff
+            S = self.lattice.einsum('ab,ab->',[S,S])
+
+            nu_t = CC * S
+            self.nu_eff = nu + nu_t
+            self.tau_eff = self.nu_eff*3.0+0.5
+
+
+        self.out.append(torch.sum(self.tau_eff).detach().cpu().numpy().item())
+
+        Si = 0 if self.force is None else self.force.source_term(u)
+        return f - 1.0 / self.tau_eff * (f-self.feq) + Si
+
+class BGKSmagorinskiCollision_net:
+    def __init__(self, lattice, tau, force=None):
+
+        self.force = force
+        self.lattice = lattice
+        self.tau = tau
+        self.iterations = 2
+        self.tau_eff = tau
+        self.out = []
+        if os.path.isfile('net_tgv3d_Re1600_Res100.pt'):
+            self.net = torch.load('net_tgv3d_Re1600_Res100.pt')
+
+    def __call__(self, f):
+        rho = self.lattice.rho(f)
+        u_eq = 0 if self.force is None else self.force.u_eq(f)
+        u = self.lattice.u(f) + u_eq
+
+        self.feq = self.lattice.equilibrium(rho, u)
+        self.f = f
+        input = f-self.feq
+        with torch.no_grad():
+            tau_eff = self.net(input.permute(1,2,3,0))
+            self.out.append(torch.sum(tau_eff).detach().cpu().numpy().item())
+
+
+        Si = 0 if self.force is None else self.force.source_term(u)
+        return f - 1.0 / tau_eff[:,:,:,0] * (f-self.feq) + Si
 
 
 class BGKInitialization:
