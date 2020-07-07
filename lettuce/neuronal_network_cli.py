@@ -68,7 +68,7 @@ def testNet(resolution=100,reynolds=1600,steps_pu=100):
     print("Timesteps: ", int(flow.units.convert_time_to_lu(steps_pu)))
     simulation.step(num_steps=int(flow.units.convert_time_to_lu(steps_pu)))
     np.savetxt('../data/tgv3d_smag_Re1600_Res100_energy.csv', simulation.reporters[0].out, delimiter=';')
-    np.savetxt('../data/tgv3d_smag_Re1600_Res100_enstrophy.csv', simulation.reporters[1].out, delimiter=';')
+    np.savetxt('../data/tgv3d_smag_Re16{[00_Res100_enstrophy.csv', simulation.reporters[1].out, delimiter=';')
     with open("nu_smag.txt", "w") as f:
         for s in collision.out:
             f.write(str(s) +"\n")
