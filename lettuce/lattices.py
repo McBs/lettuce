@@ -106,3 +106,4 @@ class Lattice:
                 raise LettuceException("Bad dimension.")
         equation = ",".join(inputs) + "->" + output
         return torch.einsum(equation, fields, **kwargs)
+
