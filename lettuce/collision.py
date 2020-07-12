@@ -276,40 +276,51 @@ class SmagorinskyCollision:
         self.tau_eff = tau
         self.constant = smagorinsky_constant
 
+    def __call__(self, f):
+        rho = self.lattice.rho(f)
+        u_eq = 0 if self.force is None else self.force.u_eq(f)
+        u = self.lattice.u(f) + u_eq
+        feq = self.lattice.equilibrium(rho, u)
+        self.S_shear = f-feq
+        S_shear = self.lattice.shear_tensor(self.S_shear)
+        S_shear /= ( 2.0*rho*self.lattice.cs**2)
+        self.tau_eff = self.tau
+        nu = (self.tau - 0.5) / 3.0
+        for i in range(self.iterations):
+            S = S_shear / self.tau_eff
+            S = self.lattice.einsum('ab,ab->',[S,S])
+            nu_t = self.constant**2 * S
+            nu_eff = nu + nu_t
+            self.tau_eff = nu_eff*3.0+0.5
+
+        Si = 0 if self.force is None else self.force.source_term(u)
+        return f - 1.0 / self.tau_eff * (f-feq) + Si
+
+class SmagorinskyCollision_nn:
+    """Smagorinsky large eddy simulation (LES) collision model with BGK operator."""
+    def __init__(self, lattice, tau, smagorinsky_constant=0.17, force=None, net=None):
+        self.force = force
+        self.lattice = lattice
+        self.tau = tau
+        self.iterations = 2
+        self.tau_eff = tau
+        self.constant = smagorinsky_constant
+
         self.S_shear = []
         self.out = []
         self.net = net
-        if self.net != 0:
-            if os.path.isfile(self.net):
-                self.net = torch.load(self.net)
-            else:
-                self.net = 0
-                print('No neuronal network data found!')
 
     def __call__(self, f):
         rho = self.lattice.rho(f)
         u_eq = 0 if self.force is None else self.force.u_eq(f)
         u = self.lattice.u(f) + u_eq
         feq = self.lattice.equilibrium(rho, u)
-        if self.net != 0:
-            input = f - feq
-            with torch.no_grad():
-                tau_eff = self.net(input.permute(1, 2, 3, 0))
-        else:
-            self.S_shear = f-feq
-            S_shear = self.lattice.shear_tensor(self.S_shear)
-            S_shear /= ( 2.0*rho*self.lattice.cs**2)
-            self.tau_eff = self.tau
-            nu = (self.tau - 0.5) / 3.0
-
-            for i in range(self.iterations):
-                S = S_shear / self.tau_eff
-                S = self.lattice.einsum('ab,ab->',[S,S])
-                nu_t = self.constant**2 * S
-                nu_eff = nu + nu_t
-                self.tau_eff = nu_eff*3.0+0.5
-
-        #self.out.append(torch.sum(self.tau_eff).detach().cpu().numpy().item())
+        input = torch.empty(31,60,60,60,device="cuda",requires_grad=False)
+        input[0:27, ...] = f
+        input[27:30, ...] = u
+        input[30, ...] = rho
+        with torch.no_grad():
+            self.tau_eff = self.net(input.permute(1, 2, 3, 0)).permute(3, 0, 1, 2)
         Si = 0 if self.force is None else self.force.source_term(u)
         return f - 1.0 / self.tau_eff * (f-feq) + Si
 

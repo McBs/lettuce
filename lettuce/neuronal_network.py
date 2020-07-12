@@ -8,9 +8,9 @@ import numpy as np
 class LBMNet(nn.Module):
     def __init__(self):
         super(LBMNet, self).__init__()
-        self.lin1 = nn.Linear(27, 150)
-        self.lin2 = nn.Linear(150, 75)
-        self.lin3 = nn.Linear(75, 1)
+        self.lin1 = nn.Linear(31, 100)
+        self.lin2 = nn.Linear(100, 50)
+        self.lin3 = nn.Linear(50, 1)
 
     def forward(self, x):
         x = F.relu(self.lin1(x))
