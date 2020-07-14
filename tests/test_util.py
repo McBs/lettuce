@@ -1,7 +1,9 @@
 
 import numpy as np
-from lettuce import Lattice, D2Q9, D3Q27, TaylorGreenVortex2D, TaylorGreenVortex3D, torch_gradient
+from lettuce import Lattice, D2Q9, D3Q27, TaylorGreenVortex2D, TaylorGreenVortex3D, torch_gradient, grid_fine_to_course
+from lettuce import BGKCollision, Simulation
 import pytest
+import torch
 
 
 @pytest.mark.parametrize("order", [2,4,6])
@@ -33,3 +35,25 @@ def test_torch_gradient_3d(order):
         np.sin(grid[0]) * (-np.cos(grid[1])) * np.sin(grid[2])
     ])
     assert (u0_grad_analytic[0,0,:,0] == pytest.approx(u0_grad[0,0,:,0], rel=2))
+
+def test_grid_fine_to_couse():
+    lattice = Lattice(D3Q27,'cpu',dtype=torch.double)
+    # streaming = StandardStreaming(lattice)
+
+    flow_f = TaylorGreenVortex3D(120,1600,0.15,lattice)
+    collision_f = BGKCollision(lattice,tau=flow_f.units.relaxation_parameter_lu)
+    sim_f = Simulation(flow_f,lattice,collision_f,streaming=None)
+
+    flow_c = TaylorGreenVortex3D(60,1600,0.15,lattice)
+    collision_c = BGKCollision(lattice,tau=flow_c.units.relaxation_parameter_lu)
+    sim_c = Simulation(flow_c,lattice,collision_c,streaming=None)
+
+    f_c = grid_fine_to_course(lattice,sim_f.f,flow_f.units.relaxation_parameter_lu,flow_c.units.relaxation_parameter_lu)
+
+    p_init, u_init = flow_c.initial_solution(flow_c.grid)
+    rho_init = lattice.convert_to_tensor(flow_c.units.convert_pressure_pu_to_density_lu(p_init))
+    u_init = lattice.convert_to_tensor(flow_c.units.convert_velocity_to_lu(u_init))
+
+    assert lattice.u(f_c).numpy() == pytest.approx(u_init.numpy(),)
+    assert lattice.rho(f_c).numpy() == pytest.approx(rho_init.numpy(),)
+    assert f_c.numpy() == pytest.approx(sim_c.f.numpy(),)
