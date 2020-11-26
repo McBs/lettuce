@@ -5,6 +5,7 @@ Taylor-Green vortex in 2D and 3D.
 import numpy as np
 
 from lettuce.unit import UnitConversion
+import lettuce as lt
 
 
 class TaylorGreenVortex2D:
@@ -34,7 +35,8 @@ class TaylorGreenVortex2D:
 
     @property
     def boundaries(self):
-        return []
+        boundary = lt.EquilibriumOutletP(lattice=self.units.lattice, direction=[0,1])
+        return [boundary]
 
 
 class TaylorGreenVortex3D:

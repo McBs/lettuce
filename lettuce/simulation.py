@@ -71,6 +71,22 @@ class Simulation:
             self.f = self.streaming(self.f)
             #Perform the collision routine everywhere, expect where the no_collision_mask is true
             self.f = torch.where(self.no_collision_mask, self.f, self.collision(self.f))
+
+            # if np.mod(_,200)==0:
+            # # if _ == 25000:
+            #     u = self.lattice.u(self.f).cpu().numpy()
+            #     uhx = np.fft.fftn(u[0], axes=(0,1))
+            #     uhy = np.fft.fftn(u[1], axes=(0,1))
+            #     for i in range(300):
+            #         uhx = np.where(self.flow.wavemask[:,:,400+i],0+0j,uhx)
+            #         uhy = np.where(self.flow.wavemask[:,:,400+i],0+0j,uhy)
+            #     u[0,:,:] = np.fft.ifftn(uhx, axes=(0,1)).real
+            #     u[1,:,:] = np.fft.ifftn(uhy, axes=(0,1)).real
+            #
+            #     u = self.lattice.convert_to_tensor(u)
+            #     rho = self.lattice.rho(self.f)
+            #     self.f = self.lattice.equilibrium(rho, u)
+
             for boundary in self._boundaries:
                 self.f = boundary(self.f)
             self._report()

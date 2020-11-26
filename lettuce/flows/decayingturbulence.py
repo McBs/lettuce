@@ -9,7 +9,9 @@ energy_spectrum: returns a pair [spectrum, wavenumbers]
 
 import numpy as np
 from lettuce.unit import UnitConversion
-
+from lettuce.boundary import BounceBackBoundary
+import lettuce as lt
+from lettuce.boundary import GeneralisedPeriodicBoundary
 
 class DecayingTurbulence:
 
@@ -25,6 +27,7 @@ class DecayingTurbulence:
         )
         self.wavenumbers = []
         self.spectrum = []
+        self.wavemask = []
 
     def analytic_solution(self, x, t=0):
         return
@@ -34,9 +37,9 @@ class DecayingTurbulence:
         frequencies = [np.fft.fftfreq(dim, d=1 / dim) for dim in self.dimensions]
         wavenumber = np.meshgrid(*frequencies)
         wavenorms = np.linalg.norm(wavenumber, axis=0)
-        self.wavenumbers = np.arange(int(np.max(wavenorms)))
-        wavemask = (wavenorms[..., None] > self.wavenumbers - 0.5) & (wavenorms[..., None] <= self.wavenumbers + 0.5)
-        return wavenorms, wavenumber, wavemask
+        self.wavenumbers = np.arange(int(np.max(wavenorms))+1)
+        self.wavemask = (wavenorms[..., None] > self.wavenumbers - 0.5) & (wavenorms[..., None] <= self.wavenumbers + 0.5)
+        return wavenorms, wavenumber, self.wavemask
 
     def _generate_spectrum(self):
         wavenorms, wavenumber, wavemask = self._generate_wavenumbers()
@@ -126,4 +129,8 @@ class DecayingTurbulence:
 
     @property
     def boundaries(self):
+        mask = np.zeros(self.grid[0].shape, dtype=bool)
+        mask[:, [0, -1]] = True
+        mask[[0, -1], :] = True
+        boundary = GeneralisedPeriodicBoundary(mask=mask, lattice=self.units.lattice)
         return []

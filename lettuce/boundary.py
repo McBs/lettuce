@@ -37,6 +37,28 @@ class BounceBackBoundary:
         assert self.mask.shape == f_shape[1:]
         return self.mask
 
+class GeneralisedPeriodicBoundary:
+    """Fullway Bounce-Back Boundary"""
+    def __init__(self, mask, lattice):
+        self.lattice = lattice
+        self.mask = lattice.convert_to_tensor(mask)
+
+    def __call__(self, f):
+        u = self.lattice.u(f)
+        rho = self.lattice.rho(f)
+
+        f[:, 0, :] = self.lattice.equilibrium(1, u)[:, -2, :]+(f[:, -2, :]-self.lattice.equilibrium(rho, u)[:, -2, :])
+        f[:, -1, :]= self.lattice.equilibrium(1, u)[:, 1, :]+(f[:, 1, :]-self.lattice.equilibrium(rho, u)[:, 1, :])
+
+        f[:, :, 0] = self.lattice.equilibrium(1, u)[:, :, -2]+(f[:, :, -2] - self.lattice.equilibrium(rho, u)[:, :, -2])
+        f[:, :, -1] = self.lattice.equilibrium(1, u)[:, :, 1]+(f[:, :, 1] - self.lattice.equilibrium(rho, u)[:, :, 1])
+        # f = torch.where(self.mask, f[self.lattice.stencil.opposite], f)
+        return f
+
+    def make_no_collision_mask(self, f_shape):
+        assert self.mask.shape == f_shape[1:]
+        return self.mask
+
 
 class EquilibriumBoundaryPU:
     """Sets distributions on this boundary to equilibrium with predefined velocity and pressure.
