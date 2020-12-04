@@ -32,7 +32,7 @@ class DecayingTurbulence:
     def _generate_wavenumbers(self):
         self.dimensions = self.grid[0].shape
         frequencies = [np.fft.fftfreq(dim, d=1 / dim) for dim in self.dimensions]
-        wavenumber = np.meshgrid(*frequencies)
+        wavenumber = np.meshgrid(*frequencies, indexing='ij')
         wavenorms = np.linalg.norm(wavenumber, axis=0)
         self.wavenumbers = np.arange(int(np.max(wavenorms)))
         wavemask = (wavenorms[..., None] > self.wavenumbers - 0.5) & (wavenorms[..., None] <= self.wavenumbers + 0.5)
@@ -97,7 +97,8 @@ class DecayingTurbulence:
         ### Backtransformation to physical space
         norm = ((self.resolution * dx ** (1 - self.units.lattice.D) * np.sqrt(self.units.characteristic_length_pu))
                 if self.units.lattice.D == 3 else (self.resolution / dx))
-
+        u_real = u_real_h
+        u_imag = u_imag_h
         u = np.asarray([
             (np.fft.ifftn(u_real[dim] + u_imag[dim] * 1.0j, axes=tuple((np.arange(self.units.lattice.D)))) * norm).real
             for dim in range(self.units.lattice.D)])
@@ -122,7 +123,7 @@ class DecayingTurbulence:
     @property
     def grid(self):
         grid = [np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False) for _ in range(self.units.lattice.D)]
-        return np.meshgrid(*grid)
+        return np.meshgrid(*grid, indexing='ij')
 
     @property
     def boundaries(self):
