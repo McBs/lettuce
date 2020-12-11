@@ -112,3 +112,47 @@ class Mass(Observable):
         if self.mask is not None:
             mass -= (f*self.mask.to(dtype=torch.float)).sum()
         return mass
+
+class TurbulenceStatistics(Observable):
+    """Turbulence statistics in physical units.
+
+    Parameters
+    ----------
+    taylor_microscale : torch.Tensor
+    reynolds_number_lambda : torch.Tensor
+    autocorrelation_fct
+    length_scales
+    """
+    def __init__(self, lattice, flow, taylor_microscale=True,
+                 reynolds_number_lambda=True, autocorrelation_fct=False, length_scales=True):
+        super(TurbulenceStatistics, self).__init__(lattice, flow)
+        self.taylor_microscale = taylor_microscale
+        self.reynolds_number_lambda = reynolds_number_lambda
+        self.autocorrelation_fct = autocorrelation_fct
+        self.length_scales = length_scales
+        self.Dim = self.lattice.D
+
+    def __call__(self, f):
+
+        u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+        if self.lattice.D == 2:
+            uf = u - torch.mean(u, dim=tuple(np.arange(1, self.lattice.D + 1)))[..., None, None]
+        if self.lattice.D == 3:
+            uf = u - torch.mean(u, dim=tuple(np.arange(1,self.lattice.D+1)))[..., None, None, None]
+        r = int(self.flow.units.characteristic_length_lu / 2)
+        R = [torch.mean(uf * torch.roll(uf, i, dims=1), dim=tuple(np.arange(1,self.lattice.D+1))) /
+             torch.mean(uf ** 2, dim=tuple(np.arange(1,self.lattice.D+1))) for i in range(r)]
+        R = torch.cat(R).reshape(r,self.lattice.D)
+
+        f_ddr = (-R[2,0] + 16 * R[1,0] - 30 * R[0,0] + 16 * R[1,0] - R[2,0]) / (12 * self.flow.units.convert_length_to_pu(1) ** 2)
+        lambda_f = 1 / torch.sqrt(-.5 * f_ddr)
+
+        if self.lattice.D == 2:
+            uf_RMS = torch.sqrt(1 / 2 * (torch.mean(uf[0] ** 2 + uf[1] ** 2)))
+        if self.lattice.D == 3:
+            uf_RMS = torch.sqrt(1 / 3 * (torch.mean(uf[0] ** 2 + uf[1] ** 2 + uf[2] ** 2)))
+        Re_l = uf_RMS * lambda_f / self.flow.units.viscosity_pu
+
+        statistics = torch.stack([self.flow.units.convert_length_to_lu(lambda_f), lambda_f, Re_l, uf_RMS, torch.sum(R[:,0]),torch.sum(R[:,1])])
+
+        return statistics
