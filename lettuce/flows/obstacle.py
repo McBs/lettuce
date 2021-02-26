@@ -1,6 +1,6 @@
 import numpy as np
 from lettuce.unit import UnitConversion
-from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet
+from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet, NonEquilibriumExtrapolationInletU
 
 
 class Obstacle2D(object):
@@ -117,6 +117,7 @@ class Obstacle3D(object):
         p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_char = np.array([self.units.characteristic_velocity_pu, 0.0, 0.0])[..., None, None, None]
         u = (1 - self.mask.astype(np.float)) * u_char
+        u[2] += np.sin(x[2]/x[2].shape[1]*2*np.pi)* self.units.characteristic_velocity_pu #* (0.5-np.random.rand(x[0].shape[0],x[0].shape[1]))
         return p, u
 
     @property
@@ -128,8 +129,6 @@ class Obstacle3D(object):
 
     @property
     def boundaries(self):
-        x, y, z = self.grid
-        return [EquilibriumBoundaryPU(np.abs(x) < 1e-6, self.units.lattice, self.units,
-                                      np.array([self.units.characteristic_velocity_pu, 0, 0])),
+        return [NonEquilibriumExtrapolationInletU(self.units.lattice,[self.units.characteristic_velocity_lu, 0, 0],[-1,0,0]),
                 AntiBounceBackOutlet(self.units.lattice, [1, 0, 0]),
                 BounceBackBoundary(self.mask, self.units.lattice)]

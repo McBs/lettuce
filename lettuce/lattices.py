@@ -16,6 +16,9 @@ from lettuce.util import LettuceException
 from lettuce.equilibrium import QuadraticEquilibrium
 
 
+__all__ = ["Lattice"]
+
+
 class Lattice:
 
     def __init__(self, stencil, device, dtype=torch.float):
@@ -56,7 +59,7 @@ class Lattice:
 
     def j(self, f):
         """momentum"""
-        return self.einsum("qd,q->d", [self.e, f])
+        return torch.einsum("qd,q...->d...", self.e, f)
 
     def u(self, f):
         """velocity"""

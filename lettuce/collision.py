@@ -8,6 +8,12 @@ from lettuce.equilibrium import QuadraticEquilibrium
 from lettuce.util import LettuceException
 
 
+__all__ = [
+    "BGKCollision", "KBCCollision2D", "KBCCollision3D", "MRTCollision", "RegularizedCollision",
+    "SmagorinskyCollision", "TRTCollision", "BGKInitialization"
+]
+
+
 class BGKCollision:
     def __init__(self, lattice, tau, force=None):
         self.force = force
@@ -63,6 +69,7 @@ class TRTCollision:
         f = f - f_diff_neq
         return f
 
+
 class RegularizedCollision:
     """Regularized LBM according to Jonas Latt and Bastien Chopard (2006)"""
     def __init__(self, lattice, tau):
@@ -91,6 +98,7 @@ class RegularizedCollision:
         f = feq + (1. - 1. / self.tau) * fi1
 
         return f
+
 
 class KBCCollision2D:
     """Entropic multi-relaxation time model according to Karlin et al. in two dimensions"""
@@ -140,9 +148,8 @@ class KBCCollision2D:
         return s
 
     def __call__(self, f):
-        rho = self.lattice.rho(f)
-        u = self.lattice.u(f)
-        feq = self.lattice.equilibrium(rho, u)
+        # the deletes are not part of the algorithm, they just keep the memory usage lower
+        feq = self.lattice.equilibrium(self.lattice.rho(f), self.lattice.u(f))
         #k = torch.zeros_like(f)
 
         m = self.kbc_moment_transform(f)
@@ -162,16 +169,18 @@ class KBCCollision2D:
         m = self.kbc_moment_transform(feq)
 
         delta_s -= self.compute_s_seq_from_m(f, m)
+        del m
         delta_h = f - feq - delta_s
 
         sum_s = self.lattice.rho(delta_s * delta_h / feq)
         sum_h = self.lattice.rho(delta_h * delta_h / feq)
-
+        del feq
         gamma_stab = 1. / self.beta - (2 - 1. / self.beta) * sum_s / sum_h
-        gamma_stab[gamma_stab<1E-15] = 2.0
-        gamma_stab[torch.isnan(gamma_stab)]=2.0
+        gamma_stab[gamma_stab < 1E-15] = 2.0
+        gamma_stab[torch.isnan(gamma_stab)] = 2.0
         f = f - self.beta * (2 * delta_s + gamma_stab * delta_h)
         return f
+
 
 class KBCCollision3D:
     """Entropic multi-relaxation time-relaxation time model according to Karlin et al. in three dimensions"""
@@ -231,9 +240,8 @@ class KBCCollision3D:
         return s
 
     def __call__(self, f):
-        rho = self.lattice.rho(f)
-        u = self.lattice.u(f)
-        feq = self.lattice.equilibrium(rho, u)
+        # the deletes are not part of the algorithm, they just keep the memory usage lower
+        feq = self.lattice.equilibrium(self.lattice.rho(f), self.lattice.u(f))
         #k = torch.zeros_like(f)
 
         m = self.kbc_moment_transform(f)
@@ -250,11 +258,12 @@ class KBCCollision3D:
         m = self.kbc_moment_transform(feq)
 
         delta_s -= self.compute_s_seq_from_m(f, m)
+        del m
         delta_h = f - feq - delta_s
 
         sum_s = self.lattice.rho(delta_s * delta_h / feq)
         sum_h = self.lattice.rho(delta_h * delta_h / feq)
-
+        del feq
         gamma_stab = 1. / self.beta - (2 - 1. / self.beta) * sum_s / sum_h
         gamma_stab[gamma_stab<1E-15] = 2.0
         # Detect NaN
@@ -262,7 +271,6 @@ class KBCCollision3D:
         f = f - self.beta * (2 * delta_s + gamma_stab * delta_h)
 
         return f
-
 
 
 class SmagorinskyCollision:
@@ -293,8 +301,6 @@ class SmagorinskyCollision:
             self.tau_eff = nu_eff*3.0+0.5
         Si = 0 if self.force is None else self.force.source_term(u)
         return f - 1.0 / self.tau_eff * (f-feq) + Si
-
-
 
 
 class BGKInitialization:
