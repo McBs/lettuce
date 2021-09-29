@@ -6,12 +6,17 @@ import numpy as np
 
 from lettuce.unit import UnitConversion
 from lettuce.boundary import BounceBackBoundary
-
+from lettuce.grid import RegularGrid
+from lettuce import mpiClass
 
 class PoiseuilleFlow2D(object):
-    def __init__(self, resolution, reynolds_number, mach_number, lattice, initialize_with_zeros=True):
+    def __init__(self, resolution, reynolds_number, mach_number, lattice, initialize_with_zeros=True,mpiObject=None):
         self.resolution = resolution
-        self.lattice = lattice
+        self.lattice = lattice      
+        if(mpiObject is not None):
+            self.mpiObject=mpiObject
+        else:
+            self.mpiObject=mpiClass.mpiObject(0)
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number, mach_number=mach_number,
@@ -19,14 +24,32 @@ class PoiseuilleFlow2D(object):
             characteristic_velocity_pu=1
         )
         self.initialize_with_zeros = initialize_with_zeros
+        self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject)
+        self.ref=0
+
+    def refinment(self,newResolution):
+        self.resolution=newResolution
+        reynolds_number=self.units.reynolds_number
+        mach_number=self.units.mach_number
+        resolution=newResolution
+        lattice=self.units.lattice
+        self.units = UnitConversion(
+            lattice,
+            reynolds_number=reynolds_number, mach_number=mach_number,
+            characteristic_length_lu=resolution, characteristic_length_pu=1,
+            characteristic_velocity_pu=1
+        )
+        self.ref=1
+
 
     def analytic_solution(self, grid):
         half_lattice_spacing = 0.5 / self.resolution
-        x, y = grid
+        x,y = grid
         nu = self.units.viscosity_pu
         rho = 1
         u = np.array([
-            self.acceleration[0] / (2 * rho * nu) * ((y - half_lattice_spacing) * (1 - half_lattice_spacing - y)),
+            self.acceleration[0] / (2 * rho * nu) * ((y-half_lattice_spacing) * (1 - half_lattice_spacing - y)),
             np.zeros(x.shape)
         ])
         p = np.array([y * 0 + self.units.convert_density_lu_to_pressure_pu(rho)])
@@ -42,8 +65,11 @@ class PoiseuilleFlow2D(object):
 
     @property
     def grid(self):
-        x = np.linspace(0, 1, num=self.resolution + 1, endpoint=True)
-        y = np.linspace(0, 1, num=self.resolution + 1, endpoint=True)
+        x = np.linspace(0, 1, num=self.resolution+1, endpoint=True)#anpassen
+        if(self.ref==1):
+            index=self.mpiObject.index
+            x =x[index.start:index.stop,...]
+        y = np.linspace(0, 1, num=self.resolution+1, endpoint=True)
         return np.meshgrid(x, y, indexing='ij')
 
     @property
@@ -56,3 +82,4 @@ class PoiseuilleFlow2D(object):
     @property
     def acceleration(self):
         return np.array([0.001, 0])
+

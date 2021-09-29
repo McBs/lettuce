@@ -1,7 +1,7 @@
 import numpy as np
 from lettuce.unit import UnitConversion
 from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet
-
+from lettuce.grid import  RegularGrid
 
 class Obstacle2D(object):
     """
@@ -44,7 +44,7 @@ class Obstacle2D(object):
     >>> flow.mask[np.where(condition)] = 1
    """
 
-    def __init__(self, resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu):
+    def __init__(self, resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu, mpiObject=None):
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
         self.units = UnitConversion(
@@ -53,8 +53,10 @@ class Obstacle2D(object):
             characteristic_length_lu=char_length_lu, characteristic_length_pu=1,
             characteristic_velocity_pu=1
         )
-        self._mask = np.zeros(shape=(self.resolution_x, self.resolution_y), dtype=np.bool)
-
+        self.rgrid = RegularGrid([resolution_x, resolution_y], self.units.characteristic_length_lu,
+                                self.units.characteristic_length_pu, endpoint=False, mpiObject=mpiObject)
+        
+        self._mask = np.zeros(shape=self.rgrid.shape, dtype=np.bool)
     @property
     def mask(self):
         return self._mask
@@ -67,18 +69,13 @@ class Obstacle2D(object):
     def initial_solution(self, x):
         p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_char = np.array([self.units.characteristic_velocity_pu, 0.0])[..., None, None]
-        u = (1 - self.mask.astype(np.float)) * u_char
+        sel=self.mask.astype(np.float)
+        u = (1 - sel) * u_char
         return p, u
-
+    
     @property
     def grid(self):
-        stop_x = self.resolution_x / self.units.characteristic_length_lu
-        stop_y = self.resolution_y / self.units.characteristic_length_lu
-
-        x = np.linspace(0, stop_x, num=self.resolution_x, endpoint=False)
-        y = np.linspace(0, stop_y, num=self.resolution_y, endpoint=False)
-
-        return np.meshgrid(x, y, indexing='ij')
+        return self.rgrid()
 
     @property
     def boundaries(self):
@@ -93,12 +90,13 @@ class Obstacle2D(object):
         ]
 
 
+
 class Obstacle3D(object):
     """Flow class to simulate the flow around an object (mask) in 3D.
     See documentation for :class:`~Obstacle2D` for details.
     """
 
-    def __init__(self, resolution_x, resolution_y, resolution_z, reynolds_number, mach_number, lattice, char_length_lu):
+    def __init__(self, resolution_x, resolution_y, resolution_z, reynolds_number, mach_number, lattice, char_length_lu, mpiObject=None):
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
         self.resolution_z = resolution_z
@@ -111,8 +109,12 @@ class Obstacle3D(object):
             characteristic_length_pu=1,
             characteristic_velocity_pu=1)
 
-        self._mask = np.zeros(shape=(self.resolution_x, self.resolution_y, self.resolution_z), dtype=np.bool)
+       
+        self.rgrid = RegularGrid([resolution_x, resolution_y, resolution_z], self.units.characteristic_length_lu,
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject)
 
+        
+        self._mask = np.zeros(shape=self.rgrid.shape, dtype=np.bool)
     @property
     def mask(self):
         return self._mask
@@ -125,21 +127,14 @@ class Obstacle3D(object):
     def initial_solution(self, x):
         p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_char = np.array([self.units.characteristic_velocity_pu, 0.0, 0.0])[..., None, None, None]
-        u = (1 - self.mask.astype(np.float)) * u_char
+        sel=self.mask.astype(np.float)
+        u = (1 - sel) * u_char
         return p, u
-
+    
     @property
     def grid(self):
-        stop_x = self.resolution_x / self.units.characteristic_length_lu
-        stop_y = self.resolution_y / self.units.characteristic_length_lu
-        stop_z = self.resolution_z / self.units.characteristic_length_lu
-
-        x = np.linspace(0, stop_x, num=self.resolution_x, endpoint=False)
-        y = np.linspace(0, stop_y, num=self.resolution_y, endpoint=False)
-        z = np.linspace(0, stop_z, num=self.resolution_z, endpoint=False)
-
-        return np.meshgrid(x, y, z, indexing='ij')
-
+        return self.rgrid()
+        
     @property
     def boundaries(self):
         x, y, z = self.grid

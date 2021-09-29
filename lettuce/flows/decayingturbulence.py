@@ -9,11 +9,12 @@ energy_spectrum: returns a pair [spectrum, wavenumbers]
 
 import numpy as np
 from lettuce.unit import UnitConversion
-
+from lettuce.grid import RegularGrid
+from lettuce import mpiClass
 
 class DecayingTurbulence:
 
-    def __init__(self, resolution, reynolds_number, mach_number, lattice, k0=20, ic_energy=0.5):
+    def __init__(self, resolution, reynolds_number, mach_number, lattice, k0=20, ic_energy=0.5,mpiObject=None):
         self.k0 = k0
         self.ic_energy = ic_energy
         self.resolution = resolution
@@ -23,8 +24,31 @@ class DecayingTurbulence:
             characteristic_length_lu=resolution, characteristic_length_pu=2 * np.pi,
             characteristic_velocity_pu=None
         )
+        self.ref=0
+        if(mpiObject is not None):
+            self.mpiObject=mpiObject
+        else:
+            self.mpiObject=mpiClass.mpiObject(0)
         self.wavenumbers = []
         self.spectrum = []
+        self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
+
+    def refinment(self,newResolution):
+        
+        self.resolution=newResolution
+        reynolds_number=self.units.reynolds_number
+        mach_number=self.units.mach_number
+        resolution=newResolution
+        lattice=self.units.lattice
+        self.units = UnitConversion(
+            lattice,
+            reynolds_number=reynolds_number, mach_number=mach_number,
+            characteristic_length_lu=resolution, characteristic_length_pu=2 * np.pi,
+            characteristic_velocity_pu=None
+        )
+        p, u = self.initial_solution(0)
+        self.ref=1
 
     def analytic_solution(self, x, t=0):
         return
@@ -49,7 +73,10 @@ class DecayingTurbulence:
 
     def _generate_initial_velocity(self, ek, wavenumber):
         dx = self.units.convert_length_to_pu(1.0)
-        u = np.random.random(np.array(wavenumber).shape) * 2 * np.pi + 0j
+        inputrand=np.array(wavenumber).shape
+        randomres=np.random.random(inputrand)
+        erg=randomres * 2 * np.pi + 0j
+        u = erg
         u = [np.fft.fftn(u[dim], axes=tuple((np.arange(self.units.lattice.D)))) for dim in range(self.units.lattice.D)]
 
         u_real = [u[dim].real for dim in range(self.units.lattice.D)]
@@ -121,8 +148,14 @@ class DecayingTurbulence:
 
     @property
     def grid(self):
-        grid = [np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False) for _ in range(self.units.lattice.D)]
-        return np.meshgrid(*grid)
+        #grid = [np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False) for _ in range(self.units.lattice.D)] #anpassen
+        x=np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
+        y=np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
+        if(self.ref==1):
+            index=self.mpiObject.index
+            x =x[index.start:index.stop,...]
+        y = np.linspace(0., 1., num=self.resolution, endpoint=False)
+        return np.meshgrid(x, y, indexing='ij')
 
     @property
     def boundaries(self):
