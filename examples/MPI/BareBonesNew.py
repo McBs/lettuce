@@ -10,7 +10,7 @@ def run(device, mpiObject):
     #device = torch.device("cuda:0")  # replace with device("cpu"), if no GPU is available
     lattice = lt.Lattice(lt.D2Q9, device=device, dtype=torch.float64)  # single precision - float64 for double precision
     resolution = 120  # resolution of the lattice, low resolution leads to unstable speeds somewhen after 10 (PU)
-    flow = lt.TaylorGreenVortex2D(resolution=resolution, reynolds_number=10000, mach_number=0.05, lattice=lattice)
+    flow = lt.TaylorGreenVortex2D(resolution=resolution, reynolds_number=10000, mach_number=0.05, lattice=lattice,mpiObject=mpiObject)
     print(flow.units.relaxation_parameter_lu)
     # select collision model - try also KBCCollision or RegularizedCollision
     collision = lt.BGKCollision(lattice, tau=flow.units.relaxation_parameter_lu)
