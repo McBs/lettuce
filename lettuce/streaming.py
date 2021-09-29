@@ -86,7 +86,8 @@ class StandardStreaming:
         inf = dist.irecv(tensor=input_forward.contiguous(), src=self.prev)
         inb = dist.irecv(tensor=input_backward.contiguous(), src=self.next)
         
-        f = torch.cat((torch.zeros_like(f[:, 0, ...]), f, torch.zeros_like(f[:, 0, ...])), dim=1)
+        
+        f = torch.cat((torch.zeros_like(f[:, 0, ...]).unsqueeze(1), f, torch.zeros_like(f[:, 0, ...]).unsqueeze(1)), dim=1)
        
         inf.wait()
         #WIP: vor diesem wait schon mal rest streamen?
