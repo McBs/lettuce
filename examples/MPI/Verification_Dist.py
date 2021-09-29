@@ -196,5 +196,5 @@ if __name__ == "__main__":
     
     pcList=[[20,"hpc-node000"]]
     gpuList=[[2,"gpu-node009",50]]
-    mpiOBJ=lt.mpiObject(0,NumberGhostCells=1,nodeList=pcList,setParts=0)
+    mpiOBJ=lt.mpiObject(0,NumberGhostCells=1,sizeList=pcList,setParts=0)
     lt.running(run,device,mpiOBJ)
