@@ -63,6 +63,6 @@ if __name__ == "__main__":
     device = torch.device("cuda")
     pcList=[[0,20],[1,40]]
     gpuList=[[4,"gpu-node001"],[4,"gpu-node002"],[4,"gpu-node003"],[4,"gpu-node004"],[1,"gpu-node005"],[1,"gpu-node006"],[1,"gpu-node007"],[1,"gpu-node008"],[2,"gpu-node009"],[2,"gpu-node010"]]
-    mpiOBJ=lt.mpiObject(0,nodeList=pcList,gpuList=gpuList,setParts=0,gridRefinment=0)
+    mpiOBJ=lt.mpiObject(0,sizeList=pcList,gpuList=gpuList,setParts=0,gridRefinment=0)
     lt.running(run,device,mpiOBJ)
     
