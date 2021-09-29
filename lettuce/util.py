@@ -5,6 +5,8 @@ Utility functions.
 import inspect
 import torch
 
+import numpy as np
+
 __all__ = [
     "LettuceException", "LettuceWarning", "InefficientCodeWarning", "ExperimentalWarning",
     "get_subclasses", "torch_gradient", "torch_jacobi", "grid_fine_to_coarse", "pressure_poisson"
@@ -94,6 +96,64 @@ def torch_gradient(f, dx=1, order=2):
                                   weight[5] * f.roll(shifts=shift[i][5], dims=dims)
                           ) * torch.tensor(1.0 / dx, dtype=f.dtype, device=f.device)
     return out
+
+def grid_coarse_to_Fine(lattice,f_coarse,tau_coarse,tau_fine,resOrg,xDistributed):
+    
+    #Algoritm implemented from: Advances in multi-domain lattice Boltzmann grid refinement 
+    # by D. Lagrava a,⇑ , O. Malaspinas b,a , J. Latt a , B. Chopard a
+    
+    f_eq = lattice.equilibrium(lattice.rho(f_coarse), lattice.u(f_coarse))
+    f_neq = f_coarse - f_eq
+    tauF_neq=(tau_coarse/(2*tau_fine))*f_neq
+    result=f_eq+tauF_neq
+
+    #defines the padding for the x dimension
+    xDim=(0,0)
+    if(xDistributed==0):
+        xDim=(5,5)
+
+    #interpolating
+    dims=lattice.stencil.e.shape[0]
+
+    if lattice.D == 3:
+        #create goal tensor
+        final=torch.zeros((dims,(resOrg[1]-10)*2,resOrg[2]*2,resOrg[3]*2))
+        for i in range(dims):
+            #get a slice and convert it to numpy
+            part=result[i,...]
+            partnp=part.detach().cpu().numpy()
+            #pad with warp 
+            partnp=np.pad(partnp,[xDim,(5,5),(5,5)],'wrap')
+            #create intermidiate Tensor
+            insertet=torch.zeros((1,1,resOrg[2]+10,resOrg[3]+10))
+            #create tensor for goal tensor
+            out=torch.zeros(((resOrg[1]-10)*2,resOrg[2]*2,resOrg[3]*2))
+            #select a sub tensor for bilinear interpolation
+            for y in range(resOrg[1]):  
+                #create torch tensor from numpy
+                insertet[0,0,...]=torch.from_numpy(partnp[y,...])
+                #interpolate                
+                bigger=torch.nn.functional.interpolate(insertet, scale_factor=2,mode='bilinear',align_corners=False)
+                out[y,...]=bigger[0,0,10:-10,10:-10]
+            #insert into final tensor
+            final[i]=out      
+    
+    else:
+        final=torch.zeros((dims,(resOrg[1]-10)*2,resOrg[2]*2))
+        for i in range(dims):
+            part=result[i,...]
+            partnp=part.detach().cpu().numpy()
+            partnp=np.pad(partnp,[xDim,(5,5)],'wrap')
+            insertet=torch.zeros((1,1,resOrg[1],resOrg[2]+10))
+            insertet[0,0,...]=torch.from_numpy(partnp)       
+            bigger=torch.nn.functional.interpolate(insertet, scale_factor=2,mode='bilinear',align_corners=False)
+            out=bigger[0,0,10:-10,10:-10]
+            final[i]=out
+
+    #convert final tensor to desired device
+    final=lattice.convert_to_tensor(final)
+    return final
+     
 
 
 def grid_fine_to_coarse(lattice, f_fine, tau_fine, tau_coarse):

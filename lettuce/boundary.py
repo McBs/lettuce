@@ -30,12 +30,17 @@ class BounceBackBoundary:
         self.lattice = lattice
 
     def __call__(self, f):
+        # wenn eintrag true ist dann f[opposite] andernfalls f
+        #-> wenn maske False ist brauchen wir diese nicht auszuführen
         f = torch.where(self.mask, f[self.lattice.stencil.opposite], f)
         return f
 
     def make_no_collision_mask(self, f_shape):
         assert self.mask.shape == f_shape[1:]
         return self.mask
+
+    def hasTrueEntrys(self):
+        return torch.max(self.mask)
 
 
 class EquilibriumBoundaryPU:
@@ -56,8 +61,13 @@ class EquilibriumBoundaryPU:
         u = self.units.convert_velocity_to_lu(self.velocity)
         feq = self.lattice.equilibrium(rho, u)
         feq = self.lattice.einsum("q,q->q", [feq, torch.ones_like(f)])
+        #wenn maske true ist dann nutzen wir feq
+        #wenn die gesamte maske false ist nutzen wir nur f
         f = torch.where(self.mask, feq, f)
         return f
+
+    def hasTrueEntrys(self):
+        return torch.max(self.mask)
 
 
 class AntiBounceBackOutlet:
@@ -128,6 +138,9 @@ class AntiBounceBackOutlet:
         no_stream_mask[[np.array(self.lattice.stencil.opposite)[self.velocities]] + self.index] = 1
         return no_stream_mask
 
+    def hasTrueEntrys(self):
+        return True
+
     # not 100% sure about this. But collisions seem to stabilize the boundary.
     # def make_no_collision_mask(self, f_shape):
     #    no_collision_mask = torch.zeros(size=f_shape[1:], dtype=torch.bool, device=self.lattice.device)
@@ -162,3 +175,6 @@ class EquilibriumOutletP(AntiBounceBackOutlet):
         no_collision_mask = torch.zeros(size=f_shape[1:], dtype=torch.bool, device=self.lattice.device)
         no_collision_mask[self.index] = 1
         return no_collision_mask
+
+    def hasTrueEntrys(self):
+        return True
