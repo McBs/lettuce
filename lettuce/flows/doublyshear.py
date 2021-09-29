@@ -9,6 +9,7 @@ from lettuce.unit import UnitConversion
 from lettuce.grid import RegularGrid
 from lettuce import mpiClass
 
+
 class DoublyPeriodicShear2D:
     def __init__(self, resolution, reynolds_number, mach_number, lattice, shear_layer_width=80, initial_perturbation_magnitude=0.05,mpiObject=None):
         self.initial_perturbation_magnitude = initial_perturbation_magnitude
@@ -24,8 +25,7 @@ class DoublyPeriodicShear2D:
             characteristic_length_lu=resolution, characteristic_length_pu=1,
             characteristic_velocity_pu=1
         )
-        self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject)
+        self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu, self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
         self.ref=0
     
     def refinment(self,newResolution):

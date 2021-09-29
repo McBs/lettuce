@@ -19,7 +19,7 @@ class CouetteFlow2D(object):
             characteristic_length_lu=resolution, characteristic_length_pu=1,
             characteristic_velocity_pu=1
         )
-        self.rgrid = RegularGrid([resolution, resolution, resolution], self.units.characteristic_length_lu,
+        self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
                                 self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject)
 
 

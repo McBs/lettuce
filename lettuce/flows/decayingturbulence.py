@@ -32,7 +32,7 @@ class DecayingTurbulence:
         self.wavenumbers = []
         self.spectrum = []
         self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject,lattice=lattice)
 
     def refinment(self,newResolution):
         

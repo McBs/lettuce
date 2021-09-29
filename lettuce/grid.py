@@ -8,7 +8,7 @@ __all__ = ["RegularGrid"]
 
 class RegularGrid(object):
 
-    def __init__(self, resolution, char_length_lu, char_length_pu, endpoint=False, mpiObject=None):
+    def __init__(self, resolution, char_length_lu, char_length_pu, endpoint=False, mpiObject=None,lattice=None):
         """
         class to construct a regular lattice grid for the simulation
         using the rank and size arguments this can be used to split the simulation domain across several processes
@@ -41,6 +41,7 @@ class RegularGrid(object):
         on process with rank 0: the whole tensor (of the full domain)
         on all other processes: 1
         """
+        self.lattice=lattice
         self.resolution = resolution
         self.char_length_lu = char_length_lu
         self.char_length_pu = char_length_pu
@@ -220,18 +221,27 @@ class RegularGrid(object):
             dist.send(tensor=output, dst=0)
             return 1
 
-    def distributeToList(self,tensor):
+    def distributeToList(self,tensor,Q=-1):
         """Distributes the relevant part of a tensor to the specific rank """
         if(self.rank==0):
             for i in range(1,self.size):
                 selectindex=self.computeList[i]
                 sending=tensor[:,selectindex.start:selectindex.stop,...]
-                dist.send(tensor=sending,dst=i)
+                trans=sending.detach().clone().cpu().contiguous()
+                dist.send(tensor=trans,dst=i)
             selectindex=self.computeList[0]
             return tensor[:,selectindex.start:selectindex.stop,...]
         else:
-            res=self.resolution
+            res=[]
+            if(Q==-1):
+                res.append(self.lattice.Q)
+            res.append(self.resolution[0])
+            res.append(self.resolution[1])
+            
+            if(self.lattice.Q==3):
+                res.append(self.resolution[2])
+            
             res[1]=self.index.stop-self.index.start
-            local=torch.np.zeros(res)
+            local=torch.zeros(res)
             dist.recv(tensor=local, src=0)
             return local

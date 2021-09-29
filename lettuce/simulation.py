@@ -95,7 +95,7 @@ class Simulation:
         self._boundaries = deepcopy(self.flow.boundaries)  # store locally to keep the flow free from the boundary state
         removeentrys=[]
         for i in range (len(self._boundaries)):
-            boundary=self._boundaries
+            boundary=self._boundaries[i]
             if hasattr(boundary, "make_no_collision_mask"):
                 bound= boundary.make_no_collision_mask(self.f.shape)
                 bound=lattice.convert_to_tensor(bound)
@@ -110,7 +110,7 @@ class Simulation:
 
         for i in range(len(removeentrys)-1,-1,-1):
             entry=removeentrys[i]
-            self._boundaries.remove(entry) 
+            self._boundaries.pop(entry) 
 
         
         if no_stream_mask.any():
@@ -168,7 +168,7 @@ class Simulation:
             self._boundaries = deepcopy(self.flow.boundaries)  # store locally to keep the flow free from the boundary state
             removeentrys=[]
             for i in range (len(self._boundaries)):
-                boundary=self._boundaries
+                boundary=self._boundaries[i]
                 if hasattr(boundary, "make_no_collision_mask"):
                     self.no_collision_mask = self.no_collision_mask | boundary.make_no_collision_mask(self.f.shape)
                 if hasattr(boundary, "make_no_stream_mask"):
@@ -180,12 +180,35 @@ class Simulation:
 
             for i in range(len(removeentrys)-1,-1,-1):
                 entry=removeentrys[i]
-                self._boundaries.remove(entry) 
+                self._boundaries.pop(entry) 
         else:
             #check for distributing
             if(self.mpiObject.mpi==1 and self.mpiObject.distributefromRank0==1):
                 self.f=self.flow.rgrid.distributeToList(self.f)
-            pass   
+                resolution=self.flow.resolution
+                self.flow.refinment(resolution)
+                grid = self.flow.grid
+                self.no_collision_mask = self.lattice.convert_to_tensor(np.zeros_like(grid[0], dtype=bool))
+                no_stream_mask = self.lattice.convert_to_tensor(np.zeros(self.f.shape, dtype=bool))
+                
+                #boundarys scalieren
+
+                self._boundaries = deepcopy(self.flow.boundaries)  # store locally to keep the flow free from the boundary state
+                removeentrys=[]
+                for i in range (len(self._boundaries)):
+                    boundary=self._boundaries[i]
+                    if hasattr(boundary, "make_no_collision_mask"):
+                        self.no_collision_mask = self.no_collision_mask | boundary.make_no_collision_mask(self.f.shape)
+                    if hasattr(boundary, "make_no_stream_mask"):
+                        no_stream_mask = no_stream_mask | boundary.make_no_stream_mask(self.f.shape)
+                    if(not boundary.hasTrueEntrys()):
+                        removeentrys.append(i)
+                if no_stream_mask.any():
+                    self.streaming.no_stream_mask = no_stream_mask
+
+                for i in range(len(removeentrys)-1,-1,-1):
+                    entry=removeentrys[i]
+                    self._boundaries.pop(entry) 
         
         #copy self.f and masks to target device
         if(self.mpiObject.initOnCPU==1):

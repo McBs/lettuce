@@ -25,7 +25,7 @@ class PoiseuilleFlow2D(object):
         )
         self.initialize_with_zeros = initialize_with_zeros
         self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject,lattice=lattice)
         self.ref=0
 
     def refinment(self,newResolution):
