@@ -25,7 +25,7 @@ class mpiObject:
         self.prev=0
         self.rank=0
         self.size=1
-        self.output=output
+        self.output=printUserInfo
 
         self.gridRefinment=gridRefinment
         if(self.mpi):
