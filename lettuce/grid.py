@@ -121,7 +121,6 @@ class RegularGrid(object):
                     #no correction
                     self.index = slice(int(np.floor(self.resolution[0] * self.rank / self.size)),
                            int(np.floor(self.resolution[0] * (self.rank + 1) / self.size)))
-                    print("INIT",self.index)
                     computeList=[]
 
                     for i in range(self.size):

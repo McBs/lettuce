@@ -85,22 +85,19 @@ def write_vtk(point_dict, id=0, filename_base="./data/output",mpiObject=None, re
 class VTKReporter:
     """General VTK Reporter for velocity and pressure"""
 
-    def __init__(self, lattice, flow, interval=50, filename_base="./data/output", mpiObj=None):
+    def __init__(self, lattice, flow, interval=50, filename_base="./data/output"):
         self.lattice = lattice
         self.flow = flow
         self.interval = interval
         self.filename_base = filename_base
         directory = os.path.dirname(filename_base)
         self.point_dict = dict()
-        if(mpiObj!=None):
-            self.mpiObject=mpiObj
-            if(self.mpiObject.rank==0):
-                if not os.path.isdir(directory):
-                    os.mkdir(directory)
-        else:
-            self.mpiObject=mpiObject(0)
+        
+        self.mpiObject=lattice.mpiObject
+        if(self.mpiObject.rank==0):
             if not os.path.isdir(directory):
                 os.mkdir(directory)
+        
 
     def __call__(self, i, t, f):
         if i % self.interval == 0:
@@ -139,30 +136,26 @@ class VTKReporter:
 class ErrorReporter:
     """Reports numerical errors with respect to analytic solution."""
 
-    def __init__(self, lattice, flow, interval=1, out=sys.stdout, mpiObj=None):
+    def __init__(self, lattice, flow, interval=1, out=sys.stdout):
         assert hasattr(flow, "analytic_solution")
         self.lattice = lattice
         self.flow = flow
         self.interval = interval
         self.out = [] if out is None else out
-        self.mpiObject=mpiObj
-        if(self.mpiObject is not None):
-            if(self.mpiObject.mpi==1):
-                if(self.mpiObject.rank==0):
-                    if not isinstance(self.out, list):
-                        print("#error_u         error_p", file=self.out)
-            else:
+        self.mpiObject=lattice.mpiObject
+        
+        if(self.mpiObject.mpi==1):
+            if(self.mpiObject.rank==0):
                 if not isinstance(self.out, list):
                     print("#error_u         error_p", file=self.out)
         else:
-            self.mpiObject=mpiObject(0)
             if not isinstance(self.out, list):
                 print("#error_u         error_p", file=self.out)
-
+        
 
     def __call__(self, i, t, f):
         if i % self.interval == 0:
-            pref, uref = self.flow.analytic_solution(self.flow.rgrid.global_grid, t=t)
+            pref, uref = self.flow.analytic_solution(self.flow.rgrid.global_grid(), t=t)
             pref = self.lattice.convert_to_tensor(pref)
             uref = self.lattice.convert_to_tensor(uref)
 
@@ -197,12 +190,12 @@ class ObservableReporter:
     >>> # simulation.reporters.append(reporter)
     """
 
-    def __init__(self, observable, interval=1, out=sys.stdout, mpiObj=None):
+    def __init__(self, observable, interval=1, out=sys.stdout):
         self.observable = observable
         self.interval = interval
         self.out = [] if out is None else out
         self._parameter_name = observable.__class__.__name__
-        self.mpiObj=mpiObj
+        self.mpiObj=observable.mpiObject
         if(self.mpiObj is None):
             self.mpiObj=mpiObject(0)
 
@@ -233,15 +226,13 @@ class ObservableReporter:
 class StepReporter:
     """General VTK Reporter for velocity and pressure"""
 
-    def __init__(self, lattice, flow, interval=50, mpiObj=None):
+    def __init__(self, lattice, flow, interval=50):
         self.lattice = lattice
         self.flow = flow
         self.interval = interval
-        if(mpiObj!=None):
-            self.mpiObject=mpiObj
-        else:
-            self.mpiObject=mpiObject(0)
-
+       
+        self.mpiObject=lattice.mpiObject
+       
         
     def __call__(self, i, t, f):
         if i % self.interval == 0:
@@ -251,15 +242,14 @@ class StepReporter:
 class ProgressReporter:
     """General VTK Reporter for velocity and pressure"""
 
-    def __init__(self, lattice, flow, interval=50, end=-1, mpiObj=None):
+    def __init__(self, lattice, flow, interval=50, end=-1):
         self.lattice = lattice
         self.flow = flow
         self.interval = interval
         self.end=end
-        if(mpiObj!=None):
-            self.mpiObject=mpiObj
-        else:
-            self.mpiObject=mpiObject(0)
+        
+        self.mpiObject=lattice.mpiObject
+       
         self.rank=self.mpiObject.rank
         if(end<0):
             self.rank=1

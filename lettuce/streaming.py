@@ -19,14 +19,13 @@ class StandardStreaming:
         If None, stream all (also around all boundaries).
     """
 
-    def __init__(self, lattice, mpiObject=None):
+    def __init__(self, lattice):
         self.lattice = lattice
         self._no_stream_mask = None
 
-        if(mpiObject is not None):
-            self.mpiObject=mpiObject
-        else:
-            self.mpiObject=mpii.mpiObject(0)
+       
+        self.mpiObject=lattice.mpiObject
+        
         
         if(self.mpiObject.mpi==1):    
             global os
@@ -35,7 +34,6 @@ class StandardStreaming:
             from torch.multiprocessing import Process
             global dist
             import torch.distributed as dist
-            print("mpiStream")
 
             self.localCall=self.callMPI
             self.size = self.mpiObject.size
@@ -86,7 +84,8 @@ class StandardStreaming:
         inf = dist.irecv(tensor=input_forward.contiguous(), src=self.prev)
         inb = dist.irecv(tensor=input_backward.contiguous(), src=self.next)
         
-        f = torch.cat((torch.zeros_like(f[:, 0, ...]), f, torch.zeros_like(f[:, 0, ...])), dim=1)
+       
+        f = torch.cat((torch.zeros_like(f[:, 0, ...]).unsqueeze(1), f, torch.zeros_like(f[:, 0, ...]).unsqueeze(1)), dim=1)
        
         inf.wait()
         #WIP: vor diesem wait schon mal rest streamen?

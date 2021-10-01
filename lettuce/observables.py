@@ -26,23 +26,21 @@ class Observable:
 
 class MaximumVelocity(Observable):
     """Maximum velocitiy"""
-    def __init__(self, lattice, flow,mpiObj=None):
+    def __init__(self, lattice, flow):
         self.lattice=lattice
         self.flow=flow
-        self.mpiObj=mpiObj
-        if(self.mpiObj is not None):
-            if(mpiObj.mpi==1):
-                #we have a distributed array!
-                global dist
-                import torch.distributed as dist 
-                self.calling=self.mpiCall
-            
-            else:
-                self.calling=self.nonMPIcall
-
+        self.mpiObj=lattice.mpiObject
+    
+        if(self.mpiObj.mpi==1):
+            #we have a distributed array!
+            global dist
+            import torch.distributed as dist 
+            self.calling=self.mpiCall
+        
         else:
-            self.mpiObj=lettuce.mpiClass.mpiObject(0)
             self.calling=self.nonMPIcall
+
+       
 
     def nonMPIcall(self,f):
         u = self.lattice.u(f)
@@ -61,26 +59,22 @@ class MaximumVelocity(Observable):
 
 class IncompressibleKineticEnergy(Observable):
     """Total kinetic energy of an incompressible flow."""
-    def __init__(self, lattice, flow,mpiObj=None):
-        self.mpiObj=mpiObj
+    def __init__(self, lattice, flow):
+        self.mpiObj=lattice.mpiObject
         self.flow=flow
         self.lattice=lattice
-        if(self.mpiObj is not None):
-            if(mpiObj.mpi==1):
-                #we have a distributed array!
-                global dist
-                import torch.distributed as dist 
-                #set up warnings for that case       
-                if(lattice.dtype==torch.float32):
-                    print("Warning: Because float addition is not associativ results may differ")
-                self.calling=self.mpicall
+        
+        if( self.mpiObj.mpi==1):
+            #we have a distributed array!
+            global dist
+            import torch.distributed as dist 
             
-            else:
-                self.calling=self.nonMPIcall
-
+            self.calling=self.mpicall
+        
         else:
-            self.mpiObj=lettuce.mpiClass.mpiObject(0)
             self.calling=self.nonMPIcall
+
+       
 
     def __call__(self, f):
         return self.calling(f)
@@ -108,24 +102,20 @@ class Enstrophy(Observable):
     The function only works for periodic domains
     """
 
-    def __init__(self, lattice, flow,mpiObj=None):
+    def __init__(self, lattice, flow):
         self.lattice = lattice
         self.flow = flow
-        self.mpiObj=mpiObj
-        if(self.mpiObj is not None):
-            if(mpiObj.mpi==1):
-                #we have a distributed array!
-                global dist
-                import torch.distributed as dist 
-                self.calling=self.mpiCall
-                self.next=mpiObj.next
-                self.prev=mpiObj.prev
-            
-            else:
-                self.calling=self.nonMPIcall
-
+        self.mpiObj=lattice.mpiObject
+    
+        if(self.mpiObj.mpi==1):
+            #we have a distributed array!
+            global dist
+            import torch.distributed as dist 
+            self.calling=self.mpiCall
+            self.next=self.mpiObj.next
+            self.prev=self.mpiObj.prev
+        
         else:
-            self.mpiObj=lettuce.mpiClass.mpiObject(0)
             self.calling=self.nonMPIcall
 
     #kopieren der streaming distibuted funktion
@@ -312,28 +302,24 @@ class Mass(Observable):
         which do not count into the total mass (e.g. bounce-back boundaries).
     """
 
-    def __init__(self, lattice, flow, no_mass_mask=None, mpiObj=None):
+    def __init__(self, lattice, flow, no_mass_mask=None):
         super(Mass, self).__init__(lattice, flow)
         self.lattice=lattice
         self.flow=flow
         self.mask = no_mass_mask
-        self.mpiObj=mpiObj
-        if(self.mpiObj is not None):
-            if(mpiObj.mpi==1):
-                #we have a distributed array!
-                global dist
-                import torch.distributed as dist 
-                #set up warnings for that case       
-                if(lattice.dtype==torch.float32):
-                    print("Warning: Because float addition is not associativ results may differ")
-                self.calling=self.mpiCall
-            
-            else:
-                self.calling=self.nonMPIcall
-
+        self.mpiObj=lattice.mpiObject
+        
+        if(self.mpiObj.mpi==1):
+            #we have a distributed array!
+            global dist
+            import torch.distributed as dist 
+            #set up warnings for that case       
+            self.calling=self.mpiCall
+        
         else:
-            self.mpiObj=lettuce.mpiClass.mpiObject(0)
             self.calling=self.nonMPIcall
+
+        
         
     def __call__(self, f):
         return self.calling(f)

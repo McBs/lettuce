@@ -44,7 +44,7 @@ class Obstacle2D(object):
     >>> flow.mask[np.where(condition)] = 1
    """
 
-    def __init__(self, resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu, mpiObject=None):
+    def __init__(self, resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu):
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
         self.units = UnitConversion(
@@ -53,8 +53,9 @@ class Obstacle2D(object):
             characteristic_length_lu=char_length_lu, characteristic_length_pu=1,
             characteristic_velocity_pu=1
         )
+        self.mpiObject=lattice.mpiObject
         self.rgrid = RegularGrid([resolution_x, resolution_y], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False, mpiObject=mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False, mpiObject=self.mpiObject)
         
         self._mask = np.zeros(shape=self.rgrid.shape, dtype=np.bool)
     @property
@@ -96,11 +97,11 @@ class Obstacle3D(object):
     See documentation for :class:`~Obstacle2D` for details.
     """
 
-    def __init__(self, resolution_x, resolution_y, resolution_z, reynolds_number, mach_number, lattice, char_length_lu, mpiObject=None):
+    def __init__(self, resolution_x, resolution_y, resolution_z, reynolds_number, mach_number, lattice, char_length_lu):
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
         self.resolution_z = resolution_z
-
+        self.mpiObject=lattice.mpiObject
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number,
@@ -111,7 +112,7 @@ class Obstacle3D(object):
 
        
         self.rgrid = RegularGrid([resolution_x, resolution_y, resolution_z], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
 
         
         self._mask = np.zeros(shape=self.rgrid.shape, dtype=np.bool)

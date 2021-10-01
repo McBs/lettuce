@@ -25,10 +25,8 @@ class DecayingTurbulence:
             characteristic_velocity_pu=None
         )
         self.ref=0
-        if(mpiObject is not None):
-            self.mpiObject=mpiObject
-        else:
-            self.mpiObject=mpiClass.mpiObject(0)
+       
+        self.mpiObject=lattice.mpiObject
         self.wavenumbers = []
         self.spectrum = []
         self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,

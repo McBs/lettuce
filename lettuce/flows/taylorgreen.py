@@ -10,7 +10,7 @@ from lettuce.grid import RegularGrid
 class TaylorGreenVortex2D:
     def __init__(self, resolution, reynolds_number, mach_number, lattice, mpiObject=None):
         self.resolution = resolution
-        self.mpiObject=mpiObject
+        self.mpiObject=lattice.mpiObject
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number, mach_number=mach_number,
@@ -19,7 +19,7 @@ class TaylorGreenVortex2D:
         )
 
         self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
 
     def refinment(self,newResolution):
         self.resolution=newResolution
@@ -60,9 +60,9 @@ class TaylorGreenVortex2D:
 
 
 class TaylorGreenVortex3D:
-    def __init__(self, resolution, reynolds_number, mach_number, lattice,mpiObject=None):
+    def __init__(self, resolution, reynolds_number, mach_number, lattice):
         self.resolution = resolution
-        self.mpiObject=mpiObject
+        self.mpiObject=lattice.mpiObject
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number, mach_number=mach_number,

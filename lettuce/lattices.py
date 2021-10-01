@@ -14,14 +14,17 @@ import torch
 
 from lettuce.util import LettuceException
 from lettuce.equilibrium import QuadraticEquilibrium
-
+from lettuce.mpiClass import mpiObject
 
 __all__ = ["Lattice"]
 
 
 class Lattice:
 
-    def __init__(self, stencil, device, dtype=torch.float):
+    def __init__(self, stencil, device, dtype=torch.float,MPIObject=None):
+        self.mpiObject=MPIObject
+        if(MPIObject==None):
+            self.mpiObject=mpiObject(0)
         self.stencil = stencil
         self.device = device
         self.dtype = dtype

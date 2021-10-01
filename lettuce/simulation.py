@@ -28,24 +28,22 @@ class Simulation:
 
     """
 
-    def __init__(self, flow, lattice, collision, streaming,mpiObject=None,nan_steps=None):
+    def __init__(self, flow, lattice, collision, streaming,nan_steps=None):
         self.flow = flow
         self.lattice = lattice
         self.collision = collision
         self.streaming = streaming
         self.i = 0
-        if(mpiObject is not None):
-            self.mpiObject=mpiObject
-        else:
-            self.mpiObject=lettuce.mpiObject(0)
+
+        self.mpiObject=lattice.mpiObject
+        
         if(self.mpiObject.initOnCPU==1):
             
             self.latticeplanned=self.lattice
-            lattice=lettuce.Lattice(lattice.stencil, device=torch.device("cpu"), dtype=lattice.dtype)
+            lattice=lettuce.Lattice(lattice.stencil, device=torch.device("cpu"), dtype=lattice.dtype,mpiObject=self.mpiObject)
             self.lattice=lattice
 
         grid = flow.grid
-        print(grid[0].shape)
         p, u = flow.initial_solution(grid)
         assert list(p.shape) == [1] + list(grid[0].shape), \
             LettuceException(f"Wrong dimension of initial pressure field. "
@@ -70,7 +68,6 @@ class Simulation:
         
         #make imports for distributed execution and apply boundaries + set wich step-Methode to run
         if(self.mpiObject.mpi==1):
-            print("mpisim")
             global os
             import os
             global Process
@@ -84,7 +81,8 @@ class Simulation:
             self.nan_steps = nan_steps
             self.index = [self.mpiObject.index, ...]
             self.nan_cnt = 0
-            print(f"Process {self.rank} covers {self.index}")
+            if(self.mpiObject.output==1):
+                print(f"Process {self.rank} covers {self.index}")
 
             # set which Methode should be executed
             self.runStep=self.stepMPI

@@ -5,10 +5,11 @@ from torch._C import CompilationUnit
 class mpiObject:
     """This is the MPI-Object it will handle all MPI-realated tasks"""
 
-    def __init__(self, activateMPI, sizeList=None, gpuList=None, setParts=0,distributefromRank0=0, initOnCPU=0, gridRefinment=0):
+    def __init__(self, activateMPI, sizeList=None, gpuList=None,numGPUs=0, setParts=0,distributefromRank0=0, initOnCPU=0, gridRefinment=0, output=1):
         """ActivateMPI - Should the computeation use mpi
            sizeList - How much should a rank cover eg. [[0,40],[5,10]] With this example Rank 0 will cover 40 slizes rank 2 will take up the slack, rank 5 only covers 10
            gpuList - Numbers of GPUs per PC
+           numGPUs - Overriting this to <0 sets numbers of GPUs no matter the name
            setParts - use the Userdefined sizeList
            distributefromRank0 - should the inital Flow from Rank 0 be distributed
            initOnCPU - the inital calculation will be made on the CPU
@@ -23,6 +24,7 @@ class mpiObject:
         self.prev=0
         self.rank=0
         self.size=1
+        self.output=output
 
         self.gridRefinment=gridRefinment
         if(self.mpi):
@@ -30,6 +32,7 @@ class mpiObject:
             self.nodeList=sizeList
             self.gpuList=gpuList
             self.setParts=setParts
+            self.numGPUs=numGPUs
 
     
         self.index=[]
@@ -86,7 +89,10 @@ class running(object):
 
                 neighbours=self.myNeighbours(nodeList,pcname)
                 #verteile die Cuda resourcen
-                numGPUs= self.getNumberOfGpus(mpiObj.gpuList, pcname)
+                if(mpiObj.numGPUs<=0):
+                    numGPUs= self.getNumberOfGpus(mpiObj.gpuList, pcname)
+                else:
+                    numGPUs=mpiObj.numGPUs
                 myDevice=self.distrubuteCuda(neighbours,numGPUs,device,rank)
                 mpiObj.device=myDevice
 
@@ -100,8 +106,8 @@ class running(object):
             mpiObj=mpiObject(0)
             mpiObj.device=device
 
-        
-        print(f"Process {rank} using device {mpiObj.device}")
+        if(mpiObj.output==1):
+            print(f"Process {rank} using device {mpiObj.device}")
         
         return mpiObj
 

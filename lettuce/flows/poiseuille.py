@@ -10,13 +10,10 @@ from lettuce.grid import RegularGrid
 from lettuce import mpiClass
 
 class PoiseuilleFlow2D(object):
-    def __init__(self, resolution, reynolds_number, mach_number, lattice, initialize_with_zeros=True,mpiObject=None):
+    def __init__(self, resolution, reynolds_number, mach_number, lattice, initialize_with_zeros=True):
         self.resolution = resolution
         self.lattice = lattice      
-        if(mpiObject is not None):
-            self.mpiObject=mpiObject
-        else:
-            self.mpiObject=mpiClass.mpiObject(0)
+        self.mpiObject=lattice.mpiObject
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number, mach_number=mach_number,

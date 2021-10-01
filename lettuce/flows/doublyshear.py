@@ -11,14 +11,13 @@ from lettuce import mpiClass
 
 
 class DoublyPeriodicShear2D:
-    def __init__(self, resolution, reynolds_number, mach_number, lattice, shear_layer_width=80, initial_perturbation_magnitude=0.05,mpiObject=None):
+    def __init__(self, resolution, reynolds_number, mach_number, lattice, shear_layer_width=80, initial_perturbation_magnitude=0.05):
         self.initial_perturbation_magnitude = initial_perturbation_magnitude
         self.shear_layer_width = shear_layer_width
         self.resolution = resolution
-        if(mpiObject is not None):
-            self.mpiObject=mpiObject
-        else:
-            self.mpiObject=mpiClass.mpiObject(0)
+        
+        self.mpiObject=lattice.mpiObject
+
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number, mach_number=mach_number,
