@@ -12,35 +12,35 @@ def run(device, mpiObject):
     steps = 100
     reporterIntervall=10
     print(f"3D multi core test TGV, device: {device}, resolution: {resolution}, steps: {steps}")
-    lattice = lt.Lattice(lt.D3Q27, device=device, dtype=torch.float64)  # single precision - float64 for double precision
+    lattice = lt.Lattice(lt.D3Q27, device=device, dtype=torch.float64,mpiObject=mpiObject)  # single precision - float64 for double precision
     
-    flow = lt.TaylorGreenVortex3D(resolution, 1600, 0.1, lattice,mpiObject)
+    flow = lt.TaylorGreenVortex3D(resolution, 1600, 0.1, lattice)
 
     # select collision model - try also KBCCollision or RegularizedCollision
     collision = lt.BGKCollision(lattice, tau=flow.units.relaxation_parameter_lu)
-    streaming = lt.StandardStreaming(lattice,mpiObject=mpiObject)
-    simulation = lt.Simulation(flow, lattice, collision, streaming,mpiObject=mpiObject)
+    streaming = lt.StandardStreaming(lattice)
+    simulation = lt.Simulation(flow, lattice, collision, streaming)
     
     #testing all observables
     
-    rep = lt.VTKReporter(lattice, flow, steps-1, "./results/vtk",mpiObj=mpiObject)
+    rep = lt.VTKReporter(lattice, flow, steps-1, "./results/vtk")
     #simulation.reporters.append(rep)
     
     maxVel=lt.MaximumVelocity(lattice,flow,mpiObject)
-    maxVelReporter=lt.ObservableReporter(maxVel,interval=reporterIntervall,mpiObj=mpiObject, out=None)
+    maxVelReporter=lt.ObservableReporter(maxVel,interval=reporterIntervall, out=None)
     simulation.reporters.append(maxVelReporter)
 
-    incompressibleKineticEnergy=lt.IncompressibleKineticEnergy(lattice,flow,mpiObject)
-    incompressibleKineticEnergyReporter=lt.ObservableReporter(incompressibleKineticEnergy,interval=reporterIntervall,mpiObj=mpiObject, out=None)
+    incompressibleKineticEnergy=lt.IncompressibleKineticEnergy(lattice,flow)
+    incompressibleKineticEnergyReporter=lt.ObservableReporter(incompressibleKineticEnergy,interval=reporterIntervall, out=None)
     simulation.reporters.append(incompressibleKineticEnergyReporter)
 
     
-    enstrophy = lt.Enstrophy(lattice, flow,mpiObject)
-    enstrophyReporter = lt.ObservableReporter(enstrophy, interval=reporterIntervall,mpiObj=mpiObject, out=None)
+    enstrophy = lt.Enstrophy(lattice, flow)
+    enstrophyReporter = lt.ObservableReporter(enstrophy, interval=reporterIntervall, out=None)
     simulation.reporters.append(enstrophyReporter)
 
-    mass=lt.Mass(lattice, flow,mpiObj= mpiObject)
-    massReporter = lt.ObservableReporter(mass, interval=reporterIntervall,mpiObj=mpiObject, out=None)
+    mass=lt.Mass(lattice, flow)
+    massReporter = lt.ObservableReporter(mass, interval=reporterIntervall, out=None)
     simulation.reporters.append(massReporter)
 
     #steprep=StepReporter(lattice,flow,interval=25,mpiObj=mpiObject)
@@ -186,15 +186,10 @@ def run(device, mpiObject):
         print("done")
 
 if __name__ == "__main__":
-    device = torch.device("cuda:0")
-    
-    lattice = lt.Lattice(lt.D3Q27, device=device, dtype=torch.float64)  # single precision - float64 for double precision
-    
-    flow = lt.TaylorGreenVortex3D(40, 1600, 0.1, lattice)
-    flow2 = lt.TaylorGreenVortex3D(80, 1600, 0.1, lattice)
+    device = torch.device("cuda")
     
     
     pcList=[[20,"hpc-node000"]]
     gpuList=[[2,"gpu-node009",50]]
-    mpiOBJ=lt.mpiObject(0,NumberGhostCells=1,sizeList=pcList,setParts=0)
+    mpiOBJ=lt.mpiObject(1,gpuList=gpuList)
     lt.running(run,device,mpiOBJ)
