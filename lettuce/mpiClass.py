@@ -5,7 +5,7 @@ from torch._C import CompilationUnit
 class mpiObject:
     """This is the MPI-Object it will handle all MPI-realated tasks"""
 
-    def __init__(self, activateMPI, sizeList=None, gpuList=None,numGPUs=0, setParts=0,distributefromRank0=0, initOnCPU=0, gridRefinment=0, output=1):
+    def __init__(self, activateMPI, sizeList=None, gpuList=None,numGPUs=0, setParts=0,distributefromRank0=0, initOnCPU=0, gridRefinment=0, printUserInfo=1):
         """ActivateMPI - Should the computeation use mpi
            sizeList - How much should a rank cover eg. [[0,40],[5,10]] With this example Rank 0 will cover 40 slizes rank 2 will take up the slack, rank 5 only covers 10
            gpuList - Numbers of GPUs per PC
@@ -13,7 +13,8 @@ class mpiObject:
            setParts - use the Userdefined sizeList
            distributefromRank0 - should the inital Flow from Rank 0 be distributed
            initOnCPU - the inital calculation will be made on the CPU
-           gridRefinment - should the grid be refint? size and stepcount are doubled """
+           gridRefinment - should the grid be refint? size and stepcount are doubled 
+           printUserInfo - by setting it to 0 most user information will not be displayed"""
         self.mpi=activateMPI
         self.initOnCPU=initOnCPU
         self.device=0
