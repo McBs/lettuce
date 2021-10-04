@@ -29,9 +29,9 @@ class MaximumVelocity(Observable):
     def __init__(self, lattice, flow):
         self.lattice=lattice
         self.flow=flow
-        self.mpiObj=lattice.mpiObject
+        self.mpiObject=lattice.mpiObject
     
-        if(self.mpiObj.mpi==1):
+        if(self.mpiObject.mpi==1):
             #we have a distributed array!
             global dist
             import torch.distributed as dist 
@@ -60,11 +60,11 @@ class MaximumVelocity(Observable):
 class IncompressibleKineticEnergy(Observable):
     """Total kinetic energy of an incompressible flow."""
     def __init__(self, lattice, flow):
-        self.mpiObj=lattice.mpiObject
+        self.mpiObject=lattice.mpiObject
         self.flow=flow
         self.lattice=lattice
         
-        if( self.mpiObj.mpi==1):
+        if( self.mpiObject.mpi==1):
             #we have a distributed array!
             global dist
             import torch.distributed as dist 
@@ -105,15 +105,15 @@ class Enstrophy(Observable):
     def __init__(self, lattice, flow):
         self.lattice = lattice
         self.flow = flow
-        self.mpiObj=lattice.mpiObject
+        self.mpiObject=lattice.mpiObject
     
-        if(self.mpiObj.mpi==1):
+        if(self.mpiObject.mpi==1):
             #we have a distributed array!
             global dist
             import torch.distributed as dist 
             self.calling=self.mpiCall
-            self.next=self.mpiObj.next
-            self.prev=self.mpiObj.prev
+            self.next=self.mpiObject.next
+            self.prev=self.mpiObject.prev
         
         else:
             self.calling=self.nonMPIcall
@@ -240,6 +240,8 @@ class EnergySpectrum(Observable):
         super(EnergySpectrum, self).__init__(lattice, flow)
         self.dx = self.flow.units.convert_length_to_pu(1.0)
         self.dimensions = self.flow.grid[0].shape
+
+        self.mpiObject=lattice.mpiObject
         #das sollte gleich sein
         frequencies = [self.lattice.convert_to_tensor(np.fft.fftfreq(dim, d=1 / dim)) for dim in self.dimensions]
         wavenumbers = torch.stack(torch.meshgrid(*frequencies))
@@ -307,9 +309,9 @@ class Mass(Observable):
         self.lattice=lattice
         self.flow=flow
         self.mask = no_mass_mask
-        self.mpiObj=lattice.mpiObject
+        self.mpiObject=lattice.mpiObject
         
-        if(self.mpiObj.mpi==1):
+        if(self.mpiObject.mpi==1):
             #we have a distributed array!
             global dist
             import torch.distributed as dist 

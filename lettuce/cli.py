@@ -101,6 +101,8 @@ def benchmark(ctx, steps, resolution, profile_out, flow, vtk_out):
 def convergence(ctx, init_f_neq):
     """Use Taylor Green 2D for convergence test in diffusive scaling."""
     device, dtype = ctx.obj['device'], ctx.obj['dtype']
+    print(init_f_neq)
+    print(dtype)
     lattice = Lattice(D2Q9, device, dtype)
     error_u_old = None
     error_p_old = None

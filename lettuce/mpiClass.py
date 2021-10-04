@@ -69,6 +69,8 @@ class running(object):
     
     def _init_processes_mpi(self, device , mpiObj ):
         """ Initialize the distributed environment. """
+
+        
         dist.init_process_group("mpi")
         size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
         rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
