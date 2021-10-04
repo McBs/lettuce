@@ -72,6 +72,7 @@ class running(object):
 
         
         dist.init_process_group("mpi")
+        
         size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
         rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
 

@@ -96,12 +96,12 @@ class Simulation:
             boundary=self._boundaries[i]
             if hasattr(boundary, "make_no_collision_mask"):
                 bound= boundary.make_no_collision_mask(self.f.shape)
-                bound=lattice.convert_to_tensor(bound)
+                #bound=lattice.convert_to_tensor(bound)
                 self.no_collision_mask = self.no_collision_mask | bound
             if hasattr(boundary, "make_no_stream_mask"):
                 
                 bound= boundary.make_no_stream_mask(torch.Size(self.f.shape))
-                bound=lattice.convert_to_tensor(bound)
+                #bound=lattice.convert_to_tensor(bound)
                 no_stream_mask = no_stream_mask | bound
             if(not boundary.hasTrueEntrys()):
                 removeentrys.append(i)

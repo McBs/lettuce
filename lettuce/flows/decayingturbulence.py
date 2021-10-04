@@ -156,8 +156,11 @@ class DecayingTurbulence:
         if(self.ref==1):
             index=self.mpiObject.index
             x =x[index.start:index.stop,...]
-        y = np.linspace(0., 1., num=self.resolution, endpoint=False)
-        return np.meshgrid(x, y, indexing='ij')
+        if(self.units.lattice.D==3):
+            z=np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
+            return  np.meshgrid(x, y,z, indexing='ij')
+        else:
+            return np.meshgrid(x, y, indexing='ij')
 
     @property
     def boundaries(self):
