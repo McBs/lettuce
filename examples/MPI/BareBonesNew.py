@@ -7,7 +7,7 @@ def run(device, mpiObject):
     print("start")
 
     # ---------- Set up simulation -------------
-    lattice = lt.Lattice(lt.D2Q9, device=device, dtype=torch.float64,mpiObject=mpiObject)  # single precision - float64 for double precision
+    lattice = lt.Lattice(lt.D2Q9, device=device, dtype=torch.float64,MPIObject=mpiObject)  # single precision - float64 for double precision
     resolution = 120  # resolution of the lattice, low resolution leads to unstable speeds somewhen after 10 (PU)
     flow = lt.TaylorGreenVortex2D(resolution=resolution, reynolds_number=10000, mach_number=0.05, lattice=lattice)
     print(flow.units.relaxation_parameter_lu)
