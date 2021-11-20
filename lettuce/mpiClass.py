@@ -45,6 +45,90 @@ class mpiObject:
 
 
 class running(object):
+    """Use this class to launch lettuce. This can be used for both the MPI and Non MPI-Version.
+    If MPI option in the mpiObject is set to True this class will make all imports and setups for launching the mpi-Version of Lettuce 
+    
+
+    functions:
+        --makeImports:
+            imports all mpi-Related classes
+        Inputs:
+        mpi: should mpi be loaded? 
+       
+        --_init_processes_mpi:
+            initialisation of mpi
+        Inputs:
+        device: Torch.device
+        mpiObj: mpiObject 
+
+        Output:
+        Final MPIObject
+        
+        --distribute:
+            runs init_process_mpi if mpi-option is selected
+        Inputs:
+        device: Torch.device
+        mpiObj: mpiObject 
+
+        Output:
+        Final MPIObject
+        
+        --communicationList:
+            sets the next and prev in the MPIobject
+        Inputs:
+        mpiObj: mpiObject
+        rank: mpi rank
+        size: mpi size 
+        
+        --getNumberOfGpus:
+            returns the number of GPUs on a given PC
+        Inputs:
+        gpuList: list of number of GPUs and PC-name
+        myname: name of pc to find 
+
+        Output:
+        number of GPUs on given pc name or if name is not in list -1
+        
+        --distrubuteCuda:
+            distributes cuda for ranks on one PC 
+        Inputs:
+        neighbours: list of rank and pc names 
+        numGPUs: number of available GPUs
+        device: what is the goal device
+        rank: mpi rank
+
+        Output:
+        torch device
+
+        --computationList:
+           create list wich rank is on what pc
+        Inputs:
+        rank: mpi rank
+        size: mpi size
+        pcname: name of pc
+
+        Output:
+        torch device
+        
+        --computationList:
+           create list wich rank is on what pc
+        Inputs:
+        rank: mpi rank
+        size: mpi size
+        pcname: name of pc
+
+        Output:
+        torch device
+        
+        --myNeighbours:
+           from list ich ranks are my neigbours
+        Inputs:
+        nodeList: list of all nodes
+        pcname: pc name
+
+        Output:
+        list of ranks who are on the same node
+    """
     def __init__(self,methodeToRun, pytortchDevice, mpiObjectInput=None):
         mpiObj=mpiObjectInput
         if(mpiObjectInput==None):
@@ -56,6 +140,7 @@ class running(object):
         methodeToRun(finalMPIObject.device, finalMPIObject)
 
     def makeImports(self,mpi):
+        
         if(mpi):
             #run distributed
             global os
@@ -116,7 +201,7 @@ class running(object):
         return mpiObj
 
     def distribute(self,mpiObj, device):
-
+        """if mpi-Option is true run mpi Init and setup Torch device else use the User defined Torch device"""
         if(mpiObj.mpi):
             mpiObj=self._init_processes_mpi(device,mpiObj)
         else:
@@ -125,6 +210,7 @@ class running(object):
         return mpiObj
     
     def communicationList(self,mpiObj,rank,size):
+        """Set the next and prev one in the mpiObject"""
         #set next and previous node
         nextone=-1
         prevone=-1
@@ -155,12 +241,13 @@ class running(object):
         return -1
 
     def distrubuteCuda(self,neighbours,numGPUs,device,rank):
+        """Distribution of Cuda on a single PC"""
         #get my node
         #in my node determent rank
         myIndex=neighbours.index(rank)
         #get num of cuda
         #set  cuda device
-        print(rank,myIndex,numGPUs)
+        print("Cuda distribution for: " ,rank," my index og GPU is: ",myIndex," number of availible GPUs: ",numGPUs)
         if(myIndex<numGPUs):
             #torch.cuda.set_device(myIndex)
             device = torch.device(f"cuda:{myIndex}")
@@ -237,7 +324,7 @@ class running(object):
         return nodeString
 
     def myNeighbours(self,nodeList,pcname):
-
+        """Who is with me on the same PC"""
         my_neibours=[]
 
         for entry in nodeList:

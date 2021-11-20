@@ -17,6 +17,71 @@ class StandardStreaming:
     no_stream_mask : torch.Tensor
         Boolean mask with the same shape as the distribution function f.
         If None, stream all (also around all boundaries).
+    
+    functions:
+    callNonMPI:NonMPI call for streaming
+    Inputs:
+        tensor of domaine
+
+    Output:
+        1 stream -step of the domaine where no_stream_mask=false
+
+    _stream: NonMPI call for streaming-calculation
+    Inputs:
+    tensor of domaine
+
+    Output:
+        the acual calculation for the stream step
+
+    callMPI: Transmitting data that is used for streaming and enlarge tensor by 2 in x-dimension
+    Inputs:
+        tensor of domaine
+
+    Output:
+        tensor of domaine + one part data stride from prev and next one
+                            that is used by the main tensor
+    stream: MPI-stream
+    Inputs:
+        tensor of domaine
+
+    Output:
+        the acual calculation for the stream step
+
+    transmitWholeParts: Transmitting the Whole domaine for 3 Ghostcells and enlarge tensor by 6 in x-dimension
+    Inputs:
+        tensor of domaine
+
+    Output:
+        tensor of domaine + three whole data stride from prev and next one
+
+    transmitWhole5Parts: Transmitting the whole domaine for 5 Ghostcells and enlarge tensor by 10 in x-dimension
+    Inputs:
+        tensor of domaine
+
+    Output:
+        tensor of domaine + five whole data stride from prev and next one
+
+    reduce: Reducing the domaine by 2 in x-dimension
+    Inputs:
+        tensor of domaine + 2 ghost cells
+
+    Output:
+        tensor of domaine
+    
+    reduce3: Reducing the domaine by 6 in x-dimension
+    Inputs:
+        tensor of domaine + 6 ghost cells
+
+    Output:
+        tensor of domaine
+    
+    reduce5: Reducing the domaine by 10 in x-dimension
+    Inputs:
+        tensor of domaine + 10 ghost cells
+
+    Output:
+        tensor of domaine
+    
     """
 
     def __init__(self, lattice):
@@ -28,6 +93,7 @@ class StandardStreaming:
         
         
         if(self.mpiObject.mpi==1):    
+            "setup for mpi"
             global os
             import os
             global Process
@@ -57,9 +123,11 @@ class StandardStreaming:
         self._no_stream_mask = mask
 
     def __call__(self, f):
+        """In the init the Methode to call will be defined and executed here"""
         return self.localCall(f)
 
     def callNonMPI(self, f):
+        """Non Mpi-stream"""
         for i in range(1, self.lattice.Q):
             if self.no_stream_mask is None:
                 f[i] = self._stream(f, i)
@@ -72,11 +140,13 @@ class StandardStreaming:
         return torch.roll(f[i], shifts=tuple(self.lattice.stencil.e[i]), dims=tuple(np.arange(self.lattice.D)))
 
     def callMPI(self, f):
+        """Streaming over MPI
+        Only the relevant Parts are selectet and copied to the CPU, transmitted with mpi to the next/ prev rank.
+        Next step is to copy the tensor to the Goal Device and the values are insertet to the original Tensor """
         cpudevice=torch.device("cpu")
         output_forward = f[self.forward, -1, ...].detach().clone().cpu().contiguous()
          
         output_backward = f[self.backward, 0, ...].detach().clone().cpu().contiguous()
-       
         input_forward = torch.zeros_like(output_forward)
         input_backward = torch.zeros_like(output_backward)
         outf = dist.isend(tensor=output_forward, dst=self.next)
@@ -101,10 +171,11 @@ class StandardStreaming:
         return f
 
     def stream(self, f):
+        """Mpi stream"""
         if self.no_stream_mask is not None:
-            no_stream_mask = torch.cat((torch.zeros_like(self.no_stream_mask[:, 0, ...]),
+            no_stream_mask = torch.cat((torch.ones_like(self.no_stream_mask[:, 0, ...]),
                                         self.no_stream_mask,
-                                        torch.zeros_like(self.no_stream_mask[:, -1, ...])), dim=1)
+                                        torch.ones_like(self.no_stream_mask[:, -1, ...])), dim=1)
 
         for i in range(1, self.lattice.Q):
             i = int(i)
@@ -116,6 +187,7 @@ class StandardStreaming:
         return f
 
     def transmitWholeParts(self,f):
+        """like callMPI but instead of parts of the domaine the Whole Domaine is transmitted."""
         cpudevice=torch.device("cpu")
         backward = np.argwhere(self.lattice.stencil.e[:, 0] < 99999)
 
@@ -157,6 +229,8 @@ class StandardStreaming:
         return f
 
     def transmitWhole5Parts(self,f):
+        """like transmitWholeParts but instead of transmitting edge 0,1,2 and -1,-2,-3, 0,1,2,3,4 and -1,-2,-3,-4,-5 are transimitet"""
+       
         cpudevice=torch.device("cpu")
         backward = np.argwhere(self.lattice.stencil.e[:, 0] < 99999)
 
@@ -200,12 +274,15 @@ class StandardStreaming:
         return f
 
     def reduce(self,f):
+        """reducing the Tensor to it original size"""
         return f[:, 1:-1, ...]
         
     def reduce3(self,f):
+        """reducing the Tensor to it original size"""
         return f[:, 3:-3, ...]
     
     def reduce5(self,f):
+        """reducing the Tensor to it original size"""
         return f[:, 5:-5, ...]
 
     

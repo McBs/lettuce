@@ -38,10 +38,13 @@ class Simulation:
         self.mpiObject=lattice.mpiObject
         
         if(self.mpiObject.initOnCPU==1):
-            
+            """If init on CPU create a new lattice for the CPU and save the intendet on, change over later"""
             self.latticeplanned=self.lattice
-            lattice=lettuce.Lattice(lattice.stencil, device=torch.device("cpu"), dtype=lattice.dtype,mpiObject=self.mpiObject)
+            lattice=lettuce.Lattice(lattice.stencil, device=torch.device("cpu"), dtype=lattice.dtype,MPIObject=self.mpiObject)
             self.lattice=lattice
+            self.flow.lattice=self.lattice
+            self.streaming.lattice=self.lattice
+            self.flow.rgrid.lattice=self.lattice
 
         grid = flow.grid
         p, u = flow.initial_solution(grid)
@@ -54,20 +57,28 @@ class Simulation:
                              f"Expected {[lattice.D] + list(grid[0].shape)}, "
                              f"but got {list(u.shape)}.")
 
-    
-        u = lattice.convert_to_tensor(flow.units.convert_velocity_to_lu(u))
-        rho = lattice.convert_to_tensor(flow.units.convert_pressure_pu_to_density_lu(p))
-        self.f = lattice.equilibrium(rho, lattice.convert_to_tensor(u))
-        
+        if(self.mpiObject.rank==0 and self.mpiObject.distributefromRank0==1):
+            grid = flow.rgrid.global_grid()
+            p, u = flow.initial_solution(grid)
+            u = lattice.convert_to_tensor(flow.units.convert_velocity_to_lu(u))
+            rho = lattice.convert_to_tensor(flow.units.convert_pressure_pu_to_density_lu(p))
+            self.f = lattice.equilibrium(rho, lattice.convert_to_tensor(u))
+            # Define masks, where the collision or streaming are not applied
+            self.no_collision_mask = lattice.convert_to_tensor(np.zeros_like(grid[0], dtype=bool))
+            no_stream_mask = lattice.convert_to_tensor(np.zeros(self.f.shape, dtype=bool))
+        else:
+            if(self.mpiObject.distributefromRank0==0): 
+                u = lattice.convert_to_tensor(flow.units.convert_velocity_to_lu(u))
+                rho = lattice.convert_to_tensor(flow.units.convert_pressure_pu_to_density_lu(p))
+                self.f = lattice.equilibrium(rho, lattice.convert_to_tensor(u))
+                # Define masks, where the collision or streaming are not applied
+                self.no_collision_mask = lattice.convert_to_tensor(np.zeros_like(grid[0], dtype=bool))
+                no_stream_mask = lattice.convert_to_tensor(np.zeros(self.f.shape, dtype=bool))
         self.reporters = []
-
-        # Define masks, where the collision or streaming are not applied
-        self.no_collision_mask = lattice.convert_to_tensor(np.zeros_like(grid[0], dtype=bool))
-        no_stream_mask = lattice.convert_to_tensor(np.zeros(self.f.shape, dtype=bool))
-        
         
         #make imports for distributed execution and apply boundaries + set wich step-Methode to run
         if(self.mpiObject.mpi==1):
+            """Importing everything for MPI"""
             global os
             import os
             global Process
@@ -91,33 +102,43 @@ class Simulation:
             self.runStep=self.stepNonMPI
         # Apply boundaries
         self._boundaries = deepcopy(self.flow.boundaries)  # store locally to keep the flow free from the boundary state
-        removeentrys=[]
-        for i in range (len(self._boundaries)):
-            boundary=self._boundaries[i]
-            if hasattr(boundary, "make_no_collision_mask"):
-                bound= boundary.make_no_collision_mask(self.f.shape)
-                #bound=lattice.convert_to_tensor(bound)
-                self.no_collision_mask = self.no_collision_mask | bound
-            if hasattr(boundary, "make_no_stream_mask"):
-                
-                bound= boundary.make_no_stream_mask(torch.Size(self.f.shape))
-                #bound=lattice.convert_to_tensor(bound)
-                no_stream_mask = no_stream_mask | bound
-            if(not boundary.hasTrueEntrys()):
-                removeentrys.append(i)
+        if(self.mpiObject.distributefromRank0==0):
+            removeentrys=[]
+            for i in range (len(self._boundaries)):
+                boundary=self._boundaries[i]
+                if hasattr(boundary, "make_no_collision_mask"):
+                    bound= boundary.make_no_collision_mask(self.f.shape)
+                    #bound=lattice.convert_to_tensor(bound)
+                    self.no_collision_mask = self.no_collision_mask | bound
+                if hasattr(boundary, "make_no_stream_mask"):
+                    
+                    bound= boundary.make_no_stream_mask(torch.Size(self.f.shape))
+                    #bound=lattice.convert_to_tensor(bound)
+                    no_stream_mask = no_stream_mask | bound
+                if(not boundary.hasTrueEntrys()):
+                    removeentrys.append(i)
 
-        for i in range(len(removeentrys)-1,-1,-1):
-            entry=removeentrys[i]
-            self._boundaries.pop(entry) 
+            for i in range(len(removeentrys)-1,-1,-1):
+                entry=removeentrys[i]
+                self._boundaries.pop(entry) 
 
-        
-        if no_stream_mask.any():
-            self.streaming.no_stream_mask = no_stream_mask
+            
+            if no_stream_mask.any():
+                self.streaming.no_stream_mask = no_stream_mask
                 
             
     
     def step(self,num_steps):
-        """Take num_steps stream-and-collision steps and return performance in MLUPS."""
+        """Take num_steps stream-and-collision steps and return performance in MLUPS.
+        If the Options gridRefinment, distributefromRank0 and initOnCpu are chosen they are handelt here.
+        
+        gridRefinment: doubles the Grid Resolution and the number of steps
+        
+        distributefromRank0: depending on the flow a distributed initialisation is not possible.
+                             In order to distribute the whole Domaine will be Initialised on Rank 0 and distributed.
+                             
+        InitOnCpu: instead of using the target divice for Torch, the CPU will be chosen. This is usefull for the Option of  distributefromRank0.
+                    Later the hole Domaine will be transfered to the target device."""
         
         #mask abfrage hier
 
@@ -140,8 +161,10 @@ class Simulation:
                 
                 
                 #distribute f
-               
-                self.f=self.flow.rgrid.distributeToList(self.f)
+                if(self.mpiObject.rank==0):
+                    self.f=self.flow.rgrid.distributeToList(self.f)
+                else:
+                    self.f=self.flow.rgrid.distributeToList(0)
                 
                 #select my part
                 newindex=slice(index.start*2,index.stop*2)
@@ -182,7 +205,10 @@ class Simulation:
         else:
             #check for distributing
             if(self.mpiObject.mpi==1 and self.mpiObject.distributefromRank0==1):
-                self.f=self.flow.rgrid.distributeToList(self.f)
+                if(self.mpiObject.rank==0):
+                    self.f=self.flow.rgrid.distributeToList(self.f)
+                else:
+                    self.f=self.flow.rgrid.distributeToList(0)
                 resolution=self.flow.resolution
                 self.flow.refinment(resolution)
                 grid = self.flow.grid
@@ -212,6 +238,10 @@ class Simulation:
         if(self.mpiObject.initOnCPU==1):
             self.lattice=self.latticeplanned 
             del(self.latticeplanned)
+            
+            self.flow.lattice=self.lattice
+            self.flow.rgrid.lattice=self.lattice
+            self.streaming.lattice=self.lattice
             self.f=self.lattice.convert_to_tensor(self.f)
             
             self.no_collision_mask =self.lattice.convert_to_tensor(self.no_collision_mask)  
@@ -272,6 +302,8 @@ class Simulation:
                     if self.nan_cnt > self.nan_steps:
                         print("Simulation is being cancelled because an f-value is nan.")
                         return None
+        for reporter in self.reporters:
+            reporter.finish()
         end = timer()
         seconds = end - start
         num_grid_points = self.lattice.rho(self.f).numel()

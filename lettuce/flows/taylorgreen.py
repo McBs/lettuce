@@ -19,7 +19,7 @@ class TaylorGreenVortex2D:
         )
 
         self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject,lattice=lattice)
 
     def refinment(self,newResolution):
         self.resolution=newResolution
@@ -35,7 +35,7 @@ class TaylorGreenVortex2D:
         )
 
         self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject= self.mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject= self.mpiObject,lattice=lattice)
 
  
 
@@ -71,7 +71,7 @@ class TaylorGreenVortex3D:
         )
 
         self.rgrid = RegularGrid([resolution, resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject,lattice=lattice)
 
     def refinment(self,newResolution):
         self.resolution=newResolution
@@ -87,7 +87,7 @@ class TaylorGreenVortex3D:
         )
 
         self.rgrid = RegularGrid([resolution, resolution, resolution], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject= self.mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject= self.mpiObject,lattice=lattice)
 
 
     def initial_solution(self, x):

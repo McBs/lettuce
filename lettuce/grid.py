@@ -3,7 +3,7 @@ from copy import deepcopy
 from lettuce import LettuceException, mpiClass
 import torch.distributed as dist
 import torch
-
+from time import sleep
 __all__ = ["RegularGrid"]
 
 class RegularGrid(object):
@@ -11,14 +11,16 @@ class RegularGrid(object):
     def __init__(self, resolution, char_length_lu, char_length_pu, endpoint=False, mpiObject=None,lattice=None):
         """
         class to construct a regular lattice grid for the simulation
-        using the rank and size arguments this can be used to split the simulation domain across several processes
+        using the rank and size from the mpiObject arguments this can be used to split the simulation domain across several processes
+        If in the mpiObject the Option setParts is true the distribution is edited acording to it. If the Option is left on False 
+        the distributen will be for every rank mostly the same +/- 1
 
         Input parameters:
         resolution: list of up to three values for the resolution in x, y, (z)
         char_length_lu/pu: characteristic length of the flow in lu or pu respectively
         endpoint: True if the end of the domain shall be included in the grid; e.g. if 0 to 2pi is [0, 2pi] instead of [0, 2pi)
-        rank: rank of the process constructing the grid
-        size: total number of processes
+        mpiObject: the mpiObject 
+        lattice: used for distribute to List
 
         Usable parameters:
         self: returns grid as list of two / three elements, one coordinate each [x, y, z]
@@ -26,11 +28,8 @@ class RegularGrid(object):
 
         functions:
         --select:
-        Inputs:
-        tensor (or numpy array) of the size of the grid (if the input is 4D the last three will be assumed to be the grid coordinates)
-        rank (optional)
-
-        Output:
+        
+        
         Tensor with part of the input tensor that belongs to process "rank" (calling process if rank is empty / None)
 
         --reassemble:
@@ -39,6 +38,14 @@ class RegularGrid(object):
 
         Output:
         on process with rank 0: the whole tensor (of the full domain)
+        on all other processes: 1
+
+        --reassembleCPU:
+        Inputs:
+        tensor: tensor to be reassembled (pytorch tensor that is present on all processes)
+
+        Output:
+        on process with rank 0: the whole tensor (of the full domain) but on CPU RAM not target RAM
         on all other processes: 1
         """
         self.lattice=lattice
@@ -148,6 +155,7 @@ class RegularGrid(object):
         self.global_shape = torch.Size(temp)
 
     def __call__(self):
+        """Returns local grid coordinates"""
         x = np.linspace(0 + self.index.start * self.char_length_pu / self.char_length_lu,
                         self.index.stop * self.char_length_pu / self.char_length_lu,
                         num=self.index.stop - self.index.start, endpoint=self.endpoint)
@@ -159,6 +167,7 @@ class RegularGrid(object):
             return np.meshgrid(x, y, indexing='ij')
 
     def global_grid(self):
+        """Returns global grid coordinates"""
         x = np.linspace(0, self.resolution[0] * self.char_length_pu / self.char_length_lu, num=self.resolution[0], endpoint=self.endpoint)
         y = np.linspace(0, self.resolution[1] * self.char_length_pu / self.char_length_lu, num=self.resolution[1], endpoint=self.endpoint)
         if len(self.resolution) == 3:
@@ -220,16 +229,47 @@ class RegularGrid(object):
             dist.send(tensor=output, dst=0)
             return 1
 
+    def reassembleCPU(self, tensor):
+        """recombines tensor that is spread to all processes in process 0
+        (should just return tensor if only one process exists)"""
+        if self.rank == 0:
+            assembly = tensor.detach().clone().cpu().contiguous()
+            for i in range(1, self.size):
+                if len(tensor.shape) > len(self.shape):
+                    input = self.select(torch.zeros([tensor.shape[0]] + self.resolution,
+                                                    device=torch.device("cpu"), dtype=tensor.dtype), rank=i).contiguous()
+                    dist.recv(tensor=input, src=i)
+                    assembly = torch.cat((assembly, input), dim=1)
+                else:
+                    input = self.select(torch.zeros(self.resolution,
+                                                    device=torch.device("cpu"), dtype=tensor.dtype), rank=i).contiguous()
+                    dist.recv(tensor=input, src=i)
+                    assembly = torch.cat((assembly, input), dim=0)
+            return assembly
+        else:
+            output = tensor.detach().clone().cpu().contiguous()
+            dist.send(tensor=output, dst=0)
+            return 1
+
     def distributeToList(self,tensor,Q=-1):
         """Distributes the relevant part of a tensor to the specific rank """
         if(self.rank==0):
             for i in range(1,self.size):
+                
                 selectindex=self.computeList[i]
-                sending=tensor[:,selectindex.start:selectindex.stop,...]
-                trans=sending.detach().clone().cpu().contiguous()
-                dist.send(tensor=trans,dst=i)
+                selectnmany=[]
+                for z in range(selectindex.start,selectindex.stop):
+                    selectnmany.append(z)
+                sending=tensor[: , selectnmany ,...].detach().clone().cpu().contiguous()
+                sendthingi=dist.isend(tensor=sending,dst=i)
+                sendthingi.wait()
+            dist.barrier()
             selectindex=self.computeList[0]
-            return tensor[:,selectindex.start:selectindex.stop,...]
+            
+            
+            tensor=tensor[:,selectindex.start:selectindex.stop,...]
+            tensor=tensor.to(self.lattice.device)
+            return tensor
         else:
             res=[]
             if(Q==-1):
@@ -237,10 +277,15 @@ class RegularGrid(object):
             res.append(self.resolution[0])
             res.append(self.resolution[1])
             
-            if(self.lattice.Q==3):
+            if(self.lattice.D==3):
                 res.append(self.resolution[2])
             
             res[1]=self.index.stop-self.index.start
-            local=torch.zeros(res)
-            dist.recv(tensor=local, src=0)
-            return local
+            locala=torch.zeros(res,dtype=self.lattice.dtype)
+            sleep(4.0)
+            recvthigi=dist.irecv(tensor=locala, src=0)
+            sleep(2.0)
+            recvthigi.wait()
+            dist.barrier()
+            locala=locala.to(self.lattice.device)
+            return locala

@@ -40,6 +40,7 @@ class BounceBackBoundary:
         return self.mask
 
     def hasTrueEntrys(self):
+        """ returns true if a single value of the mask is true"""
         return torch.max(self.mask)
 
 
@@ -67,6 +68,7 @@ class EquilibriumBoundaryPU:
         return f
 
     def hasTrueEntrys(self):
+        """ returns true if a single value of the mask is true"""
         return torch.max(self.mask)
 
 

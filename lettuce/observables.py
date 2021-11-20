@@ -50,9 +50,30 @@ class MaximumVelocity(Observable):
     def mpiCall(self,f):
         u = self.lattice.u(f)
         normMAX=torch.norm(u, dim=0).max()
+        return normMAX
         dist.reduce(normMAX,0,dist.ReduceOp.MAX)
         return self.flow.units.convert_velocity_to_pu(normMAX)
         
+    def finish(self,listofnormMax):
+      
+        torchnormMax=self.lattice.convert_to_CPU(listofnormMax)
+        torchnormMax=torch.unsqueeze(torchnormMax, dim=-1)
+        if(self.mpiObject.rank==0):
+            #collect
+            getInput=torch.zeros_like(torchnormMax)
+            for i in range(1,self.mpiObject.size):
+                dist.recv(getInput,i)
+                
+                torchnormMax=torch.cat((torchnormMax,getInput),dim=1)
+     
+            maxPerCall=torchnormMax.max(dim=1,keepdim=True)
+
+            val=maxPerCall.values
+            return self.flow.units.convert_velocity_to_pu(val)
+
+        else:
+            dist.send(torchnormMax,0)
+
     def __call__(self, f):
         return self.calling(f)
 
@@ -88,11 +109,30 @@ class IncompressibleKineticEnergy(Observable):
     def mpicall(self,f):
         dx = self.flow.units.convert_length_to_pu(1.0)
         mpiSum=torch.sum(self.lattice.incompressible_energy(f))
+        return mpiSum
         dist.reduce(mpiSum,0,dist.ReduceOp.SUM)
         kinE = self.flow.units.convert_incompressible_energy_to_pu(mpiSum)
         kinE *= dx ** self.lattice.D
         return kinE
 
+    def finish(self, localMPISum):
+        dx = self.flow.units.convert_length_to_pu(1.0)
+        torchlocalMPISum=self.lattice.convert_to_CPU(localMPISum)
+        torchlocalMPISum=torch.unsqueeze(torchlocalMPISum, dim=-1)
+        if(self.mpiObject.rank==0):
+            #collect
+            getInput=torch.zeros_like(torchlocalMPISum)
+            for i in range(1,self.mpiObject.size):
+                dist.recv(getInput,i)
+                
+                torchlocalMPISum=torch.cat((torchlocalMPISum,getInput),dim=1)
+
+            sumPerCall=torch.sum(torchlocalMPISum,dim=1,keepdim=True)
+            kinE = self.flow.units.convert_incompressible_energy_to_pu(sumPerCall)
+            kinE *= dx ** self.lattice.D
+            return kinE
+        else:
+            dist.send(torchlocalMPISum,0)
 
 class Enstrophy(Observable):
     """The integral of the vorticity
@@ -212,7 +252,7 @@ class Enstrophy(Observable):
                 (grad_u2[1] - grad_u1[2]) * (grad_u2[1] - grad_u1[2])
                 + ((grad_u0[2] - grad_u2[0]) * (grad_u0[2] - grad_u2[0]))
             )
-            dist.reduce(vorticity,0,dist.ReduceOp.SUM)
+            #dist.reduce(vorticity,0,dist.ReduceOp.SUM)
         else:
             local_u=self.lattice.u(f)
             
@@ -227,9 +267,27 @@ class Enstrophy(Observable):
             grad_u0=self.reduce(grad_u0)
             grad_u1=self.reduce(grad_u1)
             vorticity = torch.sum((grad_u0[1] - grad_u1[0]) * (grad_u0[1] - grad_u1[0]))
+            #dist.reduce(vorticity,0,dist.ReduceOp.SUM)
         
-        return vorticity * dx ** self.lattice.D
+        return vorticity
 
+    def finish(self, localENstrophy):
+        dx = self.flow.units.convert_length_to_pu(1.0)
+        torchlocalENstrophy=self.lattice.convert_to_CPU(localENstrophy)
+        torchlocalENstrophy=torch.unsqueeze(torchlocalENstrophy, dim=-1)
+        if(self.mpiObject.rank==0):
+            #collect
+            getInput=torch.zeros_like(torchlocalENstrophy)
+            for i in range(1,self.mpiObject.size):
+                dist.recv(getInput,i)
+                
+                torchlocalENstrophy=torch.cat((torchlocalENstrophy,getInput),dim=1)
+
+            vorticity=torch.sum(torchlocalENstrophy,dim=1,keepdim=True)
+            return vorticity * dx ** self.lattice.D
+
+        else:
+            dist.send(torchlocalENstrophy,0)
 
 class EnergySpectrum(Observable):
     """The kinetic energy spectrum"""
@@ -257,10 +315,23 @@ class EnergySpectrum(Observable):
                 (wavenorms[..., None] > self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
                 (wavenorms[..., None] <= self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
         )
+        self.mpiObject=lattice.mpiObject
+        self.flow=flow
+        
 
     def __call__(self, f):
-        u = self.lattice.u(f)
-        return self.spectrum_from_u(u)
+        if(self.mpiObject.mpi==1):
+            f=self.flow.rgrid.reassembleCPU(f)
+            if(self.mpiObject.rank==0):
+                u = self.lattice.u(f)
+                return self.spectrum_from_u(u)
+
+        else:
+            u = self.lattice.u(f)
+            return self.spectrum_from_u(u)
+
+    def finish(self, globalin):
+        return globalin
 
     def spectrum_from_u(self, u):
         u = self.flow.units.convert_velocity_to_pu(u)
@@ -286,7 +357,6 @@ class EnergySpectrum(Observable):
         return ekin
 
     def _ekin_spectrum_torch_ge_18(self, u):
-        ##fft über ganze domaine wird nicht gehen auser wir machen eine kollective operation auf einem Knoten
         uh = (torch.stack([
             torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D))) for i in range(self.lattice.D)
         ]) / self.norm)
@@ -315,7 +385,10 @@ class Mass(Observable):
             #we have a distributed array!
             global dist
             import torch.distributed as dist 
-            #set up warnings for that case       
+            #set up warnings for that case 
+            if(self.lattice.dtype==torch.float32):
+                if(self.mpiObject.rank==0):
+                    print("Warning using float32 can result in inaccurate Results")
             self.calling=self.mpiCall
         
         else:
@@ -339,5 +412,23 @@ class Mass(Observable):
             mass -= (f * self.mask.to(dtype=torch.float)).sum()
 
         #sum reduction to rank 0
-        dist.reduce(mass,0,dist.ReduceOp.SUM)
+        #dist.reduce(mass,0,dist.ReduceOp.SUM)
         return mass
+
+    def finish(self, localMass):
+        dx = self.flow.units.convert_length_to_pu(1.0)
+        torchlocalMass=self.lattice.convert_to_CPU(localMass)
+        torchlocalMass=torch.unsqueeze(torchlocalMass, dim=-1)
+        if(self.mpiObject.rank==0):
+            #collect
+            getInput=torch.zeros_like(torchlocalMass)
+            for i in range(1,self.mpiObject.size):
+                dist.recv(getInput,i)
+                
+                torchlocalMass=torch.cat((torchlocalMass,getInput),dim=1)
+
+            mass=torch.sum(torchlocalMass,dim=1,keepdim=True)
+            return mass
+
+        else:
+            dist.send(torchlocalMass,0)

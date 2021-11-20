@@ -45,6 +45,7 @@ class Lattice:
         return self.stencil.e.shape[0]
 
     def convert_to_tensor(self, array):
+        """ Convert array to Torch tensor on defined device"""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             if isinstance(array, np.ndarray) and array.dtype in [np.bool, np.uint8] or isinstance(array, torch.BoolTensor):
@@ -53,6 +54,7 @@ class Lattice:
                 return torch.tensor(array, device=self.device, dtype=self.dtype)
 
     def convert_to_CPU(self,array):
+        """ Convert array to Torch tensor on CPU"""
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             if isinstance(array, np.ndarray) and array.dtype in [np.bool, np.uint8] or isinstance(array, torch.BoolTensor):

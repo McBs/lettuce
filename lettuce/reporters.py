@@ -131,6 +131,8 @@ class VTKReporter:
                       np.arange(0, point_dict["mask"].shape[1]),
                       np.arange(0, point_dict["mask"].shape[2]),
                       pointData=point_dict)
+    def finish():
+        pass
 
 
 class ErrorReporter:
@@ -150,29 +152,32 @@ class ErrorReporter:
                     print("#error_u         error_p", file=self.out)
         else:
             if not isinstance(self.out, list):
-                print("#error_u         error_p", file=self.out)
-        
+                print("#error_u         error_p", file=self.out)  
 
     def __call__(self, i, t, f):
         if i % self.interval == 0:
             pref, uref = self.flow.analytic_solution(self.flow.rgrid.global_grid(), t=t)
-            pref = self.lattice.convert_to_tensor(pref)
-            uref = self.lattice.convert_to_tensor(uref)
+            pref = self.lattice.convert_to_CPU(pref)
+            uref = self.lattice.convert_to_CPU(uref)
 
             u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
             p = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
-
-            resolution = torch.pow(torch.prod(self.lattice.convert_to_tensor(p.size())), 1 / self.lattice.D)
-            u=self.flow.rgrid.reassemble(u)
-            err_u = torch.norm(u - uref) / resolution ** (self.lattice.D / 2)
-            p=self.flow.rgrid.reassemble(p)
-            err_p = torch.norm(p - pref) / resolution ** (self.lattice.D / 2)
+            u=self.flow.rgrid.reassembleCPU(u)
+            p=self.flow.rgrid.reassembleCPU(p)
+            if(self.mpiObject.rank==0):
+                resolution = torch.pow(torch.prod(self.lattice.convert_to_CPU(p.size())), 1 / self.lattice.D)
+                
+                err_u = torch.norm(u - uref) / resolution ** (self.lattice.D / 2)
+    
+                err_p = torch.norm(p - pref) / resolution ** (self.lattice.D / 2)
             if(self.mpiObject.rank==0):
                 if isinstance(self.out, list):
                     self.out.append([err_u.item(), err_p.item()])
                 else:
                     print(err_u.item(), err_p.item(), file=self.out)
 
+    def finish(self):
+        pass
 
 class ObservableReporter:
     """A reporter that prints an observable every few iterations.
@@ -198,6 +203,10 @@ class ObservableReporter:
         self.mpiObj=observable.mpiObject
         if(self.mpiObj is None):
             self.mpiObj=mpiObject(0)
+        self.calling=self.singlecall
+        if(self.mpiObj.mpi==1):
+            self.calling=self.mpicall
+            
 
         self.rank=self.mpiObj.rank
         if(self.rank==0):
@@ -206,6 +215,9 @@ class ObservableReporter:
 
 
     def __call__(self, i, t, f):
+        self.calling(i,t,f)
+
+    def singlecall(self, i, t, f):
         if i % self.interval == 0:
             observed = self.observable.lattice.convert_to_numpy(self.observable(f))
 
@@ -221,10 +233,47 @@ class ObservableReporter:
                 else:
                     print(*entry, file=self.out)
 
+    def mpicall(self,i,t,f):
+        if i % self.interval == 0:
+            observed = self.observable.lattice.convert_to_numpy(self.observable(f))
+
+            assert len(observed.shape) < 2
+            if len(observed.shape) == 0:
+                observed = [observed.item()]
+            else:
+                observed = observed.tolist()
+
+            if(self.mpiObj.rank==0):
+                entry = [i, t] + observed
+                if isinstance(self.out, list):
+                    self.out.append(entry)
+            else:
+                self.out.append(observed)
+
+
+    def finish(self):
+        
+        entry=np.asarray(self.out)
+        if(self.mpiObj.rank==0):
+            e=np.asarray(self.out)
+            entry=e[:,2]
+            
+        if(self.mpiObj.rank==0):
+            observedList=(self.observable.finish(entry))
+            observedList=self.observable.lattice.convert_to_numpy(observedList)
+        else:
+            (self.observable.finish(entry))
+
+        if(self.mpiObj.rank==0):
+            numparray=np.array(self.out)
+            numparray[:,2]=observedList[:,0]
+            self.out=numparray.tolist()
+
+
 
 
 class StepReporter:
-    """General VTK Reporter for velocity and pressure"""
+    """Print out the current Step and time"""
 
     def __init__(self, lattice, flow, interval=50):
         self.lattice = lattice
@@ -239,8 +288,11 @@ class StepReporter:
             if(self.mpiObject.rank==0):
                 print("Step: ",i," Time:", timer())
 
+    def finish(self):
+        pass
+
 class ProgressReporter:
-    """General VTK Reporter for velocity and pressure"""
+    """Print out Progress in % """
 
     def __init__(self, lattice, flow, interval=50, end=-1):
         self.lattice = lattice
@@ -258,6 +310,9 @@ class ProgressReporter:
         if i % self.interval == 0:
             if(self.rank==0):
                 print("Step: ",i/self.end)
+
+    def finish(self):
+        pass
 
 # ----------------------------------------
 # Deprecated classes

@@ -24,7 +24,7 @@ class DoublyPeriodicShear2D:
             characteristic_length_lu=resolution, characteristic_length_pu=1,
             characteristic_velocity_pu=1
         )
-        self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu, self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
+        self.rgrid = RegularGrid([resolution, resolution], self.units.characteristic_length_lu, self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject,lattice=lattice)
         self.ref=0
     
     def refinment(self,newResolution):
@@ -39,6 +39,9 @@ class DoublyPeriodicShear2D:
             characteristic_length_lu=resolution, characteristic_length_pu=1,
             characteristic_velocity_pu=1
         )
+
+        self.rgrid = RegularGrid([resolution, resolution, resolution], self.units.characteristic_length_lu,
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject= self.mpiObject,lattice=lattice)
         self.ref=1
 
     def analytic_solution(self, x, t=0):

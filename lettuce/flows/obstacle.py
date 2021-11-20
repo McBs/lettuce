@@ -55,7 +55,7 @@ class Obstacle2D(object):
         )
         self.mpiObject=lattice.mpiObject
         self.rgrid = RegularGrid([resolution_x, resolution_y], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False, mpiObject=self.mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False, mpiObject=self.mpiObject,lattice=lattice)
         
         self._mask = np.zeros(shape=self.rgrid.shape, dtype=np.bool)
     @property
@@ -112,7 +112,7 @@ class Obstacle3D(object):
 
        
         self.rgrid = RegularGrid([resolution_x, resolution_y, resolution_z], self.units.characteristic_length_lu,
-                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject)
+                                self.units.characteristic_length_pu, endpoint=False,mpiObject=self.mpiObject,lattice=lattice)
 
         
         self._mask = np.zeros(shape=self.rgrid.shape, dtype=np.bool)
