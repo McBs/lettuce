@@ -3,19 +3,31 @@ Taylor-Green vortex in 2D and 3D.
 """
 
 import numpy as np
-
 from lettuce.unit import UnitConversion
+from lettuce.flows.flow import Flow
 
 
-class TaylorGreenVortex2D:
-    def __init__(self, resolution, reynolds_number, mach_number, lattice):
-        self.resolution = resolution
+class TaylorGreenVortex2D(Flow):
+    def __init__(self,
+                 domain,
+                 reynolds_number,
+                 mach_number,
+                 lattice,
+                 compute_f=False):
+        self.domain = domain
+        self.resolution = domain.shape[0]
+        self.grid = domain.grid(as_numpy=True)
         self.units = UnitConversion(
-            lattice,
-            reynolds_number=reynolds_number, mach_number=mach_number,
-            characteristic_length_lu=resolution, characteristic_length_pu=2 * np.pi,
+            lattice=lattice,
+            reynolds_number=reynolds_number,
+            mach_number=mach_number,
+            characteristic_length_lu=self.resolution,
+            characteristic_length_pu=2 * np.pi,
             characteristic_velocity_pu=1
         )
+        super().__init__(grid=self.grid,
+                         units=self.units,
+                         compute_f=compute_f)
 
     def analytic_solution(self, x, t=0):
         nu = self.units.viscosity_pu
@@ -26,16 +38,6 @@ class TaylorGreenVortex2D:
 
     def initial_solution(self, x):
         return self.analytic_solution(x, t=0)
-
-    @property
-    def grid(self):
-        x = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
-        y = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
-        return np.meshgrid(x, y, indexing='ij')
-
-    @property
-    def boundaries(self):
-        return []
 
 
 class TaylorGreenVortex3D:
