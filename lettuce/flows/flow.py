@@ -42,6 +42,11 @@ class Flow:
             raise Exception(f"Is not initialized yet. "
                             f"Attribute 'compute_f' is set as {self.compute_f}. "
                             )
+
+    @f.setter
+    def f(self, new_f):
+        self._f = new_f
+
     @property
     def boundaries(self) -> Sequence[Boundary]:
         return []
