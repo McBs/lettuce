@@ -40,15 +40,25 @@ class TaylorGreenVortex2D(Flow):
         return self.analytic_solution(x, t=0)
 
 
-class TaylorGreenVortex3D:
-    def __init__(self, resolution, reynolds_number, mach_number, lattice):
-        self.resolution = resolution
+class TaylorGreenVortex3D(Flow):
+    def __init__(self,
+                 domain,
+                 reynolds_number,
+                 mach_number,
+                 lattice,
+                 compute_f=False):
+        self.domain = domain
+        self.resolution = domain.shape[0]
+        self.grid = domain.grid(as_numpy=True)
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number, mach_number=mach_number,
-            characteristic_length_lu=resolution / (2 * np.pi), characteristic_length_pu=1,
+            characteristic_length_lu=self.resolution / (2 * np.pi), characteristic_length_pu=1,
             characteristic_velocity_pu=1
         )
+        super().__init__(grid=self.grid,
+                         units=self.units,
+                         compute_f=compute_f)
 
     def initial_solution(self, x):
         u = np.array([
@@ -59,13 +69,13 @@ class TaylorGreenVortex3D:
         p = np.array([1 / 16. * (np.cos(2 * x[0]) + np.cos(2 * x[1])) * (np.cos(2 * x[2]) + 2)])
         return p, u
 
-    @property
-    def grid(self):
-        x = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
-        y = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
-        z = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
-        return np.meshgrid(x, y, z, indexing='ij')
-
-    @property
-    def boundaries(self):
-        return []
+    # @property
+    # def grid(self):
+    #     x = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
+    #     y = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
+    #     z = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
+    #     return np.meshgrid(x, y, z, indexing='ij')
+    #
+    # @property
+    # def boundaries(self):
+    #     return []
