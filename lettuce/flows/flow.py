@@ -18,17 +18,21 @@ class Flow:
     Attributes
     ----------
     boundaries : Sequence[Boundary]
+    compute_f: bool - init f on rank 0
     """
     def __init__(
             self,
-            grid: Union[Sequence[np.ndarray]],
+            domain: "Domain",
             units: "Units" = None,
             compute_f: bool = False):
-        self.grid = grid
+        self.domain = domain
+        self.grid = self.domain.grid(as_numpy=True)
         self.units = units
         self._compute_f = compute_f
-        if compute_f:
+        if compute_f and self.domain.mpi_rank==0:
             self._f = self.compute_initial_f(lattice=self.units.lattice)
+        else:
+            self._f = None
 
     @property
     def compute_f(self):
@@ -36,12 +40,13 @@ class Flow:
 
     @property
     def f(self):
-        if self.compute_f:
+        if self._f is not None and self.domain.rank == 0:
             return self._f
-        else:
-            raise Exception(f"Is not initialized yet. "
-                            f"Attribute 'compute_f' is set as {self.compute_f}. "
-                            )
+        elif self._f is None and self.domain.rank == 0:
+            raise Exception(f"f is not initialized on rank {self.domain.rank}. "
+                            f"Attribute 'compute_f' is set as {self.compute_f}. ")
+        elif self.domain.rank != 0:
+            return None
 
     @f.setter
     def f(self, new_f):
