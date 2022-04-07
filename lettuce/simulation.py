@@ -34,7 +34,10 @@ class Simulation:
         self.reporters = []
 
         # Define masks, where the collision or streaming are not applied
-        self.f = flow.f if flow.f is not None else flow.compute_initial_f(self.lattice)
+        self.f = (flow.f.to(device=self.lattice.device)
+                  if flow.f is not None
+                  else
+                  flow.compute_initial_f(self.lattice).to(device=self.lattice.device))
         no_stream_mask, self.no_collision_mask = flow.compute_masks(self.lattice)
         self.streaming.no_stream_mask = no_stream_mask if no_stream_mask.any() else None
 

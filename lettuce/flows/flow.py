@@ -28,8 +28,13 @@ class Flow:
         self.domain = domain
         self.grid = self.domain.grid(as_numpy=True)
         self.units = units
+        if self.domain.dim != self.units.lattice.D:
+            raise ValueError(
+                f"Dimension error. Domain has {self.domain.dim} dimension(s). "
+                f"{self.units.lattice.stencil.__name__} has {self.units.lattice.D} dimension(s)"
+            )
         self._compute_f = compute_f
-        if compute_f and self.domain.mpi_rank==0:
+        if compute_f and self.domain.rank==0:
             self._f = self.compute_initial_f(lattice=self.units.lattice)
         else:
             self._f = None
@@ -40,9 +45,10 @@ class Flow:
 
     @property
     def f(self):
+        # TODO: FIX, compute_f = False
         if self._f is not None and self.domain.rank == 0:
             return self._f
-        elif self._f is None and self.domain.rank == 0:
+        elif self._f is None and self.domain.rank == 0 and self.compute_f is True:
             raise Exception(f"f is not initialized on rank {self.domain.rank}. "
                             f"Attribute 'compute_f' is set as {self.compute_f}. ")
         elif self.domain.rank != 0:
@@ -71,9 +77,9 @@ class Flow:
                 f"Expected {[lattice.D] + list(grid[0].shape)}, "
                 f"but got {list(u.shape)}."
             )
-        u = lattice.convert_to_tensor(self.units.convert_velocity_to_lu(u))
-        rho = lattice.convert_to_tensor(self.units.convert_pressure_pu_to_density_lu(p))
-        return lattice.equilibrium(rho, lattice.convert_to_tensor(u))
+        u = self.units.lattice.convert_to_tensor(self.units.convert_velocity_to_lu(u))
+        rho = self.units.lattice.convert_to_tensor(self.units.convert_pressure_pu_to_density_lu(p))
+        return self.units.lattice.equilibrium(rho, self.units.lattice.convert_to_tensor(u))
 
     def compute_masks(self, lattice: Lattice) -> Tuple[torch.Tensor, torch.Tensor]:
         grid = self.grid
