@@ -19,7 +19,6 @@ import warnings
 from typing import Callable, Union
 import torch
 import numpy as np
-from numpy import typing as npt
 from .util import LettuceException, LettuceWarning
 from .lattices import Lattice
 
@@ -61,7 +60,7 @@ class Boundary:
         return self._mask
 
     @mask.setter
-    def mask(self, mask: npt.NDArray[bool]):
+    def mask(self, mask):
         warnings.warn(
             "Setting the boundary mask manually is deprecated as it does "
             "not support grid refinement and MPI parallelization. "
