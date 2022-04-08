@@ -2,7 +2,6 @@
 from copy import deepcopy
 from typing import Sequence
 import numpy as np
-from numpy import typing as npt
 import torch
 from typing import Tuple, Union
 
