@@ -14,7 +14,7 @@ class TaylorGreenVortex2D(Flow):
                  mach_number,
                  lattice,
                  compute_f=False):
-        self.resolution = domain.shape[0]
+        self.resolution = domain.shape[1]
         self.units = UnitConversion(
             lattice=lattice,
             reynolds_number=reynolds_number,
@@ -45,7 +45,7 @@ class TaylorGreenVortex3D(Flow):
                  mach_number,
                  lattice,
                  compute_f=False):
-        self.resolution = domain.resolution[1]
+        self.resolution = domain.shape[1]
         self.units = UnitConversion(
             lattice,
             reynolds_number=reynolds_number, mach_number=mach_number,
