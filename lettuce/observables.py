@@ -34,8 +34,6 @@ class IncompressibleKineticEnergy(Observable):
 
     def __call__(self, f):
         dx = self.flow.units.convert_length_to_pu(1.0)
-        print("dx: ",dx)
-        print(f.shape)
         kinE = self.flow.units.convert_incompressible_energy_to_pu(torch.sum(self.lattice.incompressible_energy(f)))
         kinE *= dx ** self.lattice.D
         return kinE

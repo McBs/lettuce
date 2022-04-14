@@ -57,7 +57,6 @@ class TaylorGreenVortex3D(Flow):
                          compute_f=compute_f)
 
     def initial_solution(self, x):
-        print("point in domain: ", x[0][2, 2, 2])
         u = np.array([
             np.sin(x[0]) * np.cos(x[1]) * np.cos(x[2]),
             -np.cos(x[0]) * np.sin(x[1]) * np.cos(x[2]),
