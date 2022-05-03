@@ -81,7 +81,7 @@ class BounceBackBoundary:
         return f
 
     def make_no_collision_mask(self, f_shape):
-        assert self.mask.shape == f_shape[1:]
+        assert self.mask.shape == torch.Size(f_shape[1:])
         return self.mask
 
 

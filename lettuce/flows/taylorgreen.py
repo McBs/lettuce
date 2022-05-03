@@ -72,6 +72,6 @@ class TaylorGreenVortex3D(Flow):
     #     z = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
     #     return np.meshgrid(x, y, z, indexing='ij')
     #
-    # @property
-    # def boundaries(self):
-    #     return []
+    @property
+    def boundaries(self):
+        return []

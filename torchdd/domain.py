@@ -217,8 +217,32 @@ class BoxDomain(Domain):
             return grid
 
 
-    def contains(self, points: torch.Tensor) -> torch.Tensor:
-        return ((points >= self.lower) & (points <= self.upper)).all(dim=-1)
+    def contains(self, points: torch.Tensor, is_on_grid=True) -> int or bool:
+        output = []
+        index = ((slice(None),) + (0,) * (self.dim-1))
+        points = points[None] if points.ndim == 0 else points
+        print(points)
+        print(any(torch.isclose(self.grid()[0][index], points[0].to(dtype=self.grid()[0].dtype))))
+        print("TEEEEEST_1")
+        print(points[0] >= self.lower)
+        print((points[0] <= self.upper))
+        print(((points[0] >= self.lower) & (points[0] <= self.upper)).all(dim=-1))
+        # TODO: Aktuell nur für x Richtung angedacht, auf x,y,z erweitern
+        for point in points:
+            if ((point >= self.lower) & (point <= self.upper)).all(dim=-1):
+                if any(torch.isclose(self.grid()[0][index], point.to(dtype=self.grid()[0].dtype))) is True:
+                    output.append(int((torch.isclose(self.grid()[0][index], point.to(dtype=self.grid()[0].dtype))).nonzero(as_tuple=True)[0]))
+                    print("TEEEEEST_2")
+                elif is_on_grid is True:
+                    print(f"point {point} is within bounds, but not on the grid.")
+                    output.append(False)
+                else:
+                    print(f"point {point} is within bounds, but not on the grid.")
+                    output.append(True)
+            else:
+                output.append(False)
+        return output
+
 
 
     def split(self, *coordinates: float, n_ghost: int = 1, dim: int = 0) -> Sequence["BoxDomain"]:

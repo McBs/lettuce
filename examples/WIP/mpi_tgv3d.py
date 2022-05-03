@@ -4,10 +4,12 @@ import torchdd as dd
 import lettuce as lt
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings('ignore')
 
 res = 50
 time = 1 #sec
-step = None
+step = 2#None
 device = "cpu"
 interval = 50
 re = 400
@@ -24,6 +26,7 @@ domain = dd.BoxDomain(
     dtype=torch.float64,
     endpoint=False)
 
+print("Main domain: ",domain)
 lattice_cpu = lt.Lattice(lt.D3Q27, device="cpu", dtype=dtype)
 lattice_gpu = lt.Lattice(lt.D3Q27, device=device+":"+str(dist.get_rank()), dtype=dtype)
 
@@ -56,7 +59,7 @@ streaming = dd.MPIStreaming(lattice=lattice_gpu, decom=decom, device=device)
 simulation = lt.Simulation(flow=flows, lattice=lattice_gpu,  collision=collision, streaming=streaming)
 
 energy = lt.IncompressibleKineticEnergy(lattice_gpu, flow)
-reporter = dd.MPIObservableReporter(energy, decomposition=decom, interval=interval,)
+reporter = dd.MPIObservableReporter(energy, decomposition=decom, interval=interval, endpoint=False)
 simulation.reporters.append(reporter)
 
 steps = int(flow.units.convert_time_to_lu(time)) if step is None else step

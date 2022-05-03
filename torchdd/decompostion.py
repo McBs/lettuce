@@ -9,6 +9,7 @@ import torch.distributed as dist
 import torch
 import copy
 import numpy as np
+import lettuce as lt
 
 #
 # TODO: (v0.1.5) MPI Streaming
@@ -203,6 +204,27 @@ class DomainDecomposition:
         #TODO: Decom - Implement fct. - get_coords
         pass
 
+    def gather(self, f, fct=None, endpoint=True):
+
+        if (self._mpi_rank == self._mpi_size-1) and (endpoint is True):
+            index = ((slice(None),) + (slice(None),) + (slice(None),)* (3-1))
+        else:
+            index = ((slice(None),) + (slice(-1),) + (slice(None),)* (3-1))
+        f_send = f[index].detach().clone().cpu()
+        index = [f.shape[0]] + [-1] * self.domain.dim
+        f_all = [torch.zeros(tuple(_), dtype=f_send.dtype, device=f_send.device)[None, ...].expand(index).clone() for _
+                 in
+                 self._placeholder] if self.mpi_rank == 0 else None
+        torch.distributed.gather_object(obj=f_send, object_gather_list=f_all, dst=0)
+        if self.mpi_rank == 0:
+            f_out = torch.cat(f_all, dim=1).to(device=f.device)
+            if fct:
+                fct(f_out)
+            else:
+                return f_out
+        else:
+            return None
+
 class MPIStreaming:
     def __init__(self, lattice, decom, device):
         self.lattice = lattice
@@ -260,36 +282,96 @@ class MPIStreaming:
         return f
 
 class MPIObservableReporter:
-    def __init__(self, observable, decomposition, interval=1, out=sys.stdout):
+    def __init__(self, observable, decomposition, interval=1, out=sys.stdout, endpoint=True):
         self.observable = observable
         self.decomposition = decomposition
         self.interval = interval
         self.out = [] if out is None else out
         self._parameter_name = observable.__class__.__name__
+        self._endpoint = endpoint
         if dist.get_rank() == 0:
             print('steps    ', 'time    ', self._parameter_name)
+            self._shape = self.decomposition._placeholder.copy()
+            self._shape[-1][0] += 1 if endpoint is True else 0
 
     def __call__(self, i, t, f):
         if i % self.interval == 0:
-            f_send = f[:, :-1, ...].detach().clone().cpu()
 
-            index = [f.shape[0]] + [-1] * self.decomposition.domain.dim
-            f_all = [torch.zeros(tuple(_), dtype=f_send.dtype, device=f_send.device)[None, ...].expand(index).clone() for _ in
-                     self.decomposition._placeholder] if self.decomposition.mpi_rank == 0 else None
-
-            torch.distributed.gather_object(obj=f_send, object_gather_list=f_all, dst=0)
-            if self.decomposition.mpi_rank == 0:
-                ff = torch.cat(f_all, dim=1).to(device=f.device)
+            value_max = []
+            for value in self.decomposition._placeholder:
+                value_max.append(value[0])
+            int(max(value_max))
 
 
-                observed = self.observable.lattice.convert_to_numpy(self.observable(ff))
-                assert len(observed.shape) < 2
-                if len(observed.shape) == 0:
-                    observed = [observed.item()]
-                else:
-                    observed = observed.tolist()
-                entry = [i, t] + observed
-                if isinstance(self.out, list):
-                    self.out.append(entry)
-                else:
-                    print(*entry, file=self.out)
+
+            if (self.decomposition._mpi_rank == self.decomposition._mpi_size - 1) and (self._endpoint is True):
+                index = ((slice(None),) + (slice(None),) + (slice(None),) * (3 - 1))
+            else:
+                index = ((slice(None),) + (slice(-1),) + (slice(None),) * (3 - 1))
+            f_send = f[index].detach().clone().cpu()
+
+            # f_send = f[:, :25, ...].detach().clone().cpu()
+            # f_send = f[:, :-1, ...].detach().clone().cpu()
+
+            # index = ((slice(None),) + (slice(None),) * (3 - 1))
+            if self.decomposition._mpi_rank == 0:
+
+                # index_2 = tuple(((f.shape[0])), (value_max), *self._shape[0][1:])
+                f_all = [torch.zeros((27,27,51,51), dtype=f_send.dtype,
+                                     device=f_send.device).clone()] * 2
+                # f_all = [torch.zeros(tuple(((f.shape[0]), *_)), dtype=f_send.dtype, device=f_send.device).clone() for _ in
+                #          self._shape] if self.decomposition.mpi_rank == 0 else None
+                # f_all = [torch.zeros(tuple(((f.shape[0]), *self._shape[0])), dtype=f_send.dtype, device=f_send.device).clone()]*2
+            else:
+                f_all = None#[None]*self.decomposition._mpi_size
+
+            # torch.distributed.gather_object(obj=f_send, object_gather_list=f_all, dst=0)
+            if self.decomposition._mpi_rank == 0:
+                print("f_all0",f_all[0].dtype)
+                print("f_send0",f_send.dtype)
+                print("f_all0",f_all[0].device)
+                print("f_send0",f_send.device)
+                print("f_all0",f_all[0].shape)
+                print("f_send0",f_send.shape)
+                print("f_all1",f_all[1].shape)
+                # torch.distributed.gather(tensor=f_send, gather_list=f_all, dst=0, )
+            else:
+                print()
+                print("f_send1",f_send.shape)
+                # torch.distributed.gather(tensor=f_send, dst=0, )
+
+            torch.distributed.gather(tensor=f_send, gather_list=f_all, dst=0,)
+
+            # print(f_all[0].shape)
+            # print(f_all[1].shape)
+                # print(torch.zeros(tuple(((f.shape[0]), *self._shape[0]))).shape)
+                # print(torch.zeros(tuple(((f.shape[0]), *self._shape[1]))).shape)
+            # index = [f.shape[0]] + [-1] * self.decomposition.domain.dim
+            # if (self.decomposition._mpi_rank == self.decomposition._mpi_size - 1) and (self._endpoint is True):
+            #     index = ((slice(None),) + (slice(None),) + (slice(None),) * (3 - 1))
+            # else:
+            #     index = ((slice(None),) + (slice(-1),) + (slice(None),) * (3 - 1))
+
+            # f_all = [torch.zeros(tuple(_), dtype=f_send.dtype, device=f_send.device)[None, ...].expand(index).clone() for _ in
+            #          self.decomposition._placeholder] if self.decomposition.mpi_rank == 0 else None
+
+            # print(index)
+            # print(f_send.shape)
+            # print(f_all[1].shape)
+            # torch.distributed.gather_object(obj=f_send, object_gather_list=f_all, dst=0)
+            # if self.decomposition.mpi_rank == 0:
+            #     ff = torch.cat(f_all, dim=1).to(device=f.device)
+            #
+            #
+            #     observed = self.observable.lattice.convert_to_numpy(self.observable(ff))
+            #     assert len(observed.shape) < 2
+            #     if len(observed.shape) == 0:
+            #         observed = [observed.item()]
+            #     else:
+            #         observed = observed.tolist()
+            #     entry = [i, t] + observed
+            #     if isinstance(self.out, list):
+            #         self.out.append(entry)
+            #     else:
+            #         print(*entry, file=self.out)
+

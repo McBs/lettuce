@@ -137,3 +137,17 @@ def test_split(endpoint, ctx):
         domain.split(1.25)
 
 
+@pytest.mark.parametrize("is_on_grid", [True, False])
+def test_contains(is_on_grid, ctx):
+    domain = BoxDomain(
+        lower=torch.zeros(3, **ctx),
+        upper=10*torch.ones(3, **ctx),
+        resolution=torch.Size([10, 10, 10]),
+        endpoint="False",
+        cubic_cells=True
+    )
+    query = ([4,False,False] if is_on_grid is True else [4,True,False])
+    assert (domain.contains(torch.tensor([4,5.5,11]), is_on_grid=is_on_grid) == query)
+
+
+

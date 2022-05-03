@@ -24,7 +24,7 @@ class Simulation:
 
     """
 
-    def __init__(self, flow, lattice, collision, streaming):
+    def __init__(self, flow, lattice, collision, streaming, boundary=None):
         self.flow = flow
         self.lattice = lattice
         self.collision = collision
@@ -38,6 +38,10 @@ class Simulation:
                   if flow.f is not None
                   else
                   flow.compute_initial_f(self.lattice).to(device=self.lattice.device))
+
+        # Apply boundaries
+        self._boundaries = deepcopy(self.flow.boundaries)  # store locally to keep the flow free from the boundary state
+
         no_stream_mask, self.no_collision_mask = flow.compute_masks(self.lattice)
         self.streaming.no_stream_mask = no_stream_mask if no_stream_mask.any() else None
 
@@ -51,8 +55,8 @@ class Simulation:
             self.f = self.streaming(self.f)
             # Perform the collision routine everywhere, expect where the no_collision_mask is true
             self.f = torch.where(self.no_collision_mask, self.f, self.collision(self.f))
-            # for boundary in self._boundaries:
-            #     self.f = boundary(self.f)
+            for boundary in self._boundaries:
+                self.f = boundary(self.f)
             self._report()
         end = timer()
         seconds = end - start
@@ -123,10 +127,17 @@ class Simulation:
         feq = self.lattice.equilibrium(rho, u)
         self.f = feq + fneq
 
-    def save_checkpoint(self, filename):
+    def save_checkpoint(self, filename, split=False):
         """Write f as np.array using pickle module."""
-        with open(filename, "wb") as fp:
-            pickle.dump(self.f, fp)
+        if (hasattr(self.streaming, 'decom')) and (split is True):
+            f = self.streaming.decom.gather(self.f, endpoint=True)
+            if self.streaming.decom.mpi_rank == 0:
+                with open(filename, "wb") as fp:
+                    pickle.dump(f, fp)
+                    print(f.shape)
+        else:
+            with open(filename, "wb") as fp:
+                pickle.dump(self.f, fp)
 
     def load_checkpoint(self, filename):
         """Load f as np.array using pickle module."""

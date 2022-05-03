@@ -32,3 +32,8 @@ print("domain cell_lengts:", domain.cell_lengths)
 print("domain n_cells:", domain.n_cells)
 print("domain n_points:", domain.n_points)
 print("domain n_ghosts:", domain.n_ghost)
+
+print(domain.contains(torch.tensor(1)))
+print(domain.grid()[0][2,0])
+print(domain.grid()[0][3,0])
+print(domain.grid()[0][4,0])

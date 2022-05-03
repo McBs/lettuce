@@ -90,7 +90,7 @@ class Flow:
         # Apply boundaries
         # boundaries = deepcopy(self.boundaries)  # store locally to keep the flow free from the boundary state
         for boundary in self.boundaries:
-            boundary.update_mask(lattice, self.grid)
+            #boundary.update_mask(lattice, self.grid)
             if hasattr(boundary, "make_no_collision_mask"):
                 no_collision_mask = no_collision_mask | boundary.make_no_collision_mask(f_shape)
             if hasattr(boundary, "make_no_stream_mask"):
