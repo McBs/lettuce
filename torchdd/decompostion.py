@@ -319,7 +319,7 @@ class MPIObservableReporter:
 
 
             if self.decomposition.mpi_rank == 0:
-                ff = torch.cat(f_all, dim=1).to(device=f.device)
+                ff = torch.cat(f_all, dim=1).to(device=device)
                 del f_all
                 observed = self.observable.lattice.convert_to_numpy(self.observable(ff))
                 del ff
