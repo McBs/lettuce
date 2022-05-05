@@ -317,7 +317,9 @@ class MPIObservableReporter:
                 del f_send
 
             if self.decomposition.mpi_rank == 0:
+                del f_recv
                 ff = torch.cat(f_all, dim=1).to(device=f.device)
+                del f_all
                 observed = self.observable.lattice.convert_to_numpy(self.observable(ff))
                 assert len(observed.shape) < 2
                 if len(observed.shape) == 0:
