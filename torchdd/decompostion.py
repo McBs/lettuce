@@ -295,40 +295,55 @@ class MPIObservableReporter:
             self._shape[-1][0] += 1 if endpoint is True else 0
 
     def __call__(self, i, t, f):
-        if i % self.interval == 0:
+        # if i % self.interval == 0:
+        #
+        #     if (self.decomposition._mpi_rank == self.decomposition._mpi_size - 1) and (self._endpoint is True):
+        #         index = ((slice(None),) + (slice(None),) + (slice(None),) * (3 - 1))
+        #     else:
+        #         index = ((slice(None),) + (slice(-1),) + (slice(None),) * (3 - 1))
+        #     f_send = f[index].cpu().detach().clone()
+        #     dtype = f_send.dtype
+        #     device = f_send.device
+        #     # Send data to rank 0. distributed.gather is not used, because unequal data size are not supported.
+        #     if self.decomposition._mpi_rank == 0:
+        #         f_all = [f_send]
+        #         del f_send
+        #         for i in range(1,self.decomposition._mpi_size):
+        #             f_recv = torch.zeros(tuple((f.shape[0], *self._shape[i])),dtype=dtype,device=device)
+        #             dist.recv(tensor=f_recv, src=i)
+        #             f_all.append(f_recv)
+        #     else:
+        #         dist.send(tensor=f_send, dst=0)
+        #         del f_send
 
-            if (self.decomposition._mpi_rank == self.decomposition._mpi_size - 1) and (self._endpoint is True):
-                index = ((slice(None),) + (slice(None),) + (slice(None),) * (3 - 1))
-            else:
-                index = ((slice(None),) + (slice(-1),) + (slice(None),) * (3 - 1))
-            f_send = f[index].cpu().detach().clone()
-            dtype = f_send.dtype
-            device = f_send.device
-            # Send data to rank 0. distributed.gather is not used, because unequal data size are not supported.
-            if self.decomposition._mpi_rank == 0:
-                f_all = [f_send]
-                del f_send
-                for i in range(1,self.decomposition._mpi_size):
-                    f_recv = torch.zeros(tuple((f.shape[0], *self._shape[i])),dtype=dtype,device=device)
-                    dist.recv(tensor=f_recv, src=i)
-                    f_all.append(f_recv)
-            else:
-                dist.send(tensor=f_send, dst=0)
-                del f_send
+        if (self.decomposition._mpi_rank == self.decomposition._mpi_size - 1) and (self._endpoint is True):
+            index = ((slice(None),) + (slice(None),) + (slice(None),) * (3 - 1))
+        else:
+            index = ((slice(None),) + (slice(-1),) + (slice(None),) * (3 - 1))
 
-            if self.decomposition.mpi_rank == 0:
-                del f_recv
-                ff = torch.cat(f_all, dim=1).to(device=f.device)
-                del f_all
-                observed = self.observable.lattice.convert_to_numpy(self.observable(ff))
-                assert len(observed.shape) < 2
-                if len(observed.shape) == 0:
-                    observed = [observed.item()]
-                else:
-                    observed = observed.tolist()
-                entry = [i, t] + observed
-                if isinstance(self.out, list):
-                    self.out.append(entry)
-                else:
-                    print(*entry, file=self.out)
+        f_send = f[index].detach().clone().cpu()
+
+        # f_all = [torch.zeros(tuple(_), dtype=f_send.dtype, device=f_send.device)[None, ...].expand(index).clone() for _
+        #          in
+        #          self._placeholder] if self.mpi_rank == 0 else None
+        f_all = [torch.zeros(1, dtype=f_send.dtype, device=f_send.device)]*2 if self.decomposition.mpi_rank == 0 else None
+        torch.distributed.gather_object(obj=f_send, object_gather_list=f_all, dst=0)
+        del f_send
+
+        if self.decomposition.mpi_rank == 0:
+            # del f_recv
+            ff = torch.cat(f_all, dim=1).to(device=f.device)
+            del f_all
+            observed = self.observable.lattice.convert_to_numpy(self.observable(ff))
+            del ff
+            assert len(observed.shape) < 2
+            if len(observed.shape) == 0:
+                observed = [observed.item()]
+            else:
+                observed = observed.tolist()
+            entry = [i, t] + observed
+            if isinstance(self.out, list):
+                self.out.append(entry)
+            else:
+                print(*entry, file=self.out)
 
