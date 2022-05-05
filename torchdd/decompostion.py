@@ -317,7 +317,6 @@ class MPIObservableReporter:
                 dist.send(tensor=f_send, dst=0)
                 del f_send
 
-
             if self.decomposition.mpi_rank == 0:
                 ff = torch.cat(f_all, dim=1).to(device=device)
                 del f_all

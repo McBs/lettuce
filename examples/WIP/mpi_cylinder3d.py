@@ -24,6 +24,7 @@ grid_points_per_D_in_Z = 3
 D = 10
 
 position_1 = [(int(round(5*D + D * 1.06, 0)),0,0)]
+position_1 = torch.tensor([int(round(5*D + D * 1.06, 0)),0,0])
 position_2 = [(int(round(5*D + D * 1.54, 0)),0,0)]
 position_3 = [(int(round(5*D + D * 2.02, 0)),0,0)]
 time_start_recording = 1
@@ -174,7 +175,7 @@ collision = lt.BGKCollision(lattice_gpu, tau=flows.units.relaxation_parameter_lu
 streaming = dd.MPIStreaming(lattice=lattice_gpu, decom=decom, device=device)
 simulation = lt.Simulation(flow=flows, lattice=lattice_gpu,  collision=collision, streaming=streaming)
 Velocity0 = AveragedVelocityReporter(lattice_gpu, flow, position_1, 1, int(flow.units.convert_time_to_lu(time_start_recording)))
-simulation.reporters.append(Velocity0)
+# simulation.reporters.append(Velocity0)
 #
 # energy = lt.IncompressibleKineticEnergy(lattice_gpu, flow)
 # reporter = dd.MPIObservableReporter(energy, decomposition=decom, interval=interval,)

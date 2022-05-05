@@ -58,7 +58,7 @@ collision = lt.BGKCollision(lattice_gpu, tau=flows.units.relaxation_parameter_lu
 streaming = dd.MPIStreaming(lattice=lattice_gpu, decom=decom, device=device)
 simulation = lt.Simulation(flow=flows, lattice=lattice_gpu,  collision=collision, streaming=streaming)
 
-energy = lt.IncompressibleKineticEnergy(lattice_gpu, flow)
+energy = lt.IncompressibleKineticEnergy(lattice_cpu, flow)
 reporter = dd.MPIObservableReporter(energy, decomposition=decom, interval=interval, endpoint=False)
 simulation.reporters.append(reporter)
 
