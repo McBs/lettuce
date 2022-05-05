@@ -9,9 +9,9 @@ warnings.filterwarnings('ignore')
 
 res = 50
 time = 1 #sec
-step = 2#None
+step = 10#None
 device = "cpu"
-interval = 50
+interval = 1
 re = 400
 
 dist.init_process_group(backend="mpi", rank=-1, world_size=-1)
