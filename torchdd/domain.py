@@ -238,19 +238,16 @@ class BoxDomain(Domain):
         return output
 
     def is_on_grid(self, points: torch.Tensor,) -> int or bool:
-        output = []
         index = ((slice(None),) + (0,) * (self.dim-1))
         points = points[None] if points.ndim == 0 else points
         # TODO: Aktuell nur für x Richtung angedacht, auf x,y,z erweitern
         for point in points:
-            if ((point >= self.lower) & (point <= self.upper)).all(dim=-1):
+            if ((point >= self.lower[0]) & (point <= self.upper[0])).all(dim=-1):
                 if any(torch.isclose(self.grid()[0][index], point.to(dtype=self.grid()[0].dtype))) is True:
-                    output.append(int((torch.isclose(self.grid()[0][index], point.to(dtype=self.grid()[0].dtype))).nonzero(as_tuple=True)[0]))
+                    output = int((torch.isclose(self.grid()[0][index], point.to(dtype=self.grid()[0].dtype))).nonzero(as_tuple=True)[0])
             else:
-                output.append(False)
+                output = False
         return output
-
-
 
     def split(self, *coordinates: float, n_ghost: int = 1, dim: int = 0) -> Sequence["BoxDomain"]:
         grid_points = []
