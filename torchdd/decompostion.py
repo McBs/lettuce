@@ -1,5 +1,5 @@
 
-__all__ = ["DomainDecomposition", "MPIObservableReporter", "MPIStreaming"]
+__all__ = ["DomainDecomposition", "MPIObservableReporter", "MPIStreaming", "VTKReporter"]
 
 from .domain import Domain, BoxDomain
 from typing import Sequence, Optional
@@ -10,6 +10,7 @@ import torch
 import copy
 import numpy as np
 import lettuce as lt
+import pyevtk.hl as vtk
 
 #
 # TODO: (v0.1.5) MPI Streaming
@@ -143,7 +144,7 @@ class DomainDecomposition:
         else:
             return (domains, flows) if split_flow else domains
 
-    def split_flow(self, domains, flow = None) -> Sequence["BoxDomain"]:
+    def split_flow(self, domains, flow=None) -> Sequence["BoxDomain"]:
         # TODO: This might be a memory problem
         _flow = self.flow if flow is None else flow
         if _flow is None:
@@ -333,3 +334,65 @@ class MPIObservableReporter:
                 else:
                     print(*entry, file=self.out)
 
+class VTKReporter:
+    """General VTK Reporter for velocity and pressure"""
+
+    def __init__(self, lattice, flow, decomposition, endpoint, interval=50, filename_base="./data/output"):
+        self.lattice = lattice
+        self.flow = flow
+        self.decomposition = decomposition
+        self.interval = interval
+        self.filename_base = filename_base
+        directory = os.path.dirname(filename_base)
+        if not os.path.isdir(directory):
+            os.mkdir(directory)
+        self.point_dict = dict()
+        self._endpoint = endpoint
+        if dist.get_rank() == 0:
+            self._shape = self.decomposition._placeholder.copy()
+            self._shape[-1][0] += 1 if endpoint is True else 0
+
+    def __call__(self, i, t, f):
+        if i % self.interval == 0:
+
+            if (self.decomposition._mpi_rank == self.decomposition._mpi_size - 1) and (self._endpoint is True):
+                index = ((slice(None),) + (slice(None),) + (slice(None),) * (3 - 1))
+            else:
+                index = ((slice(None),) + (slice(-1),) + (slice(None),) * (3 - 1))
+            f_send = f[index].cpu().detach().clone()
+            dtype = f_send.dtype
+            device = f_send.device
+            # Send data to rank 0. distributed.gather is not used, because unequal data size are not supported.
+            if self.decomposition._mpi_rank == 0:
+                f_all = [f_send]
+                # del f_send
+                for rank in range(1,self.decomposition._mpi_size):
+                    f_recv = torch.zeros(tuple((f.shape[0], *self._shape[rank])),dtype=dtype,device=device)
+                    dist.recv(tensor=f_recv, src=rank)
+                    f_all.append(f_recv)
+                    # del f_recv
+            else:
+                dist.send(tensor=f_send, dst=0)
+                # del f_send
+
+            if self.decomposition.mpi_rank == 0:
+                ff = torch.cat(f_all, dim=1).to(device=device)
+                u = self.flow.units.convert_velocity_to_pu(self.lattice.u(ff))
+                p = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(ff))
+                if self.lattice.D == 2:
+                    self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None])
+                    for d in range(self.lattice.D):
+                        self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ..., None])
+                else:
+                    self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...])
+                    for d in range(self.lattice.D):
+                        self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...])
+                self.write_vtk(self.point_dict, i, self.filename_base)
+
+    @staticmethod
+    def write_vtk(point_dict, id=0, filename_base="./data/output"):
+        vtk.gridToVTK(f"{filename_base}_{id:08d}",
+                      np.arange(0, point_dict["p"].shape[0]),
+                      np.arange(0, point_dict["p"].shape[1]),
+                      np.arange(0, point_dict["p"].shape[2]),
+                      pointData=point_dict)
