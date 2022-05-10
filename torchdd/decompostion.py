@@ -340,6 +340,7 @@ class VTKReporter:
     def __init__(self, lattice, flow, decomposition, endpoint, interval=50, filename_base="./data/output"):
         self.lattice = lattice
         self.flow = flow
+        self.flow.units.lattice = lattice
         self.decomposition = decomposition
         self.interval = interval
         self.filename_base = filename_base
