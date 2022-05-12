@@ -29,17 +29,26 @@ def write_image(filename, array2d):
 
 
 def write_vtk(point_dict, id=0, filename_base="./data/output"):
-    vtk.gridToVTK(f"{filename_base}_{id:08d}",
-                  np.arange(0, point_dict["p"].shape[0]),
-                  np.arange(0, point_dict["p"].shape[1]),
-                  np.arange(0, point_dict["p"].shape[2]),
-                  pointData=point_dict)
+    # vtk.gridToVTK(f"{filename_base}_{id:08d}",
+    #               np.arange(0, point_dict["p"].shape[0]),
+    #               np.arange(0, point_dict["p"].shape[1]),
+    #               np.arange(0, point_dict["p"].shape[2]),
+    #               pointData=point_dict)
+
+    vtk.imageToVTK(
+        path=f"{filename_base}_{id:08d}",
+        origin=(0.0, 0.0, 0.0),
+        spacing=(1.0, 1.0, 1.0),
+        cellData=None,
+        pointData=point_dict,
+        fieldData=None,
+    )
 
 
 class VTKReporter:
     """General VTK Reporter for velocity and pressure"""
 
-    def __init__(self, lattice, flow, interval=50, filename_base="./data/output"):
+    def __init__(self, lattice, flow, interval=50, filename_base="./data/output", dtype=torch.float32):
         self.lattice = lattice
         self.flow = flow
         self.interval = interval
@@ -48,19 +57,20 @@ class VTKReporter:
         if not os.path.isdir(directory):
             os.mkdir(directory)
         self.point_dict = dict()
+        self.dtype = dtype
 
     def __call__(self, i, t, f):
         if i % self.interval == 0:
             u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
             p = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
             if self.lattice.D == 2:
-                self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None])
+                self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None].to(dtype=self.dtype))
                 for d in range(self.lattice.D):
-                    self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ..., None])
+                    self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ..., None].to(dtype=self.dtype))
             else:
-                self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...])
+                self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...].to(dtype=self.dtype))
                 for d in range(self.lattice.D):
-                    self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...])
+                    self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...].to(dtype=self.dtype))
             write_vtk(self.point_dict, i, self.filename_base)
 
     def output_mask(self, no_collision_mask):
