@@ -392,8 +392,17 @@ class VTKReporter:
 
     @staticmethod
     def write_vtk(point_dict, id=0, filename_base="./data/output"):
-        vtk.gridToVTK(f"{filename_base}_{id:08d}",
-                      np.arange(0, point_dict["p"].shape[0]),
-                      np.arange(0, point_dict["p"].shape[1]),
-                      np.arange(0, point_dict["p"].shape[2]),
-                      pointData=point_dict)
+        # vtk.gridToVTK(f"{filename_base}_{id:08d}",
+        #               np.arange(0, point_dict["p"].shape[0]),
+        #               np.arange(0, point_dict["p"].shape[1]),
+        #               np.arange(0, point_dict["p"].shape[2]),
+        #               pointData=point_dict)
+
+        vtk.imageToVTK(
+            path=f"{filename_base}_{id:08d}",
+            origin=(0.0, 0.0, 0.0),
+            spacing=(1.0, 1.0, 1.0),
+            cellData=None,
+            pointData=point_dict,
+            fieldData=None,
+        )
