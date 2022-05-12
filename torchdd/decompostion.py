@@ -381,13 +381,13 @@ class VTKReporter:
                 u = self.flow.units.convert_velocity_to_pu(self.lattice.u(ff))
                 p = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(ff))
                 if self.lattice.D == 2:
-                    self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None])
+                    self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None].to(dtype=torch.float32))
                     for d in range(self.lattice.D):
-                        self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ..., None])
+                        self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ..., None].to(dtype=torch.float32))
                 else:
-                    self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...])
+                    self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...].to(dtype=torch.float32))
                     for d in range(self.lattice.D):
-                        self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...])
+                        self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...].to(dtype=torch.float32))
                 self.write_vtk(self.point_dict, i, self.filename_base)
 
     @staticmethod
