@@ -206,7 +206,8 @@ class SymmetryGroup(list):
         return self._inverse_table
 
     def moment_action(self, moment_transform):
-        return (moment_transform.matrix[:, self.permutations] @ moment_transform.inverse).swapaxes(0, 1)
+        # return (moment_transform.matrix[:, self.permutations] @ moment_transform.inverse).swapaxes(0, 1)
+        return moment_transform.matrix[:, self.permutations].swapaxes(0,1)
 
     def inverse_moment_action(self, moment_transform):
         return (moment_transform.matrix[:, self.inverse_permutations] @ moment_transform.inverse).swapaxes(0, 1)
