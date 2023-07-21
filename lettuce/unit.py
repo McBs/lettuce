@@ -68,6 +68,27 @@ class UnitConversion:
         return (acceleration_in_pu / (self.characteristic_velocity_pu ** 2 / self.characteristic_length_pu)
                 * (self.characteristic_velocity_lu ** 2 / self.characteristic_length_lu))
 
+    # def convert_force_to_pu(self, force_lu):
+    #     return (force_lu * (self.characteristic_density_pu / self.characteristic_density_lu) *
+    #             (self.characteristic_velocity_pu / self.characteristic_velocity_lu) ** 2 *
+    #             (self.characteristic_length_pu / self.characteristic_length_lu) ** (
+    #                         self.lattice.D - 1))  # area-dimension is 1 in 2D !
+    #
+    # def convert_force_to_lu(self, force_pu):
+    #     return (force_pu * (self.characteristic_density_lu / self.characteristic_density_pu) *
+    #             (self.characteristic_velocity_lu / self.characteristic_velocity_pu) ** 2 *
+    #             (self.characteristic_length_lu / self.characteristic_length_pu) ** (
+    #                         self.lattice.D - 1))  # area-dimension is 1 in 2D !
+
+    def convert_force_to_pu(self, force_lu):
+        return (force_lu * (self.characteristic_density_pu / self.characteristic_density_lu) *
+                (self.characteristic_velocity_pu / self.characteristic_velocity_lu) ** 2 *
+                (self.characteristic_length_lu / self.characteristic_length_pu))
+
+    def convert_force_to_lu(self, force_pu):
+        return (force_pu * (self.characteristic_density_lu / self.characteristic_density_pu) *
+                (self.characteristic_velocity_lu / self.characteristic_velocity_pu) ** 2 *
+                (self.characteristic_length_pu / self.characteristic_length_lu))
     def convert_time_to_pu(self, time_in_lu):
         return (time_in_lu / (self.characteristic_length_lu / self.characteristic_velocity_lu)
                 * (self.characteristic_length_pu / self.characteristic_velocity_pu))

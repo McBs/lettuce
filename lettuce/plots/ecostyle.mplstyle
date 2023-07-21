@@ -1,0 +1,42 @@
+text.usetex: True
+font.family: serif
+font.serif: palatino
+font.size: 9
+
+lines.linewidth: 2
+lines.markeredgewidth: 2
+lines.markersize: 5.0
+markers.fillstyle: none
+
+figure.figsize: 3.5, 2.625
+figure.frameon: False
+figure.autolayout: True
+
+axes.spines.left: False  # display axis spines
+axes.spines.bottom: True
+axes.spines.top: False
+axes.spines.right:  False
+axes.grid:          True
+axes.grid.axis:     y
+axes.labelcolor: 525254
+axes.titlelocation: right
+axes.titlesize: 9
+
+
+
+xtick.top:          False
+ytick.right: False
+ytick.labelright: True
+ytick.labelleft: False
+ytick.left: False
+ytick.alignment: bottom
+ytick.color: black
+ytick.major.pad: -3
+
+xaxis.labellocation: center
+
+grid.alpha: 1.0
+grid.color: b0b0b0
+grid.linestyle: -
+grid.linewidth: 0.8
+

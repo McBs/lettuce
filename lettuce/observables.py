@@ -9,7 +9,10 @@ import numpy as np
 from lettuce.util import torch_gradient
 from packaging import version
 
-__all__ = ["Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum"]
+__all__ = [
+    "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
+    "Correlation", "U_max", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy"
+           ]
 
 
 class Observable:
@@ -65,60 +68,70 @@ class Enstrophy(Observable):
 
 
 class EnergySpectrum(Observable):
-    """The kinetic energy spectrum"""
+    """
+    Calculates the energy spectrum of a velocity using the Fast Fourier Transform (FFT).
+
+    Args:
+        f (torch.Tensor): Population.
+
+    Returns:
+        ek (torch.Tensor): Energy spectrum according to Pope (Eq. 6.193).
+
+    Notes:
+        - This function is applicable for a three-dimensional flow only.
+        - This function is applicable for an isotropic turbulence simulation only.
+        - The function is normed for a physical characteristic length of 2π.
+          For further normalization options see: https://github.com/fdietzsc/hita/tree/master
+        - Conditions may be defined within initialization process, which has been omitted due to memory constraints.
+    """
 
     def __init__(self, lattice, flow):
         super(EnergySpectrum, self).__init__(lattice, flow)
+        assert lattice.D == 3, "This is not a three-dimensional flow."
         self.dx = self.flow.units.convert_length_to_pu(1.0)
         self.dimensions = self.flow.grid[0].shape
         frequencies = [self.lattice.convert_to_tensor(np.fft.fftfreq(dim, d=1 / dim)) for dim in self.dimensions]
-        wavenumbers = torch.stack(torch.meshgrid(*frequencies))
-        wavenorms = torch.norm(wavenumbers, dim=0)
-
-        if self.lattice.D == 3:
-            self.norm = self.dimensions[0] * np.sqrt(2 * np.pi) / self.dx ** 2
-        else:
-            self.norm = self.dimensions[0] / self.dx
-
-        self.wavenumbers = torch.arange(int(torch.max(wavenorms)))
+        self.wavenorms = torch.norm(torch.stack(torch.meshgrid(*frequencies)), dim=0)
+        wavenumbers = torch.arange(self.dimensions[0])
         self.wavemask = (
-            (wavenorms[..., None] > self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
-            (wavenorms[..., None] <= self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
+                (self.wavenorms[..., None] > wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
+                (self.wavenorms[..., None] <= wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
         )
+        self.k = (torch.arange(0, int(self.dimensions[0] / 2)) + 1)
 
-    def __call__(self, f):
-        u = self.lattice.u(f)
-        return self.spectrum_from_u(u)
+    def __call__(self, f: torch.Tensor) -> torch.Tensor:
+        return self.spectrum_from_u(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
 
-    def spectrum_from_u(self, u):
-        u = self.flow.units.convert_velocity_to_pu(u)
-        ekin = self._ekin_spectrum(u)
-        ek = ekin[..., None] * self.wavemask.to(dtype=self.lattice.dtype)
-        ek = ek.sum(torch.arange(self.lattice.D).tolist())
-        return ek
+    def spectrum_from_u(self, u: torch.Tensor) -> torch.Tensor:
+        # Computes the N dimensional discrete Fourier transform of the velocity
+        uh = torch.stack([
+            torch.abs(torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="forward")) for i in
+            range(self.lattice.D)
+        ])
 
-    def _ekin_spectrum(self, u):
-        """distinguish between different torch versions"""
-        torch_ge_18 = (version.parse(torch.__version__) >= version.parse("1.8.0"))
-        if torch_ge_18:
-            return self._ekin_spectrum_torch_ge_18(u)
-        else:
-            return self._ekin_spectrum_torch_lt_18(u)
+        # Compute the values of spectrum elementwise
+        ekin = torch.sum(((uh) ** 2), dim=0)
+        spectrum = torch.zeros_like(self.k, dtype=self.lattice.dtype)
+        counter = torch.zeros_like(self.k, dtype=self.lattice.dtype)
 
-    def _ekin_spectrum_torch_lt_18(self, u):
-        zeros = torch.zeros(self.dimensions, dtype=self.lattice.dtype, device=self.lattice.device)[..., None]
-        uh = (torch.stack([
-            torch.fft(torch.cat((u[i][..., None], zeros), self.lattice.D),
-                      signal_ndim=self.lattice.D) for i in range(self.lattice.D)]) / self.norm)
-        ekin = torch.sum(0.5 * (uh[..., 0] ** 2 + uh[..., 1] ** 2), dim=0)
-        return ekin
+        # Calculate values of specturm (for wavenumbers [k0+1,kmax-1])
+        for nr, k in enumerate(self.k[1:-1]):
+            condition = (self.wavenorms <= (float(k) + 0.5)) & (self.wavenorms > (float(k) - 0.5))
+            spectrum[nr + 1] = ekin[condition].sum()
+            counter[nr + 1] = condition.sum()
 
-    def _ekin_spectrum_torch_ge_18(self, u):
-        uh = (torch.stack([
-            torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D))) for i in range(self.lattice.D)
-        ]) / self.norm)
-        ekin = torch.sum(0.5 * (uh.imag ** 2 + uh.real ** 2), dim=0)
-        return ekin
+        # Calculate first value of spectrum (for the wavenumber k0)
+        condition = (self.wavenorms <= (self.k[0] + 0.5))
+        spectrum[0] = ekin[condition].sum()
+        counter[0] = condition.sum()
+
+        # Calculate last value of spectrum (for the wavenumber kmax)
+        condition = (self.wavenorms <= self.k[-1]) & (self.wavenorms > (self.k[-1] - 0.5))
+        spectrum[-1] = ekin[condition].sum()
+        counter[-1] = condition.sum()
+
+        # Norm the spectrum with respect to the spherical shell
+        return spectrum * (2 * np.pi) * (self.k) ** 2 / (counter)
 
 
 class Mass(Observable):
@@ -140,3 +153,150 @@ class Mass(Observable):
         if self.mask is not None:
             mass -= (f * self.mask.to(dtype=torch.float)).sum()
         return mass
+
+class U_max(Observable):
+
+    def __init__(self, lattice, flow):
+        super(U_max, self).__init__(lattice, flow)
+
+    def __call__(self, f):
+        return self.flow.units.convert_velocity_to_pu(torch.abs(self.lattice.u(f)).max())
+
+class U_rms(Observable):
+
+    def __init__(self, lattice, flow):
+        super(U_rms, self).__init__(lattice, flow)
+
+    def __call__(self, f):
+        u = self.lattice.u(f)
+        return self.flow.units.convert_velocity_to_pu(torch.sqrt(self.lattice.einsum("d,d->d", [u, u]).sum(0).mean()/3))
+
+class Turbulent_kinetic_energy(Observable):
+
+    def __init__(self, lattice, flow):
+        super(Turbulent_kinetic_energy, self).__init__(lattice, flow)
+
+    def __call__(self, f):
+        u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+        return 0.5 * torch.mean(self.lattice.einsum("i,i->",[u,u]))
+
+class Correlation(Observable):
+    """AutoCorrelation function to calculate longitudinal and transversal correlations
+
+    Notes
+    -----
+    The output existing of the longitudinal R11/f(r) and transversal R22/g(r) correlation
+    is concatenated in the first dimension.
+    Example:
+    f(r).shape = torch.Size([16])
+    g(r).shape = torch.Size([16])
+    output.shape = torch.Size([32])
+
+    Parameters
+    ----------
+
+    """
+
+    def __init__(self, lattice, flow, fft=True):
+        super(Correlation, self).__init__(lattice, flow)
+        self.fft = fft
+    def __call__(self, f):
+        return self.calculate_correlation_fft(self.lattice.u(f)) if self.fft else self.calculate_correlation(self.lattice.u(f))
+
+    def calculate_correlation_fft(self, u: torch.float):
+        u_fft = (torch.stack([
+            (torch.fft.fftn(u[i], dim=tuple(torch.arange(u.shape[0])))) for i in range(u.shape[0])
+        ]))
+
+        Rij = (u_fft * torch.conj(u_fft))
+        R = (torch.stack([
+            (torch.fft.ifftn(Rij[i], dim=tuple(torch.arange(u.shape[0])))) for i in range(u.shape[0])
+        ]))
+        RR = R / (torch.std(u, dim=[1, 2, 3])[..., None, None, None] ** 2) / u.shape[1] ** 3
+        R11 = (RR[0, :, 0, 0] + RR[1, 0, :, 0] + RR[2, 0, 0, :]) / 3
+
+        R1_22 = (RR[0, 0, :, 0] + RR[2, 0, :, 0]) / 2
+        R2_22 = (RR[1, :, 0, 0] + RR[2, :, 0, 0]) / 2
+        R3_22 = (RR[0, 0, 0, :] + RR[1, 0, 0, :]) / 2
+        R22 = (R1_22 + R2_22 + R3_22) / 3
+        return torch.cat([R11[:int(self.flow.resolution/2)].real, R22[:int(self.flow.resolution/2)].real])
+
+    def calculate_correlation(self, u: torch.float):
+        r = torch.arange(u.shape[1] / 2).byte()
+        R11_0 = torch.zeros_like(r).to(dtype=torch.float64)
+        R11_1 = torch.zeros_like(r).to(dtype=torch.float64)
+        R11_2 = torch.zeros_like(r).to(dtype=torch.float64)
+        R22_0 = torch.zeros_like(r).to(dtype=torch.float64)
+        R22_1 = torch.zeros_like(r).to(dtype=torch.float64)
+        R22_2 = torch.zeros_like(r).to(dtype=torch.float64)
+
+        vel = u - u.mean()
+        for index, i in enumerate(r):
+            R11_0[index] = (vel[0] * torch.roll(vel[0], shifts=[index, 0, 0], dims=[0, 1, 2])).mean() / (vel[0] ** 2).mean()
+            R11_1[index] = (vel[1] * torch.roll(vel[1], shifts=[0, index, 0], dims=[0, 1, 2])).mean() / (vel[1] ** 2).mean()
+            R11_2[index] = (vel[2] * torch.roll(vel[2], shifts=[0, 0, index], dims=[0, 1, 2])).mean() / (vel[2] ** 2).mean()
+
+            R22_0[index] = (
+                               (vel[1] * torch.roll(vel[1], shifts=[index, 0, 0], dims=[0, 1, 2])).mean() / (
+                                   vel[1] ** 2).mean() +
+                               (vel[2] * torch.roll(vel[2], shifts=[index, 0, 0], dims=[0, 1, 2])).mean() / (
+                                           vel[2] ** 2).mean()
+                           ) / 2
+            R22_1[index] = (
+                               (vel[0] * torch.roll(vel[0], shifts=[0, index, 0], dims=[0, 1, 2])).mean() / (
+                                   vel[0] ** 2).mean() +
+                               (vel[2] * torch.roll(vel[2], shifts=[0, index, 0], dims=[0, 1, 2])).mean() / (
+                                           vel[2] ** 2).mean()
+                           ) / 2
+            R22_2[index] = (
+                               (vel[0] * torch.roll(vel[0], shifts=[0, 0, index], dims=[0, 1, 2])).mean() / (
+                                   vel[0] ** 2).mean() +
+                               (vel[1] * torch.roll(vel[1], shifts=[0, 0, index], dims=[0, 1, 2])).mean() / (
+                                           vel[1] ** 2).mean()
+                           ) / 2
+
+        R11 = (R11_0 + R11_1 + R11_2) / 3
+        R22 = (R22_0 + R22_1 + R22_2) / 3
+        return torch.cat([R11, R22])
+# class TimeCorrelation(Observable):
+#     """AutoCorrelation function to calculate longitudinal and transversal correlations
+#
+#     Notes
+#     -----
+#     The output existing of the longitudinal R11/f(r) and transversal R22/g(r) correlation
+#     is concatenated in the first dimension.
+#     Example:
+#     f(r).shape = torch.Size([16])
+#     g(r).shape = torch.Size([16])
+#     output.shape = torch.Size([32])
+#     """
+#
+#     def __init__(self, lattice: "Lattice", flow: "Flow"):
+#         super(TimeCorrelation, self).__init__(lattice, flow)
+#         self.u_init = None
+#
+#     def __call__(self, f):
+#         correlation = self.correlation(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
+#         return correlation
+#
+#     def correlation(self, u):
+#         vel = u[0] - u[0].mean()
+#         if self.u_init is None:
+#             self.u_init = vel
+#         p = (self.u_init * vel).mean() / (self.u_init ** 2).mean()
+#         return p
+
+class Dissipation_sij(Observable):
+
+    def __init__(self, lattice, flow, no_grad=True):
+        super(Dissipation_sij, self).__init__(lattice, flow)
+        self.no_grad = no_grad
+    def __call__(self, f):
+        u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+        dx = self.flow.units.convert_length_to_pu(1.0)
+        nu = self.flow.units.viscosity_pu
+
+        u_ij = torch.stack([torch_gradient(u[i], dx=dx, order=6,no_grad=self.no_grad) for i in range(self.lattice.D)])
+        s_ij = 0.5 * (u_ij + torch.transpose(u_ij, 0, 1))
+        dissipation = 2 * nu * torch.mean((s_ij ** 2).sum(0).sum(0))
+        return dissipation

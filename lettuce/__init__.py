@@ -29,5 +29,7 @@ from lettuce.observables import *
 from lettuce.symmetry import *
 from lettuce.neural import *
 from lettuce.datautils import *
+from lettuce.turbulence import *
 
 from lettuce.flows import *
+from lettuce.plots import *
