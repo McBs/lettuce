@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-__all__ = ["Guo", "ShanChen", "ForceSpectral", "TrigonometicForce"]
+__all__ = ["Guo", "ShanChen", "ForceSpectral", "TrigonometicForce", "LinearForce"]
 
 
 class Guo:
@@ -178,15 +178,17 @@ class TrigonometicForce:
         self.ka = ka
         self.kb = kb
         self.power = torch.tensor(flow.units.convert_powerforce_to_lu(power), device=lattice.device, dtype=lattice.dtype)
+        self.phase = torch.randn(6, device=self.lattice.device, dtype=self.lattice.dtype)
         # self.power = torch.tensor(power, device=lattice.device, dtype=lattice.dtype)
         print("Initialize Trigonometric excitation")
 
     def __call__(self):
+        self.phase += torch.randn(6, device=self.lattice.device, dtype=self.lattice.dtype)*0.1
         F = (torch.stack([(
                 (torch.stack([(
                     torch.stack([(
-                        self._C(j, d) * torch.sin(2 * torch.pi * xx / self.Lc * k + self._phase() * k) +
-                        self._C(j, d) * torch.cos(2 * torch.pi * xx / self.Lc * k + self._phase() * k)
+                        self._C(j, d) * torch.sin(2 * torch.pi * xx / self.Lc * k + self.phase[j]) +
+                        self._C(j, d) * torch.cos(2 * torch.pi * xx / self.Lc * k + self.phase[3+j])
                     ) / 3 for j, xx in enumerate(self.grid)], 0).sum(0)
                 ) / torch.sqrt(torch.tensor(self.kb - self.ka + 1)) for k in range(self.ka, self.kb + 1)],0).sum(0))
         ) for d in range(self.lattice.D)], 0))
@@ -197,8 +199,21 @@ class TrigonometicForce:
     #         return 0
 
     def _C(self, j, d):
-        # power = self.power * 2 / 3 if j == d else self.power * 1 / 3
-        A = torch.randn(1, device=self.lattice.device, dtype=self.lattice.dtype) * torch.sqrt(2 * self.power)
-        A = torch.sqrt(2*self.power)
-        # A = self.power
-        return A
+        return torch.randn(1, device=self.lattice.device, dtype=self.lattice.dtype) * torch.sqrt(2 * self.power)
+
+class LinearForce:
+    """
+    Description
+    """
+
+    def __init__(self, lattice, flow, power=0.01):
+        self.lattice = lattice
+        self.grid = torch.tensor(flow.grid, device=lattice.device, dtype=lattice.dtype)
+        self.power = torch.tensor(flow.units.convert_powerforce_to_lu(power), device=lattice.device, dtype=lattice.dtype)
+        print("Initialize linear excitation")
+
+    def __call__(self, f):
+        u = self.lattice.u(f)
+        u -= (u.mean([1, 2, 3])[:, None, None, None])
+        uu_rms = self.lattice.einsum("i,i->", [u, u]).mean()
+        return self.power / uu_rms * u
