@@ -12,7 +12,7 @@ from packaging import version
 __all__ = [
     "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
     "Correlation", "U_max", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
-    "Dissipation_E_pu", "Skewness", "Flatness"
+    "Dissipation_E_pu", "Skewness", "Flatness", "PDF"
            ]
 
 
@@ -329,3 +329,16 @@ class Dissipation_E_pu(Observable):
     def __call__(self, Ek):
         dx = 1
         return torch.sum(2*self.nu*self.k**2*Ek)*dx
+
+class PDF(Observable):
+    def __init__(self, lattice, flow, resolution=250, range=[-7,7]):
+        super(PDF, self).__init__(lattice, flow)
+        self.resolution = resolution
+        self.range = range
+        self.bins = np.linspace(range[0],range[1],resolution+1,endpoint=True)
+        self.bins = self.bins[:-1]+0.5*(self.bins[1]-self.bins[0])
+    def __call__(self, f):
+        u = self.lattice.u(f)
+        u = (u - torch.mean(u, dim=(1, 2, 3))[:, None, None, None]).ravel().cpu()
+        a = torch.histogram(u / torch.std(u), bins=self.resolution, range=(self.range[0], self.range[1]), density=False)[0]
+        return  a / len(u)
