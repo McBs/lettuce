@@ -21,8 +21,8 @@ axes.grid.axis:     y
 axes.labelcolor: 525254
 axes.titlelocation: right
 axes.titlesize: 9
-
-
+axes.formatter.use_mathtext: True
+axes.formatter.limits: 3, 6
 
 xtick.top:          False
 ytick.right: False

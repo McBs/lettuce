@@ -83,51 +83,71 @@ class Plot:
             plt.close()
         return
 
+    def correlation(self, f=None, g=None, a=None):
+        # plt.style.use('../../ecostyle.mplstyle')
+        fig, ax1 = plt.subplots()
+        plt.title(r"\noindent\textbf{" + "Autocorrelation Function" + "}", loc='left', )
+        ylabels = ([0, 0.25, 0.5, 0.75, 1])
+        ax1.set_yticks(ylabels)
+        ax1.set_yticklabels(ylabels, ha='right')
+        plt.ylim(-0.2, 1.2)
+        if f is not None:
+            plt.xlabel(r"\textit{" + "r" + "}")
+            plt.plot(f, color="#595959", label=r"Longitudinal \textendash{} f(r)")
+            plt.plot(g, color="#36E2BD", label=r"Transversal \textendash{} g(r)")
+            dataname = "autocorrelation"
+        if a:
+            plt.xlabel(r"\textit{" + "s" + "}")
+            plt.plot(a[0], a[1], color="#595959", label=r"Autokorrelationscoefficient \textendash{} ar(s)")
+            dataname = "timecorrelation"
 
-# def plot_correlation(f, g):
-#     plt.style.use('../../ecostyle.mplstyle')
-#     fig, ax1 = plt.subplots()
-#     plt.xlabel(r"\textit{" + "r" + "}")
-#     title = r"\noindent\textbf{" + "Autocorrelation function" + "}"
-#     plt.title(title)
-#
-#     plt.plot(f, color="#595959", label="longitudinal")
-#     plt.plot(g, color="#36E2BD", label="transversal")
-#
-#     handles, labels = ax1.get_legend_handles_labels()
-#     order = np.arange(len(handles))
-#     ax1.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
-#                loc=2, bbox_to_anchor=(-0.02, 1.2), frameon=False, ncol=1, columnspacing=1, fontsize=8)
-#     plt.show()
+        handles, labels = ax1.get_legend_handles_labels()
+        order = np.arange(len(handles))
+        ax1.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
+                   loc=2, bbox_to_anchor=(-0.02, 1), frameon=False, ncol=2, columnspacing=2, fontsize=8)
+        self._out(dataname)
+        return
 
-# def plot_spectrum(x, w, wn=None, wm=None, *args):
-#     energy = w.sum() if wn is None else wn.sum()
-#     plt.style.use('../../ecostyle.mplstyle')
-#     fig, ax1 = plt.subplots()
-#     plt.xlabel(r"\textit{"+"Wavenumber"+"}")
-#     title = r"\noindent\textbf{"+"Energy spectrum"+"}" + r"\\" + f"{energy:0.5f}"
-#     #if i is None else f"{i+1:6.0f}"+r"\textbf{"+" Approximation"+"}"
-#     plt.title(title)
-#     plt.axis([3e-1,3e1,1e-8,1e1])
-#     plt.plot(x[2:-3],(.1*x**(-5/3))[2:-3],linestyle='--',linewidth=0.75,color="#595959",label="")
-# #     plt.plot(torch.arange(len(w))+1,w,linestyle='-',linewidth=0.75,color="#595959",label="Initial")
-# #     if wn is not None:
-# #         plt.plot(torch.arange(len(wn))+1,wn,linestyle='-',linewidth=1.5,color="#36E2BD",label="Instant")
-# #     if wm is not None:
-# #         plt.plot(torch.arange(len(wm))+1,wm,linestyle='-',linewidth=1,color="#E2365B",label="Average")
-#     plt.plot(x,w,linestyle='-',linewidth=0.75,color="#595959",label="Initial")
-#     if wn is not None:
-#         plt.plot(x,wn,linestyle='-',linewidth=1.5,color="#36E2BD",label="Instant")
-#     if wm is not None:
-#         plt.plot(x,wm,linestyle='-',linewidth=1,color="#E2365B",label="Average")
-# #     for wargs in args:
-# #         plt.plot(torch.arange(len(wargs)),wargs,linestyle='-',linewidth=1,color="orange",label="old")
-#     plt.xscale('log')
-#     plt.yscale('log')
-#     handles, labels = ax1.get_legend_handles_labels()
-#     order = np.arange(len(handles))
-#     ax1.legend([handles[idx] for idx in order],[labels[idx] for idx in order],
-#               loc=2, bbox_to_anchor=(-0.02, 1.2), frameon=False, ncol=1, columnspacing=1, fontsize=8)
+    def spectrum(self, k53=False, k53_factor=1, axis=None, postprocess=None, *args, **kwargs):
+        fig, ax1 = plt.subplots()
+        plt.title(r"\noindent\textbf{" + "Energy spectrum" + "}")
+        plt.xlabel(r"\textit{" + "Wavenumber" + "}")
+        plt.xscale('log')
+        plt.yscale('log')
+        ylabels = ([1e-4, 1e-3, 1e-2])
+        ax1.set_yticks(ylabels)
+        ax1.set_yticklabels(ylabels, ha='right')
+        if axis:
+            plt.axis(axis)
+
+        if k53 is not False:
+            plt.plot(k53, (k53_factor * k53 ** (-5 / 3)), linestyle='--', linewidth=0.75, color="#595959", label="k53")
+
+        for key, value in kwargs.items():
+            if postprocess:
+                value = postprocess(value)
+            if isinstance(value, list):
+                plt.plot(*value, linestyle='-', color="#E2365B", label=key)
+            else:
+                plt.plot(value, linestyle='-', color="#E2365B", label=key)
+
+        handles, labels = ax1.get_legend_handles_labels()
+        order = np.arange(len(handles))
+        ax1.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
+                   loc=2, bbox_to_anchor=(0, 1.14), frameon=False, ncol=2, columnspacing=1, fontsize=8)
+
+        self._out()
+
+    def _out(self, dataname="output"):
+        if self.filebase:
+            plt.savefig(self.filebase + dataname +".png", format='png', bbox_inches='tight', pad_inches=0.01, dpi=300,
+                        transparent=False)
+        if self.show:
+            plt.show()
+        else:
+            plt.close()
+
+
 
 
 # # --- Plot time_integral_max ---

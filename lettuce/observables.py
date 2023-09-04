@@ -11,7 +11,8 @@ from packaging import version
 
 __all__ = [
     "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
-    "Correlation", "U_max", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy"
+    "Correlation", "U_max", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
+    "Dissipation_E_pu", "Skewness", "Flatness"
            ]
 
 
@@ -105,7 +106,7 @@ class EnergySpectrum(Observable):
     def spectrum_from_u(self, u: torch.Tensor) -> torch.Tensor:
         # Computes the N dimensional discrete Fourier transform of the velocity
         uh = torch.stack([
-            torch.abs(torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="forward")) for i in
+            torch.abs(torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="backward"))*self.dimensions[0]**-3 for i in
             range(self.lattice.D)
         ])
 
@@ -170,6 +171,27 @@ class U_rms(Observable):
     def __call__(self, f):
         u = self.lattice.u(f)
         return self.flow.units.convert_velocity_to_pu(torch.sqrt(self.lattice.einsum("d,d->d", [u, u]).sum(0).mean()/3))
+
+class Skewness(Observable):
+
+    def __init__(self, lattice, flow):
+        super(Skewness, self).__init__(lattice, flow)
+
+    def __call__(self, f):
+        U = self.lattice.u(f)
+        u = U - torch.mean(U, dim=(1, 2, 3))[:, None, None, None]
+        du = torch.stack([torch_gradient(u[_])[_] for _ in range(3)])
+        sk = torch.mean(du ** 3, dim=(1, 2, 3)) / (torch.mean(du ** 2, dim=(1, 2, 3)) ** (3 / 2))
+        return sk
+
+class Flatness(Observable):
+
+    def __init__(self, lattice, flow):
+        super(Flatness, self).__init__(lattice, flow)
+
+    def __call__(self, f):
+        u = self.lattice.u(f)
+        return torch.mean(u**4, dim=(1, 2, 3)) / torch.mean(u**2, dim=(1, 2, 3))**(2)
 
 class Turbulent_kinetic_energy(Observable):
 
@@ -258,33 +280,30 @@ class Correlation(Observable):
         R11 = (R11_0 + R11_1 + R11_2) / 3
         R22 = (R22_0 + R22_1 + R22_2) / 3
         return torch.cat([R11, R22])
-# class TimeCorrelation(Observable):
-#     """AutoCorrelation function to calculate longitudinal and transversal correlations
-#
-#     Notes
-#     -----
-#     The output existing of the longitudinal R11/f(r) and transversal R22/g(r) correlation
-#     is concatenated in the first dimension.
-#     Example:
-#     f(r).shape = torch.Size([16])
-#     g(r).shape = torch.Size([16])
-#     output.shape = torch.Size([32])
-#     """
-#
-#     def __init__(self, lattice: "Lattice", flow: "Flow"):
-#         super(TimeCorrelation, self).__init__(lattice, flow)
-#         self.u_init = None
-#
-#     def __call__(self, f):
-#         correlation = self.correlation(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
-#         return correlation
-#
-#     def correlation(self, u):
-#         vel = u[0] - u[0].mean()
-#         if self.u_init is None:
-#             self.u_init = vel
-#         p = (self.u_init * vel).mean() / (self.u_init ** 2).mean()
-#         return p
+
+
+class TimeCorrelation(Observable):
+    """TimeCorrelation function to calculate longitudinal and transversal correlations
+
+    Notes
+    -----
+
+    """
+
+    def __init__(self, lattice: "Lattice", flow: "Flow"):
+        super(TimeCorrelation, self).__init__(lattice, flow)
+        self.u_init = None
+
+    def __call__(self, f):
+        correlation = self.correlation(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
+        return correlation
+
+    def correlation(self, u):
+        vel = u - u.mean([1, 2, 3])[..., None, None, None]
+        if self.u_init is None:
+            self.u_init = vel
+            self.u_norm = (self.u_init ** 2).mean()
+        return (self.u_init * vel).mean() * self.u_norm ** -1
 
 class Dissipation_sij(Observable):
 
@@ -300,3 +319,13 @@ class Dissipation_sij(Observable):
         s_ij = 0.5 * (u_ij + torch.transpose(u_ij, 0, 1))
         dissipation = 2 * nu * torch.mean((s_ij ** 2).sum(0).sum(0))
         return dissipation
+
+class Dissipation_E_pu(Observable):
+    def __init__(self, lattice, flow, nu=None, no_grad=True):
+        super(Dissipation_E_pu, self).__init__(lattice, flow)
+        self.no_grad = no_grad
+        self.nu = nu
+        self.k = torch.arange(0, int(flow.resolution/2)) + 1
+    def __call__(self, Ek):
+        dx = 1
+        return torch.sum(2*self.nu*self.k**2*Ek)*dx

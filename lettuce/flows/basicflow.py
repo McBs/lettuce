@@ -17,7 +17,7 @@ class BasicFlow:
             characteristic_velocity_pu=1
         )
 
-    def initial_solution(self, *args, **kwargs):
+    def initial_solution(self, x, *args, **kwargs):
         u = np.zeros([self.units.lattice.D]+[self.resolution]*self.units.lattice.D)
         p = np.zeros([1]+[self.resolution]*self.units.lattice.D)
         return p, u
