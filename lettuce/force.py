@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-__all__ = ["Guo", "ShanChen", "ForceSpectral", "TrigonometicForce", "LinearForce"]
+__all__ = ["Guo", "ShanChen", "SpectralForce", "TrigonometicForce", "LinearForce"]
 
 
 class Guo:
