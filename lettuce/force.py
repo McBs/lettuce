@@ -47,7 +47,7 @@ class ShanChen:
         return self.tau * 1
 
 
-class ForceSpectral:
+class SpectralForce:
     """
     Description
     """
@@ -95,6 +95,9 @@ class ForceSpectral:
         P_pu = 0.5 * torch.stack([((F[_].real) ** 2 + (F[_].imag) ** 2) for _ in range(3)]).sum(0).mean().item()
         # assert (torch.isclose(self.power, torch.tensor(P_h, dtype=self.dtype, device=self.device)))
         # assert (torch.isclose(self.power, torch.tensor(P_pu, dtype=self.dtype, device=self.device)))
+
+    def __str__(self):
+        return "spectral-force"
 
     def __call__(self, fh=False):
         Fh = self.spectral_force()
@@ -182,6 +185,9 @@ class TrigonometicForce:
         # self.power = torch.tensor(power, device=lattice.device, dtype=lattice.dtype)
         print("Initialize Trigonometric excitation")
 
+    def __str__(self):
+        return "trigonometric-force"
+
     def __call__(self):
         self.phase += torch.randn(6, device=self.lattice.device, dtype=self.lattice.dtype)*0.1
         F = (torch.stack([(
@@ -211,6 +217,9 @@ class LinearForce:
         self.grid = torch.tensor(flow.grid, device=lattice.device, dtype=lattice.dtype)
         self.power = torch.tensor(flow.units.convert_powerforce_to_lu(power), device=lattice.device, dtype=lattice.dtype)
         print("Initialize linear excitation")
+
+    def __str__(self):
+        return "linear-force"
 
     def __call__(self, f):
         u = self.lattice.u(f)

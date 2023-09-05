@@ -138,7 +138,7 @@ class Plot:
 
         self._out()
 
-    def _out(self, dataname="output"):
+    def _out(self, dataname="spectrum"):
         if self.filebase:
             plt.savefig(self.filebase + dataname +".png", format='png', bbox_inches='tight', pad_inches=0.01, dpi=300,
                         transparent=False)

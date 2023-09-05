@@ -11,7 +11,7 @@ from packaging import version
 
 __all__ = [
     "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
-    "Correlation", "U_max", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
+    "Correlation", "U_max_lu", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
     "Dissipation_E_pu", "Skewness", "Flatness", "PDF"
            ]
 
@@ -155,13 +155,13 @@ class Mass(Observable):
             mass -= (f * self.mask.to(dtype=torch.float)).sum()
         return mass
 
-class U_max(Observable):
+class U_max_lu(Observable):
 
     def __init__(self, lattice, flow):
-        super(U_max, self).__init__(lattice, flow)
+        super(U_max_lu, self).__init__(lattice, flow)
 
     def __call__(self, f):
-        return self.flow.units.convert_velocity_to_pu(torch.abs(self.lattice.u(f)).max())
+        return (torch.abs(self.lattice.u(f)).max())
 
 class U_rms(Observable):
 
