@@ -170,7 +170,7 @@ class U_rms(Observable):
 
     def __call__(self, f):
         u = self.lattice.u(f)
-        return self.flow.units.convert_velocity_to_pu(torch.sqrt(self.lattice.einsum("d,d->d", [u, u]).sum(0).mean()/3))
+        return self.flow.units.convert_velocity_to_pu(torch.sqrt(self.lattice.einsum("d,d->d", [u, u]).mean(0).mean()))
 
 class Skewness(Observable):
 
