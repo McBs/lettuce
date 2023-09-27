@@ -190,8 +190,10 @@ class Flatness(Observable):
         super(Flatness, self).__init__(lattice, flow)
 
     def __call__(self, f):
-        u = self.lattice.u(f)
-        return torch.mean(u**4, dim=(1, 2, 3)) / torch.mean(u**2, dim=(1, 2, 3))**(2)
+        U = self.lattice.u(f)
+        u = U - torch.mean(U, dim=(1, 2, 3))[:, None, None, None]
+        du = torch.stack([torch_gradient(u[_])[_] for _ in range(3)])
+        return torch.mean(du**4, dim=(1, 2, 3)) / torch.mean(du**2, dim=(1, 2, 3))**(2)
 
 class Turbulent_kinetic_energy(Observable):
 

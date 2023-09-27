@@ -30,7 +30,7 @@ def characteristic_length_lambda(dissipation: torch.float, viscosity: torch.floa
     :param u_rms: The root mean square velocity value.
     :return: The calculated characteristic length scale lambda.
     """
-    return torch.sqrt(15 * viscosity * u_rms**2 / dissipation)
+    return u_rms * torch.sqrt(15 * viscosity / dissipation)
 
 def reynolds_number_lambda(lamda: torch.float, viscosity: torch.float, u_rms: torch.float) -> torch.float:
     """
