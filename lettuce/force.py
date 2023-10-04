@@ -189,7 +189,8 @@ class TrigonometicForce:
         return "trigonometric-force"
 
     def __call__(self):
-        self.phase += torch.randn(6, device=self.lattice.device, dtype=self.lattice.dtype)*0.1
+        # self.phase += torch.randn(6, device=self.lattice.device, dtype=self.lattice.dtype)*0.1
+        self.phase = torch.randn(6, device=self.lattice.device, dtype=self.lattice.dtype)#*0.1
         F = (torch.stack([(
                 (torch.stack([(
                     torch.stack([(
