@@ -245,8 +245,8 @@ class ForcedTurbulence:
 
     @property
     def grid(self):
-        grid = [np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False) for _ in range(self.units.lattice.D)]
-        return np.meshgrid(*grid)
+        grid = [np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False) for _ in range(3)]
+        return np.meshgrid(*grid, indexing='ij')
 
     @property
     def boundaries(self):
