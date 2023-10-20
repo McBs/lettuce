@@ -9,6 +9,7 @@ energy_spectrum: returns a pair [spectrum, wavenumbers]
 
 import numpy as np
 from lettuce.unit import UnitConversion
+import torch
 
 
 class DecayingTurbulence:
@@ -134,7 +135,7 @@ class ForcedTurbulence:
 
     def __init__(self, resolution, reynolds_number, mach_number, lattice, k0=20, u_rms=0.5):
         self.k0 = k0
-        self.u_rms = u_rms
+        self.u_rms = torch.tensor(u_rms, device=lattice.device, dtype=lattice.dtype)
         self.resolution = resolution
         self.units = UnitConversion(
             lattice,
@@ -245,8 +246,8 @@ class ForcedTurbulence:
 
     @property
     def grid(self):
-        grid = [np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False) for _ in range(self.units.lattice.D)]
-        return np.meshgrid(*grid)
+        grid = [np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False) for _ in range(3)]
+        return np.meshgrid(*grid, indexing='ij')
 
     @property
     def boundaries(self):
