@@ -135,7 +135,7 @@ class ForcedTurbulence:
 
     def __init__(self, resolution, reynolds_number, mach_number, lattice, k0=20, u_rms=0.5):
         self.k0 = k0
-        self.u_rms = torch.tensor(u_rms, device=lattice.device, dtype=lattice.dtype)
+        self.u_rms = u_rms # torch.tensor(u_rms, device=lattice.device, dtype=lattice.dtype)
         self.resolution = resolution
         self.units = UnitConversion(
             lattice,
