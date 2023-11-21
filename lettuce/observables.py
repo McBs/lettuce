@@ -12,7 +12,7 @@ from packaging import version
 __all__ = [
     "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
     "Correlation", "U_max_lu", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
-    "Dissipation_E_pu", "Skewness", "Flatness", "PDF"
+    "Dissipation_E_pu", "Skewness", "Flatness", "PDF", "velocity_divergence"
            ]
 
 
@@ -344,3 +344,13 @@ class PDF(Observable):
         u = (u - torch.mean(u, dim=(1, 2, 3))[:, None, None, None]).ravel().cpu()
         a = torch.histogram(u / torch.std(u), bins=self.resolution, range=(self.range[0], self.range[1]), density=False)[0]
         return  a / len(u)
+
+class velocity_divergence(Observable):
+    def __init__(self, lattice, flow, no_grad=True):
+        super(velocity_divergence, self).__init__(lattice, flow)
+        self.no_grad = no_grad
+    def __call__(self, f):
+        u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+        dx = self.flow.units.convert_length_to_pu(1.0)
+        u_div = torch.stack([torch_gradient(u[i], dx=dx, order=6,no_grad=self.no_grad)[i] for i in range(self.lattice.D)]).sum()
+        return u_div
