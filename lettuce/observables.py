@@ -12,7 +12,7 @@ from packaging import version
 __all__ = [
     "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
     "Correlation", "U_max_lu", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
-    "Dissipation_E_pu", "Skewness", "Flatness", "PDF", "velocity_divergence"
+    "Dissipation_E_pu", "Skewness", "Flatness", "PDF", "velocity_divergence", "u_div_fft"
            ]
 
 
@@ -349,8 +349,28 @@ class velocity_divergence(Observable):
     def __init__(self, lattice, flow, no_grad=True):
         super(velocity_divergence, self).__init__(lattice, flow)
         self.no_grad = no_grad
+
     def __call__(self, f):
         u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
         dx = self.flow.units.convert_length_to_pu(1.0)
         u_div = torch.stack([torch_gradient(u[i], dx=dx, order=6,no_grad=self.no_grad)[i] for i in range(self.lattice.D)]).sum()
         return u_div
+
+
+class u_div_fft(Observable):
+    def __init__(self, lattice, flow):
+        super(u_div_fft, self).__init__(lattice, flow)
+        self.dimensions = self.flow.grid[0].shape
+        frequencies = [self.lattice.convert_to_tensor(np.fft.fftfreq(dim, d=1 / dim)) for dim in self.dimensions]
+        self.wavenumber = torch.stack(torch.meshgrid(*frequencies))
+        print(self.wavenumber.shape)
+
+    def __call__(self, f):
+        u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+        uh = torch.stack([
+            (torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="backward")) * self.dimensions[0] ** -3
+            for i in
+            range(self.lattice.D)
+        ])
+        divergence = (uh * self.wavenumber).sum()
+        return divergence
