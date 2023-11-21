@@ -373,4 +373,4 @@ class u_div_fft(Observable):
             range(self.lattice.D)
         ])
         divergence = (uh * self.wavenumber).sum()
-        return divergence
+        return torch.stack([divergence.real, divergence.imag])
