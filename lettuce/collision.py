@@ -13,7 +13,7 @@ from lettuce.stencils import D2Q9, D3Q27
 __all__ = [
     "Collision",
     "BGKCollision", "KBCCollision2D", "KBCCollision3D", "MRTCollision",
-    "RegularizedCollision", "SmagorinskyCollision", "TRTCollision", "BGKInitialization",
+    "RegularizedCollision", "SmagorinskyCollision", "TRTCollision", "BGKInitialization", "ForcedBGKCollision"
 ]
 
 
@@ -345,4 +345,64 @@ class BGKInitialization:
         mnew[self.momentum_indices] = rho * self.u
         f = self.moment_transformation.inverse_transform(mnew)
         return f
+
+
+class ForcedBGKCollision(Collision):
+    def __init__(self, lattice, tau, x, Lc, a, k_start=1, k_end=2, nu=None, force=None):
+        self.lattice = lattice
+        self.tau = tau
+        self.x = x
+        self.a = torch.tensor(a, device=lattice.device, dtype=lattice.dtype)
+        #         self.a = torch.tensor([a,-2*a,a], device=lattice.device, dtype=lattice.dtype)
+        self.k = torch.tensor([1, 1, 1], device=lattice.device, dtype=lattice.dtype)
+        self.Lc = torch.tensor(int(Lc), device=lattice.device, dtype=lattice.dtype)
+        self.phi = torch.zeros(6, device=lattice.device, dtype=lattice.dtype)
+        self.k_end = k_end
+        self.k_start = k_start
+        self.pi = torch.tensor(np.pi, device=lattice.device, dtype=lattice.dtype)
+        self.phase = None
+        self.phase_counter = 0
+        self.nu = nu
+        self.isforce = True
+        self.force = force
+        self.is_linear = True if str(force) == 'linear-force' else False
+        self.F = None
+        for k in range(self.k_start, self.k_end + 1):
+            print(k)
+        self.A = None
+
+    #     def __call__(self, f):
+    #         rho = self.lattice.rho(f)
+    #         u_eq = 0
+    #         Si = 0
+    #         u = self.lattice.u(f) + u_eq
+    #         feq = self.lattice.equilibrium(rho, u)
+    #         if self.isforce:
+    #             F = self.F#.self._F(f)
+    # #             print("inn: ",(F**2).sum(0).mean())
+    #             du = F / rho
+    #             Si = self.lattice.equilibrium(rho, u + du) - feq
+    #         return f - 1.0 / self.tau * (f - feq) + Si
+
+    def __call__(self, f):
+        rho = self.lattice.rho(f)
+        F = self.F
+        u_eq = 0.5 * F / rho
+        u = self.lattice.u(f) + u_eq
+
+        feq = self.lattice.equilibrium(rho, u)
+        index = [Ellipsis] + [None] * self.lattice.D
+        emu = self.lattice.e[index] - u
+        eu = self.lattice.einsum("ib,b->i", [self.lattice.e, u])
+        eeu = self.lattice.einsum("ia,i->ia", [self.lattice.e, eu])
+        emu_eeu = emu / (self.lattice.cs ** 2) + eeu / (self.lattice.cs ** 4)
+        emu_eeuF = self.lattice.einsum("ia,a->i", [emu_eeu, F])
+        weemu_eeuF = self.lattice.w[index] * emu_eeuF
+        Si = (1 - 1 / (2 * self.tau)) * weemu_eeuF
+
+        return f - 1.0 / self.tau * (f - feq) + Si
+
+    def _F(self, f=None):
+        F = self.force(f) if self.is_linear else self.force()
+        return F
 

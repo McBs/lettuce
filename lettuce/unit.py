@@ -146,13 +146,11 @@ class UnitConversion:
         return energy_pu * (self.characteristic_velocity_lu ** 2) / (self.characteristic_velocity_pu ** 2)
 
     def convert_powerforce_to_lu(self, power_force_pu):
-        print("converted pu to lu")
         return (power_force_pu *
                 (self.characteristic_velocity_lu / self.characteristic_velocity_pu) ** 3 *
                 (self.characteristic_length_lu / self.characteristic_length_pu)**-1)
 
     def convert_powerforce_to_pu(self, power_force_lu):
-        print("converted pu to lu")
         return (power_force_lu *
                 (self.characteristic_velocity_pu / self.characteristic_velocity_lu) ** 3 *
                 (self.characteristic_length_pu / self.characteristic_length_lu)**-1)

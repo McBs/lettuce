@@ -12,7 +12,7 @@ from packaging import version
 __all__ = [
     "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
     "Correlation", "U_max_lu", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
-    "Dissipation_E_pu", "Skewness", "Flatness", "PDF", "velocity_divergence", "u_div_fft"
+    "Dissipation_E_pu", "Skewness", "Flatness", "PDF", "u_div", "u_div_fft", "ProductionRate"
            ]
 
 
@@ -345,15 +345,15 @@ class PDF(Observable):
         a = torch.histogram(u / torch.std(u), bins=self.resolution, range=(self.range[0], self.range[1]), density=False)[0]
         return  a / len(u)
 
-class velocity_divergence(Observable):
+class u_div(Observable):
     def __init__(self, lattice, flow, no_grad=True):
-        super(velocity_divergence, self).__init__(lattice, flow)
+        super(u_div, self).__init__(lattice, flow)
         self.no_grad = no_grad
 
     def __call__(self, f):
         u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
         dx = self.flow.units.convert_length_to_pu(1.0)
-        u_div = torch.stack([torch_gradient(u[i], dx=dx, order=6,no_grad=self.no_grad)[i] for i in range(self.lattice.D)]).sum()
+        u_div = torch.stack([torch_gradient(u[i], dx=dx, order=6, no_grad=self.no_grad)[i] for i in range(self.lattice.D)]).sum()
         return u_div
 
 
@@ -363,7 +363,6 @@ class u_div_fft(Observable):
         self.dimensions = self.flow.grid[0].shape
         frequencies = [self.lattice.convert_to_tensor(np.fft.fftfreq(dim, d=1 / dim)) for dim in self.dimensions]
         self.wavenumber = torch.stack(torch.meshgrid(*frequencies))
-        print(self.wavenumber.shape)
 
     def __call__(self, f):
         u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
@@ -374,3 +373,16 @@ class u_div_fft(Observable):
         ])
         divergence = (uh * self.wavenumber).sum()
         return torch.stack([divergence.real, divergence.imag])
+
+class ProductionRate(Observable):
+    def __init__(self, lattice, flow, force):
+        super(ProductionRate, self).__init__(lattice, flow)
+        self.force = force
+        self.u_old = None
+        print("init")
+
+    def __call__(self, f):
+        rho = self.lattice.rho(f)
+        u = self.lattice.u(f)
+        F = self.force(f)
+        return torch.stack([0.5 * (F ** 2).sum(0).mean(), ((u + 0.5 * F / rho) * F).sum(0).mean()])
