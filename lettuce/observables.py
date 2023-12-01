@@ -12,7 +12,7 @@ from packaging import version
 __all__ = [
     "Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
     "Correlation", "U_max_lu", "U_rms", "Dissipation_sij", "Turbulent_kinetic_energy", "TimeCorrelation",
-    "Dissipation_E_pu", "Skewness", "Flatness", "PDF", "u_div", "u_div_fft", "ProductionRate"
+    "Dissipation_E_pu", "Skewness", "Flatness", "PDF", "u_div", "u_div_fft", "ProductionRate", "ProductionRateSpectrum"
            ]
 
 
@@ -386,3 +386,80 @@ class ProductionRate(Observable):
         u = self.lattice.u(f)
         F = self.force(f)
         return torch.stack([0.5 * (F ** 2).sum(0).mean(), ((u + 0.5 * F / rho) * F).sum(0).mean()])
+
+class ProductionRateSpectrum(Observable):
+    """
+    Calculates the energy spectrum of a velocity using the Fast Fourier Transform (FFT).
+
+    Args:
+        f (torch.Tensor): Population.
+
+    Returns:
+        ek (torch.Tensor): Energy spectrum according to Pope (Eq. 6.193).
+
+    Notes:
+        - This function is applicable for a three-dimensional flow only.
+        - This function is applicable for an isotropic turbulence simulation only.
+        - The function is normed for a physical characteristic length of 2π.
+          For further normalization options see: https://github.com/fdietzsc/hita/tree/master
+        - Conditions may be defined within initialization process, which has been omitted due to memory constraints.
+    """
+
+    def __init__(self, lattice, flow, force):
+        super(ProductionRateSpectrum, self).__init__(lattice, flow)
+        assert lattice.D == 3, "This is not a three-dimensional flow."
+        self.dx = self.flow.units.convert_length_to_pu(1.0)
+        self.dimensions = self.flow.grid[0].shape
+        frequencies = [self.lattice.convert_to_tensor(np.fft.fftfreq(dim, d=1 / dim)) for dim in self.dimensions]
+        self.wavenorms = torch.norm(torch.stack(torch.meshgrid(*frequencies)), dim=0)
+        wavenumbers = torch.arange(self.dimensions[0])
+        self.wavemask = (
+                (self.wavenorms[..., None] > wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
+                (self.wavenorms[..., None] <= wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
+        )
+        self.k = (torch.arange(0, int(self.dimensions[0] / 2)) + 1)
+        self.counter = None
+        self.force = force
+#     def __call__(self, f: torch.Tensor) -> torch.Tensor:
+#         return self.spectrum_from_u(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
+
+    def __call__(self, f: torch.Tensor) -> torch.Tensor:
+        # Computes the N dimensional discrete Fourier transform of the velocity
+        F = self.force(f)
+        u = self.lattice.u(f) + 0.5 * F / self.lattice.rho(f)
+        uh = torch.stack([
+            (torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="forward")) for i in
+            range(self.lattice.D)
+        ])
+        Fh = torch.stack([
+            (torch.fft.fftn(F[i], dim=tuple(torch.arange(self.lattice.D)), norm="forward")) for i in
+            range(self.lattice.D)
+        ])
+        Fh[0].ravel()[0] = 0
+        Fh[1].ravel()[0] = 0
+        Fh[2].ravel()[0] = 0
+        # Compute the values of spectrum elementwise
+        ekin = torch.sum(((uh*torch.conj(Fh)).real), dim=0)
+        spectrum = torch.zeros_like(self.k, dtype=self.lattice.dtype)
+        counter = torch.zeros_like(self.k, dtype=self.lattice.dtype)
+
+        # Calculate values of specturm (for wavenumbers [k0+1,kmax-1])
+        for nr, k in enumerate(self.k[1:-1]):
+            condition = (self.wavenorms <= (float(k) + 0.5)) & (self.wavenorms > (float(k) - 0.5))
+            spectrum[nr + 1] = ekin[condition].sum()
+            counter[nr + 1] = condition.sum()
+
+        # Calculate first value of spectrum (for the wavenumber k0)
+#         condition = (self.wavenorms <= (self.k[0] + 0.5))
+        condition = (self.wavenorms <= (self.k[0] + 0.5)) & (self.wavenorms > (self.k[0] - 0.5))
+        spectrum[0] = ekin[condition].sum()
+        counter[0] = condition.sum()
+
+        # Calculate last value of spectrum (for the wavenumber kmax)
+        condition = (self.wavenorms <= self.k[-1]) & (self.wavenorms > (self.k[-1] - 0.5))
+        spectrum[-1] = ekin[condition].sum()
+        counter[-1] = condition.sum()
+
+        self.counter = counter
+        # Norm the spectrum with respect to the spherical shell
+        return spectrum * (2 * torch.pi) * (self.k) ** 2 / (counter)
