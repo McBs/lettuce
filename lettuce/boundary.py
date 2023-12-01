@@ -328,8 +328,8 @@ class newsuperTGV3D:
                              [0, 1, 1, -1, 0, 1, 1, -1, 2, 2],
                              [0, 1, 1, 1, 0, -1, 1, -1, 2, 2],
                              [0, -1, 1, -1, 0, 1, 1, 1, 2, 2],
-                             [0, -1, 2, 1, 0, 1, 2, -1, 1, 1],
                              [1, -1, 2, 1, 1, 1, 2, -1, 0, 0],
+                             [0, -1, 2, 1, 0, 1, 2, -1, 1, 1],
                              [1, 1, 2, 1, 0, -1, 2, -1, 0, 1],
                              [0, 1, 2, 1, 1, -1, 2, -1, 1, 0],
                              [1, 1, 2, -1, 1, -1, 2, 1, 0, 0],
@@ -370,7 +370,7 @@ class newsuperTGV3D:
         self.borders=[(0,-1,slice(None)),(-1,0,slice(None)),(0,0,slice(None)),(-1,-1,slice(None)),(slice(None),-1,0)
                                   ,(-1,slice(None),0),(0,slice(None),0),(slice(None),0,0)
             ,(slice(None),0,-1),(slice(None),-1,-1),
-            (slice(None),0,0),(-1,slice(None),0)]
+            (-1,slice(None),-1),(0,slice(None),-1)]
         self.corners=[(1,1,1),(-1,-1,-1),(1,1,-1),(-1,-1,1),(1,-1,1),(-1,1,-1),(1,-1,-1),(-1,1,1)]
 
     def __call__(self, f):
@@ -404,8 +404,8 @@ class newsuperTGV3D:
 
         for i in range(12):
             for j in range(len(self.switch_stencil_borders[i])):
-                f[self.switch_stencil_borders[i][j][0], *self.borders[i]] = \
-                    self.f_copies_borders[self.switch_stencil_borders[i][j][1],:, i]
+                f[self.switch_stencil_borders[i][j][1], *self.borders[i]] = \
+                    self.f_copies_borders[self.switch_stencil_borders[i][j][0],:, i]
 
         if any(inner for inner in self.switch_stencil_corner):
             for i in range(4):
