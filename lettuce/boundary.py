@@ -20,7 +20,7 @@ import numpy as np
 from lettuce import (LettuceException)
 
 __all__ = ["BounceBackBoundary", "AntiBounceBackOutlet", "EquilibriumBoundaryPU", "EquilibriumOutletP",
-           "FlippedBoundary", "TGV3D", "superTGV3D", "newsuperTGV3D"]
+           "FlippedBoundary", "TGV3D", "newsuperTGV3D"]
 
 
 class BounceBackBoundary:

@@ -7,7 +7,6 @@ import numpy as np
 from lettuce.unit import UnitConversion
 from lettuce.boundary import FlippedBoundary
 from lettuce.boundary import TGV3D
-from lettuce.boundary import superTGV3D
 from lettuce.boundary import newsuperTGV3D
 class TaylorGreenVortex2D:
     def __init__(self, resolution, reynolds_number, mach_number, lattice):
