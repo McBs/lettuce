@@ -385,7 +385,9 @@ class ProductionRate(Observable):
         rho = self.lattice.rho(f)
         u = self.lattice.u(f)
         F = self.force(f)
-        return torch.stack([0.5 * (F ** 2).sum(0).mean(), ((u + 0.5 * F / rho) * F).sum(0).mean()])
+        return torch.stack([
+            self.flow.units.convert_powerforce_to_pu(0.5 * (F ** 2).sum(0).mean()),
+            self.flow.units.convert_powerforce_to_pu(((u + 0.5 * F / rho) * F).sum(0).mean())])
 
 class ProductionRateSpectrum(Observable):
     """
@@ -462,4 +464,4 @@ class ProductionRateSpectrum(Observable):
 
         self.counter = counter
         # Norm the spectrum with respect to the spherical shell
-        return spectrum * (2 * torch.pi) * (self.k) ** 2 / (counter)
+        return self.flow.units.convert_powerforce_to_pu(spectrum * (2 * torch.pi) * (self.k) ** 2 / (counter))
