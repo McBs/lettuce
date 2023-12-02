@@ -63,7 +63,6 @@ class SpectralForce:
         self.power = torch.tensor(flow.units.convert_powerforce_to_lu(power), dtype=self.dtype, device=self.device)
         self.dt = torch.tensor(dt, dtype=self.dtype, device=self.device)
         self.resolution = flow.resolution
-
         frequencies = [np.fft.fftfreq(dim, d=1 / dim) for dim in [self.resolution] * 3]
         k = np.array(np.meshgrid(*frequencies))
         k[0][k[0] == 0] = 1e-15
@@ -150,8 +149,10 @@ class SpectralForce:
 
         theta2 = gamma + theta1
         theta = torch.stack([theta1, theta2])
+        if torch.isnan(theta1[0,0,0]):
+            theta = torch.rand([2] + [k] * 3, dtype=self.dtype, device=self.device) * 2 * torch.pi
         del theta1, theta2
-        #         theta = torch.rand([2] + [k] * 3, dtype=self.dtype, device=self.device) * 2 * torch.pi
+
 
         RealRandom = [torch.cos(theta[_]) * g for _, g in enumerate([ga, gb])]
         ImagRandom = [torch.sin(theta[_]) * g for _, g in enumerate([ga, gb])]
