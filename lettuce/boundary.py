@@ -283,7 +283,7 @@ class newsuperTGV3D:
                                   ,(-1,slice(None),0),(0,slice(None),0),(slice(None),0,0)
             ,(slice(None),0,-1),(slice(None),-1,-1),
             (-1,slice(None),-1),(0,slice(None),-1)]
-        self.corners=[(1,1,1),(-1,-1,-1),(1,1,-1),(-1,-1,1),(1,-1,1),(-1,1,-1),(1,-1,-1),(-1,1,1)]
+        self.corners=[(-1,-1,-1),(0,0,0),(-1,-1,0),(0,0,-1),(-1,0,-1),(0,-1,0),(-1,0,0),(0,-1,-1)]
 
     def __call__(self, f):
 
@@ -297,10 +297,10 @@ class newsuperTGV3D:
                                             f[:,0,:,0].clone()
                                             ,f[:,:,0,0].clone(),f[:,-1,:,0].clone()),dim=2)
 
-        self.f_copies_corners = torch.stack([f[:, 1, 1, 1].clone(), f[:,-1,-1,-1].clone(),
-                                             f[:,1,1,-1].clone(), f[:,-1,-1,1].clone(),
-                                             f[:,1,-1,1].clone(),f[:,-1,1,-1].clone(),
-                                             f[:, 1,-1,-1].clone(),f[:, -1,1,1].clone()],dim=1)
+        self.f_copies_corners = torch.stack([f[:, -1, -1, -1].clone(), f[:,0,0,0].clone(),
+                                             f[:,-1,-1,0].clone(), f[:,0,0,-1].clone(),
+                                             f[:,-1,0,-1].clone(),f[:,0,-1,0].clone(),
+                                             f[:, -1,0,0].clone(),f[:, 0,-1,-1].clone()],dim=1)
 
         for i in range(6):
             for j in range(len(self.switch_stencil_wall[i])):
@@ -316,15 +316,25 @@ class newsuperTGV3D:
 
         for i in range(12):
             for j in range(len(self.switch_stencil_borders[i])):
+                j=j
                 f[self.switch_stencil_borders[i][j][1], *self.borders[i]] = \
                     self.f_copies_borders[self.switch_stencil_borders[i][j][0],:, i]
 
-        if any(inner for inner in self.switch_stencil_corner):
-            for i in range(4):
 
-                f[self.switch_stencil_corner[0][2*i][0],*self.corners[2*i]]=\
-                    self.f_copies_corners[self.switch_stencil_corner[0][2*i][1],2*i+1]
-                f[self.switch_stencil_corner[0][2*i+1][0],*self.corners[2*i+1]]=\
-                    self.f_copies_corners[self.switch_stencil_corner[0][2*i+1][1],2*i]
+        #self.switch_stencil_corner=[(19,20),(20,19),(21,22),(22,21),(23,24),(24,23),(25,26),(26,25)]
+
+        if any(inner for inner in self.switch_stencil_corner):
+            self.switch_stencil_corner = [(19, 20), (20, 19), (21, 22), (22, 21), (23, 25), (24, 26), (25, 23),
+                                          (26, 24)]
+            #self.swiitch_stencil_corner =[(19,20),(20,19),(21,22),(22,21),(23,24),(24,23),(25,26),(26,25)]
+            for i in range(8):
+                index = self.switch_stencil_corner[i]
+
+                i=i
+                f[index[0],*self.corners[index[0]-19]]=\
+                    self.f_copies_corners[index[1], index[1]-19]
+                #f[self.switch_stencil_corner[0][2*i+1][0],*self.corners[2*i]]=\
+                    #self.f_copies_corners[self.switch_stencil_corner[0][2*i+1][1],2*i+1]
+        #self.corners=[(0,0,0),(-1,-1,-1),(0,0,-1),(-1,-1,0),(0,-1,0),(-1,0,-1),(0,-1,-1),(-1,0,0)]
 
         return f
