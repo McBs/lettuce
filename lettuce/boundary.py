@@ -319,7 +319,7 @@ class newsuperTGV3D:
                     self.f_copies_borders[self.switch_stencil_borders[i][j][0],:, i]
 
         if any(inner for inner in self.switch_stencil_corner):
-            self.switch_stencil_corner = [(19, 20), (20, 19), (21, 22), (22, 21), (23, 25), (24, 26), (25, 23),
+            self.switch_stencil_corner = [(19, 20), (20, 19), (21, 22), (22, 21), (23, 25), (24, 23), (25, 26),
                                           (26, 24)]
             for i in range(8):
                 index = self.switch_stencil_corner[i]
