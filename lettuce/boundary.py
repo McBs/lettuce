@@ -271,7 +271,6 @@ class newsuperTGV3D:
                     self.opposite.append((i, j))
         self.switch_stencil_corner.append(self.opposite)
 
-        #####################################
         self.swap_w= [[(0,slice(None),slice(None)),(-1,slice(None),slice(None))]
                                              ,[(slice(None),0,slice(None)),(slice(None),-1,slice(None))]
                                              ,[(slice(None),slice(None),-1),(slice(None),slice(None),0)]
@@ -313,28 +312,21 @@ class newsuperTGV3D:
                     f[self.switch_stencil_wall[i][j][1],*self.swap_w[i][1]]=\
                         self.f_copies[self.switch_stencil_wall[i][j][0],:,:,i]
 
-
         for i in range(12):
             for j in range(len(self.switch_stencil_borders[i])):
                 j=j
                 f[self.switch_stencil_borders[i][j][1], *self.borders[i]] = \
                     self.f_copies_borders[self.switch_stencil_borders[i][j][0],:, i]
 
-
-        #self.switch_stencil_corner=[(19,20),(20,19),(21,22),(22,21),(23,24),(24,23),(25,26),(26,25)]
-
         if any(inner for inner in self.switch_stencil_corner):
             self.switch_stencil_corner = [(19, 20), (20, 19), (21, 22), (22, 21), (23, 25), (24, 26), (25, 23),
                                           (26, 24)]
-            #self.swiitch_stencil_corner =[(19,20),(20,19),(21,22),(22,21),(23,24),(24,23),(25,26),(26,25)]
             for i in range(8):
                 index = self.switch_stencil_corner[i]
 
                 i=i
                 f[index[0],*self.corners[index[0]-19]]=\
                     self.f_copies_corners[index[1], index[1]-19]
-                #f[self.switch_stencil_corner[0][2*i+1][0],*self.corners[2*i]]=\
-                    #self.f_copies_corners[self.switch_stencil_corner[0][2*i+1][1],2*i+1]
-        #self.corners=[(0,0,0),(-1,-1,-1),(0,0,-1),(-1,-1,0),(0,-1,0),(-1,0,-1),(0,-1,-1),(-1,0,0)]
+
 
         return f
