@@ -325,8 +325,8 @@ class newsuperTGV3D:
                 index = self.switch_stencil_corner[i]
 
                 i=i
-                #f[index[0],*self.corners[index[0]-19]]=\
-                    #self.f_copies_corners[index[1], index[1]-19]
+                f[index[0],*self.corners[index[0]-19]]=\
+                    self.f_copies_corners[index[1], index[1]-19]
 
 
         return f
