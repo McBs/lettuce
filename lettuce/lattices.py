@@ -44,7 +44,7 @@ class Lattice:
 
         def is_bool_array(it):
             return (isinstance(it, torch.BoolTensor) or
-                    (isinstance(it, np.ndarray) and it.dtype in [np.bool, np.uint8]))
+                    (isinstance(it, np.ndarray) and it.dtype in [bool, np.uint8]))
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -74,6 +74,10 @@ class Lattice:
         """incompressible kinetic energy"""
         return 0.5 * self.einsum("d,d->", [self.u(f), self.u(f)])
 
+    def incompressbile_energy_wo_boundary(self, f):
+
+        f_wo_boundary=f[1:-1,1:-1]
+        return 0.5 * self.einsum("d,d->", [self.u(f_wo_boundary), self.u(f_wo_boundary)])
     def entropy(self, f):
         """entropy according to the H-theorem"""
         f_log = -torch.log(self.einsum("q,q->q", [f, 1 / self.w]))

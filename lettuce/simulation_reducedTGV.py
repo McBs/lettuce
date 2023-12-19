@@ -11,12 +11,11 @@ import warnings
 import torch
 import numpy as np
 
-__all__ = ["Simulation"]
+__all__ = ["SimulationReducedTGV"]
 
 
-class Simulation:
+class SimulationReducedTGV:
     """High-level API for simulations.
-
     Attributes
     ----------
     reporters : list
@@ -41,10 +40,11 @@ class Simulation:
             LettuceException("Wrong dimension of initial velocity field."
                              f"Expected {[lattice.D] + list(grid[0].shape)}, "
                              f"but got {list(u.shape)}.")
+        self.u_initial=u
+        self.p_initial=p
         u = lattice.convert_to_tensor(flow.units.convert_velocity_to_lu(u))
         rho = lattice.convert_to_tensor(flow.units.convert_pressure_pu_to_density_lu(p))
         self.f = lattice.equilibrium(rho, lattice.convert_to_tensor(u))
-
         self.reporters = []
 
         # Define masks, where the collision or streaming are not applied
@@ -61,7 +61,11 @@ class Simulation:
                 no_stream_mask = no_stream_mask | boundary.make_no_stream_mask(self.f.shape)
         if no_stream_mask.any():
             self.streaming.no_stream_mask = no_stream_mask
-
+    def startwerte(self):
+        rho_start=self.lattice.convert_to_tensor(self.flow.units.convert_pressure_pu_to_density_lu(self.p_initial))
+        u_start=self.lattice.convert_to_tensor(self.flow.units.convert_velocity_to_lu(self.u_initial))
+        f_start=self.lattice.equilibrium(rho_start, self.lattice.convert_to_tensor(u_start))
+        return rho_start, u_start, f_start
     def step(self, num_steps):
         """Take num_steps stream-and-collision steps and return performance in MLUPS."""
         start = timer()
@@ -70,11 +74,13 @@ class Simulation:
         for _ in range(num_steps):
             self.i += 1
 
+            for boundary in self._boundaries:
+                self.f = boundary(self.f)
+
             self.f = self.streaming(self.f)
             # Perform the collision routine everywhere, expect where the no_collision_mask is true
             self.f = torch.where(self.no_collision_mask, self.f, self.collision(self.f))
-            for boundary in self._boundaries:
-                self.f = boundary(self.f)
+
             self._report()
         end = timer()
         seconds = end - start
@@ -128,13 +134,43 @@ class Simulation:
         rho = self.lattice.rho(self.f)
         u = self.lattice.u(self.f)
 
-        grad_u0 = torch_gradient(u[0], dx=1, order=6)[None, ...]
-        grad_u1 = torch_gradient(u[1], dx=1, order=6)[None, ...]
-        S = torch.cat([grad_u0, grad_u1])
+        dx = self.flow.units.convert_length_to_pu(1.0)
+        nges=u.size()[1]
 
-        if self.lattice.D == 3:
-            grad_u2 = torch_gradient(u[2], dx=1, order=6)[None, ...]
-            S = torch.cat([S, grad_u2])
+        u_new = torch.zeros(3, nges + 6, nges + 6, nges + 6, device=self.lattice.device, dtype=self.lattice.dtype)
+
+        u_new[:, 3:-3, 3:-3, 3:-3] = u
+
+        u_new[:, 0:3, 3:-3, 3:-3] = torch.flip(u[:, 0:3, :, :], [1])
+        u_new[0, 0:3, 3:-3, 3:-3] = -1 * u_new[0, 0:3, 3:-3, 3:-3]
+
+        u_new[0, -3:, 3:-3, 3:-3] = -1 * torch.flip(torch.transpose(u[1, :, -3:, :], 0, 1), [0])
+        u_new[1, -3:, 3:-3, 3:-3] = torch.flip(torch.transpose(u[0, :, -3:, :], 0, 1), [0])
+        u_new[2, -3:, 3:-3, 3:-3] = torch.flip(torch.transpose(u[2, :, -3:, :], 0, 1), [0])
+
+        u_new[:, 3:-3, 0:3, 3:-3] = torch.flip(u[:, :, 0:3, :], [2])
+        u_new[1, 3:-3, 0:3, 3:-3] = -1 * u_new[1, 3:-3, 0:3, 3:-3]
+
+        u_new[0, 3:-3, -3:, 3:-3] = torch.flip(torch.transpose(u[1, -3:, :, :], 0, 1), [1])
+        u_new[1, 3:-3, -3:, 3:-3] = -1 * torch.flip(torch.transpose(u[0, -3:, :, :], 0, 1), [1])
+        u_new[2, 3:-3, -3:, 3:-3] = torch.flip(torch.transpose(u[2, -3:, :, :], 0, 1), [1])
+
+        u_new[:, 3:-3, 3:-3, -3:] = torch.flip(u[:, :, :, -3:], [3])
+        u_new[2, 3:-3, 3:-3, -3:] = -1 * u_new[2, 3:-3, 3:-3, -3:]
+
+        u_new[0, 3:-3, 3:-3, 0:3] = torch.flip(torch.transpose(u[1, :, :, 0:3], 0, 1), [2])
+        u_new[1, 3:-3, 3:-3, 0:3] = torch.flip(torch.transpose(u[0, :, :, 0:3], 0, 1), [2])
+        u_new[2, 3:-3, 3:-3, 0:3] = -1 * torch.flip(torch.transpose(u[2, :, :, 0:3], 0, 1), [2])
+
+        #u_grad = torch.stack([torch_gradient(u_new[i], dx=dx, order=6) for i in range(self.lattice.D)])
+        grad_u00 = torch_gradient(u_new[0], dx=1, order=6)[None, ...]
+        grad_u0=grad_u00[:, :, 3:-3, 3:-3, 3:-3]
+        grad_u11 = torch_gradient(u_new[1], dx=1, order=6)[None, ...]
+        grad_u1=grad_u11[:, :, 3:-3, 3:-3, 3:-3]
+        grad_u22 = torch_gradient(u_new[2], dx=1, order=6)[None, ...]
+        grad_u2=grad_u22[:, :, 3:-3, 3:-3, 3:-3]
+
+        S = torch.cat([grad_u0, grad_u1, grad_u2])
 
         Pi_1 = 1.0 * self.flow.units.relaxation_parameter_lu * rho * S / self.lattice.cs ** 2
         Q = (torch.einsum('ia,ib->iab', [self.lattice.e, self.lattice.e])
@@ -154,3 +190,4 @@ class Simulation:
         """Load f as np.array using pickle module."""
         with open(filename, "rb") as fp:
             self.f = pickle.load(fp)
+
