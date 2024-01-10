@@ -7,7 +7,7 @@ from torch.utils import data
 from lettuce.util import *
 
 class hdf5writer:
-    def __init__(self, flow, lattice, collision, interval, filebase='./output'):
+    def __init__(self, flow, lattice, interval=1, filebase='./output', collision=None):
         self.lattice = lattice
         self.interval = interval
         self.filebase = filebase
@@ -20,7 +20,7 @@ class hdf5writer:
         fs.attrs['resolution'] = flow.resolution
         fs.attrs['reynolds_number'] = flow.units.reynolds_number
         fs.attrs['mach_number'] = flow.units.mach_number
-        fs.attrs['collision'] = collision.__class__.__name__
+        if collision: fs.attrs['collision'] = collision.__class__.__name__
         fs.close()
         self.shape =tuple(
             j for i in (flow.units.lattice.Q, flow.grid[0].shape) for j in (i if isinstance(i, tuple) else (i,)))
@@ -53,7 +53,7 @@ class LettuceDataset(data.Dataset):
         self.lattice = lattice
         self.transform = transform
         self.target = target
-        self.interval = 1
+        self.interval = interval
         self.keys = []
         self._get_key_info()
 
