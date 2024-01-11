@@ -4,8 +4,11 @@ import torch
 import numpy as np
 
 from lettuce.symmetry import SymmetryGroup
+from lettuce.lattices import Lattice
+from lettuce.moments import Moments
 
-__all__= ["GConv", "GConvPermutation", "EquivariantNet", "EquivariantNeuralCollision"]
+__all__= ["GConv", "GConvPermutation", "EquivariantNet", "EquivariantNeuralCollision", "MemoryFct",
+          "EquivariantNetwork", "NeuralCollision"]
 
 
 class GConv(torch.nn.Module):
@@ -231,4 +234,144 @@ class EquivariantNeuralCollision(torch.nn.Module):
         m_postcollision = m - 1. / taus * (m - meq)
         return self.trafo.inverse_transform(m_postcollision)
 
+class MemoryFct(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, block, *xs):
+        # ctx.save_for_backward(x)
+        y = block._forward(xs[0])
+        ctx.save_for_backward(xs[0], y)
+        ctx.block = block
+        return y
 
+    @staticmethod
+    def backward(ctx, *grad_output):
+        x = ctx.saved_tensors[0]
+        y = ctx.saved_tensors[1]
+        # x = ctx.block._inverse(y)
+        grad = ctx.block._grad(x, grad_output[0])
+        return None, *grad
+
+class EquivariantNetwork(torch.nn.Module):
+    def __init__(self, net, group_actions):
+        super().__init__()
+        self.net = net
+        self.actions = group_actions
+
+    def forward(self, x):
+        x_in_group = torch.einsum("pij,j...->p...i", self.actions, x)
+        out_group = self.net(x_in_group)
+        return out_group.sum(dim=0)
+
+
+class NeuralCollision(torch.nn.Module):
+    """
+    A neural network-based collision operator for lattice simulations.
+
+    This class extends the Lettuce framework to implement a neural network-based collision operator
+    for handling cfd simulations. It is designed to be customized in terms of the network
+    architecture and parameters and supports an equivariant character.
+
+    Attributes:
+    -----------
+    lattice : Lattice
+        The lattice object representing the flow's lattice structure.
+    tau : float
+        The relaxation time parameter.
+    moments : Moments
+        The moments object representing the moment transformations.
+    moment_order : np.ndarray
+        An array containing the order of each moment.
+    in_indices : np.ndarray
+        Indices of moments up to a certain order.
+    n_taus : int
+        The number of relaxation times calculated by the network.
+    network : EquivariantNetwork
+        The neural network model for calculating relaxation parameters.
+
+    Methods:
+    --------
+    gt_half(tau: torch.Tensor) -> torch.Tensor:
+        Transforms the input tensor into values greater than 0.5.
+
+    forward(xs: torch.Tensor) -> torch.Tensor:
+        Forward pass of the neural collision operator.
+
+    _compute_relaxation_parameters(f: torch.Tensor) -> torch.Tensor:
+        Computes relaxation parameters by means of the neural network.
+
+    _forward(f: torch.Tensor) -> torch.Tensor:
+        Performs the collision operation.
+
+    _inverse(y: torch.Tensor) -> None:
+        A placeholder method for inverse operation, currently not implemented.
+
+    _grad(x: torch.Tensor, grads_out: torch.Tensor) -> Tuple[torch.Tensor, ...]:
+        Computes the gradient of the collision operator.
+    """
+
+    def __init__(self, lattice: Lattice, tau: float, moments: Moments, moment_order_in: int = 2, nodes: int = 20):
+        super().__init__()
+        self.lattice = lattice
+        self.tau = tau
+        self.moments = moments
+        self.moment_order = np.array([sum(name.count(x) for x in "xyz") for name in moments.names])
+        self.in_indices = np.where(self.moment_order <= moment_order_in)[0]
+        self.n_taus = 0
+        for i in np.arange(3, len(self.moment_order)):
+            self.n_taus = self.n_taus + 1 if np.count_nonzero(self.moment_order == i) > 0 else self.n_taus
+        symmetry_group = SymmetryGroup(moments.lattice.stencil)
+        action = moments.matrix[:, symmetry_group.permutations].swapaxes(0, 1)[:, self.in_indices, :]
+
+        net = torch.nn.Sequential(torch.nn.Linear(len(self.in_indices), nodes, bias=True),
+                                  torch.nn.ReLU(),
+                                  torch.nn.Linear(nodes, nodes, bias=True),
+                                  torch.nn.ReLU(),
+                                  torch.nn.Linear(nodes, self.n_taus, bias=True))
+
+        self.network = EquivariantNetwork(net=net, group_actions=action)
+        self.network.to(dtype=self.lattice.dtype, device=self.lattice.device)
+
+    def __name__(self):
+        return "Neural Collision Operator"
+
+    def gt_half(self, tau: torch.Tensor):
+        """transform into a value > 0.5"""
+        output = 1.5 + torch.nn.ELU()(tau)
+        #         result = torch.nn.Sigmoid()(a)/2 + tau_phyiscal
+        assert not torch.isnan(output).all(), 'The neural network outputs NaN values.'
+        assert (output > 0.5).all(), 'The neural network outputs values smaller than 0.5.'
+        return output
+
+    def forward(self, xs):
+        y = MemoryFct.apply(self, xs, *self.parameters())
+        return y
+
+    def _compute_relaxation_parameters(self, f: torch.Tensor):
+        taus = self.tau * torch.ones_like(f)
+        tau = self.network(f).moveaxis(self.lattice.D, 0)
+        tau = self.gt_half(tau)
+        for i, order in enumerate(np.arange(3, 3 + self.n_taus)):
+            taus[np.where(self.moment_order == order)] = tau[i]
+        #         taus[len(self.in_indices):] = tau
+        return taus
+
+    def _forward(self, f: torch.Tensor):
+        m = self.moments.transform(f)
+        meq = self.moments.equilibrium(m)
+        taus = self._compute_relaxation_parameters(f)
+        m_postcollision = m - 1. / taus * (m - meq)
+        del meq;
+        del taus;
+        del m
+        return self.moments.inverse_transform(m_postcollision)
+
+    def _inverse(self, y: torch.Tensor):
+        return NotImplemented
+
+    def _grad(self, x: torch.Tensor, grads_out: torch.Tensor):
+        with torch.enable_grad():
+            xs = [x.detach().requires_grad_(True)]
+            in_vars = xs + list(self.parameters())
+            ys = self._forward(*xs)
+            g = torch.autograd.grad(ys, in_vars, grads_out, allow_unused=True)
+        return g

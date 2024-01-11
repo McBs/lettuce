@@ -4,16 +4,20 @@ Collision models
 
 import torch
 import numpy as np
+import warnings
+from typing import Callable, Optional
 
 from lettuce.equilibrium import QuadraticEquilibrium
 from lettuce.moments import DEFAULT_TRANSFORM
 from lettuce.util import LettuceCollisionNotDefined
 from lettuce.stencils import D2Q9, D3Q27
+from lettuce.lattices import Lattice
 
 __all__ = [
     "Collision",
     "BGKCollision", "KBCCollision2D", "KBCCollision3D", "MRTCollision",
-    "RegularizedCollision", "SmagorinskyCollision", "TRTCollision", "BGKInitialization", "ForcedBGKCollision"
+    "RegularizedCollision", "SmagorinskyCollision", "TRTCollision", "BGKInitialization", "ForcedBGKCollision",
+    "ForcedCollision"
 ]
 
 
@@ -406,3 +410,77 @@ class ForcedBGKCollision(Collision):
         F = self.force(f) if self.is_linear else self.force()
         return F
 
+
+class ForcedCollision(Collision):
+    """
+    A class to incorporate forces into collisions.
+
+    This class extends the 'Collision' class and incorporates external force effects into the collision step.
+    It supports different force implementation methods, such as 'guo' and 'kupershtokh'.
+
+    Attributes:
+    -----------
+    lattice : Lattice
+        The lattice object representing the flow's lattice structure.
+    tau : float
+        The relaxation time parameter.
+    excitation : function
+        A function representing the external force or excitation.
+    collision : Collision
+        The collision operator to be used.
+    force : str
+        The force method to be used for force implementation ('guo' or 'kupershtokh').
+
+    Methods:
+    --------
+    __call__(f):
+        Applies forced collision dynamics to the distribution function 'f'.
+        This method modifies the distribution function 'f' based on the chosen force implementation.
+        It supports two methods: 'guo' and 'kupershtokh', each with its own approach to incorporating
+        force effects.
+
+    _F(f=None):
+        Computes the force term based on the provided excitation function.
+    """
+
+    def __init__(self, lattice: Lattice, tau: float, collision: Collision,
+                 excitation: Callable[[torch.Tensor], torch.Tensor], force: str = 'guo'):
+        """ Initializes the ForcedCollision """
+        self.lattice = lattice
+        self.tau = tau
+        self.excitation = excitation
+        self.collision = collision
+        self.force = force
+
+    def __call__(self, f: torch.Tensor) -> torch.Tensor:
+        if self.force == "guo":
+            warnings.warn(
+                "The 'Guo' module is currently compatible only with the 'BKG-Collision' operator. "
+                "Please note that this operator is hard-coded in this module "
+                "and may not support dynamic configuration or alternative collision operators. "
+                "This limitation is due to the use of shifted velocity necessary for calculating the equilibrium.",
+                UserWarning)
+            F = self._F(f)
+            rho = self.lattice.rho(f)
+            u = self.lattice.u(f) + 0.5 * F / rho
+            feq = self.lattice.equilibrium(rho, u)
+            index = [Ellipsis] + [None] * self.lattice.D
+            Si = (1 - 1 / (2 * self.tau)) * self.lattice.w[index] * self.lattice.einsum("ia,a->i", [(
+                ((self.lattice.e[index] - u) / (self.lattice.cs ** 2) +
+                 (self.lattice.einsum("ia,i->ia",
+                                      [self.lattice.e, (self.lattice.einsum("ib,b->i", [self.lattice.e, u]))])) /
+                 (self.lattice.cs ** 4))
+            ), F])
+            return f - 1.0 / self.tau * (f - feq) + Si
+
+        if self.force == "kupershtokh":
+            rho = self.lattice.rho(f)
+            u = self.lattice.u(f)
+            feq = self.lattice.equilibrium(rho, u)
+            F = self._F(f)
+            du = F / rho
+            Si = self.lattice.equilibrium(rho, u + du) - feq
+            return self.collision(f) + Si
+
+    def _F(self, f: Optional[torch.Tensor] = None) -> torch.Tensor:
+        return self.excitation(f)
