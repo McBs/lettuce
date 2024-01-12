@@ -113,9 +113,10 @@ class Plot:
         fig, ax1 = plt.subplots()
         # plt.title(r"\noindent\textbf{" + title + "}")
         plt.title(title)
-        plt.xlabel(r"\textit{" + "Wavenumber" + "}")
-        plt.xscale('log')
-        plt.yscale('log')
+        # plt.xlabel(r"\textit{" + "Wavenumber" + "}")
+        plt.xlabel("Wavenumber")
+        # plt.xscale('log')
+        # plt.yscale('log')
         ylabels = ([1e-4, 1e-3, 1e-2])
         ax1.set_yticks(ylabels)
         ax1.set_yticklabels(ylabels, ha='right')
@@ -138,7 +139,7 @@ class Plot:
         ax1.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
                    loc=2, bbox_to_anchor=(0, 1.14), frameon=False, ncol=2, columnspacing=1, fontsize=8)
 
-        self._out()
+        self._out(title)
 
     def _out(self, dataname="spectrum"):
         if self.filebase:
