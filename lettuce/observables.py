@@ -98,7 +98,7 @@ class EnergySpectrum(Observable):
                 (self.wavenorms[..., None] > wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
                 (self.wavenorms[..., None] <= wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
         )
-        self.k = (torch.arange(0, int(self.dimensions[0] / 2)) + 1)
+        self.k = (torch.arange(0, int(self.dimensions[0] / 2)) + 1).to(dtype=lattice.dtype, device=lattice.device)
 
     def __call__(self, f: torch.Tensor) -> torch.Tensor:
         return self.spectrum_from_u(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
