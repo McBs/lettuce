@@ -111,7 +111,8 @@ class Plot:
 
     def spectrum(self, title='Energy Spectrum', k53=False, k53_factor=1, axis=None, postprocess=None, *args, **kwargs):
         fig, ax1 = plt.subplots()
-        plt.title(r"\noindent\textbf{" + title + "}")
+        # plt.title(r"\noindent\textbf{" + title + "}")
+        plt.title(title)
         plt.xlabel(r"\textit{" + "Wavenumber" + "}")
         plt.xscale('log')
         plt.yscale('log')
