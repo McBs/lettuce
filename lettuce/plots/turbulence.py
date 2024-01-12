@@ -6,10 +6,11 @@ __all__ = [
     "Plot"
 ]
 class Plot:
-    def __init__(self, filebase=None, show=True, style='/home/mbedru3s/Dokumente/lettuce/lettuce/plots/ecostyle.mplstyle'):
+    def __init__(self, filebase=None, show=True, style=None):
         self.show = show
         self.filebase = filebase
-        plt.style.use(style)
+        if style:
+            plt.style.use(style)
 
 
     def __call__(self, f):
@@ -108,9 +109,9 @@ class Plot:
         self._out(dataname)
         return
 
-    def spectrum(self, k53=False, k53_factor=1, axis=None, postprocess=None, *args, **kwargs):
+    def spectrum(self, title='Energy Spectrum', k53=False, k53_factor=1, axis=None, postprocess=None, *args, **kwargs):
         fig, ax1 = plt.subplots()
-        plt.title(r"\noindent\textbf{" + "Energy spectrum" + "}")
+        plt.title(r"\noindent\textbf{" + title + "}")
         plt.xlabel(r"\textit{" + "Wavenumber" + "}")
         plt.xscale('log')
         plt.yscale('log')
