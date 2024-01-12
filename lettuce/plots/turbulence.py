@@ -119,7 +119,8 @@ class Plot:
         plt.xlabel("Wavenumber")
         plt.xscale('log')
         plt.yscale('log')
-        ylabels = ([1e-4, 1e-3, 1e-2])
+        ylabels = ([1e-10, 1e-8, 1e-6, 1e-4, 1e-2])
+        plt.ylim([1e-13,1e-0])
         ax1.set_yticks(ylabels)
         ax1.set_yticklabels(ylabels, ha='right')
         if axis:
@@ -132,9 +133,9 @@ class Plot:
             if postprocess:
                 value = postprocess(value)
             if isinstance(value, list):
-                plt.plot(*value, linestyle='-', color="#E2365B", label=key)
+                plt.plot(*value, linestyle='-', label=key)
             else:
-                plt.plot(value, linestyle='-', color="#E2365B", label=key)
+                plt.plot(value, linestyle='-', label=key)
 
         handles, labels = ax1.get_legend_handles_labels()
         order = np.arange(len(handles))
