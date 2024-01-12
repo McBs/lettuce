@@ -18,8 +18,10 @@ class Plot:
 
     def basic(self, title='chart', xlabel='x', log=False, axis=None, postprocess=None, *args, **kwargs):
         fig, ax1 = plt.subplots()
-        plt.title(r"\noindent\textbf{" + title + "}", x=1, y=1.075)
-        plt.xlabel(r"\textit{" + xlabel + "}")
+        # plt.title(r"\noindent\textbf{" + title + "}", x=1, y=1.075)
+        # plt.xlabel(r"\textit{" + xlabel + "}")
+        plt.title(title, x=1, y=1.075)
+        plt.xlabel(xlabel)
         if log:
             plt.xscale('log')
             plt.yscale('log')
@@ -115,8 +117,8 @@ class Plot:
         plt.title(title)
         # plt.xlabel(r"\textit{" + "Wavenumber" + "}")
         plt.xlabel("Wavenumber")
-        # plt.xscale('log')
-        # plt.yscale('log')
+        plt.xscale('log')
+        plt.yscale('log')
         ylabels = ([1e-4, 1e-3, 1e-2])
         ax1.set_yticks(ylabels)
         ax1.set_yticklabels(ylabels, ha='right')
