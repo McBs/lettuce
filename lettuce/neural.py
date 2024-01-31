@@ -336,10 +336,11 @@ class NeuralCollision(torch.nn.Module):
 
     def gt_half(self, tau: torch.Tensor):
         """transform into a value > 0.5"""
-        output = 1.5 + torch.nn.ELU()(tau)
-        #         result = torch.nn.Sigmoid()(a)/2 + tau_phyiscal
+        # output = 1.5 + torch.nn.ELU()(tau)
+        # result = torch.nn.Sigmoid()(a)/2 + tau_phyiscal
+        output = torch.nn.Sigmoid()(tau)/2 + 0.5
         assert not torch.isnan(output).all(), 'The neural network outputs NaN values.'
-        assert (output > 0.5).all(), 'The neural network outputs values smaller than 0.5.'
+        assert (output >= 0.5).all(), 'The neural network outputs values smaller than 0.5.'
         return output
 
     def forward(self, xs):

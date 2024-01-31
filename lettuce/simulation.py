@@ -147,7 +147,7 @@ class Simulation:
     def save_checkpoint(self, filename):
         """Write f as np.array using pickle module."""
         with open(filename, "wb") as fp:
-            pickle.dump(self.f, fp)
+            pickle.dump(self.f.to(device='cpu'), fp)
 
     def load_checkpoint(self, filename):
         """Load f as np.array using pickle module."""
