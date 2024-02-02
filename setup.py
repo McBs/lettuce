@@ -14,7 +14,7 @@ with open('HISTORY.rst') as history_file:
 
 requirements = ['Click>=6.0', "torch>=1.2", "numpy", "matplotlib", "pyevtk", 'pybind11']
 
-setup_requirements = ['pytest-runner', 'pytest']
+setup_requirements = ['pytest-runner', 'pytest', 'pybind11']
 
 setup(
     author="Andreas Kraemer",
