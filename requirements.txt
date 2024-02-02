@@ -6,4 +6,3 @@ pyevtk
 pytest
 h5py>=3.2.1
 mmh3
-pybind11
