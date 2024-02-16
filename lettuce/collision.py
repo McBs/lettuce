@@ -7,35 +7,91 @@ import numpy as np
 import warnings
 from typing import Callable, Optional
 
+from typing import Optional
+
+from lettuce.base import LatticeBase
 from lettuce.equilibrium import QuadraticEquilibrium
+from lettuce.util import LettuceException
+from lettuce.native_generator import NativeNoCollision, NativeBGKCollision
 from lettuce.moments import DEFAULT_TRANSFORM
 from lettuce.util import LettuceCollisionNotDefined
 from lettuce.stencils import D2Q9, D3Q27
 from lettuce.lattices import Lattice
 
 __all__ = [
-    "Collision",
-    "BGKCollision", "KBCCollision2D", "KBCCollision3D", "MRTCollision",
-    "RegularizedCollision", "SmagorinskyCollision", "TRTCollision", "BGKInitialization", "ForcedBGKCollision",
-    "ForcedCollision"
+    "BGKCollision", "KBCCollision2D", "KBCCollision3D", "MRTCollision", "RegularizedCollision",
+    "SmagorinskyCollision", "TRTCollision", "BGKInitialization", "NoCollision", "ForcedBGKCollision", "ForcedCollision"
 ]
 
 
-class Collision:
-    def __call__(self, f):
-        return NotImplemented
+class Collision(LatticeBase):
+    """Class Collision
+
+    Base class for all lattice collision components.
+    Ensures that all collision components share a
+    signature to rely on.
+    """
+
+    no_collision_mask: Optional[torch.Tensor]
+
+    def __init__(self, lattice: 'Lattice'):
+        LatticeBase.__init__(self, lattice)
+        self.no_collision_mask = None
+
+    def __call__(self, f: torch.Tensor) -> torch.Tensor:
+        """The heart of the collision operator
+
+        Applies the collision operator to the distribution function.
+
+        Parameters
+        ----------
+        f: torch.Tensor
+            The distribution function of the current timestamp.
+        Returns
+        -------
+        The distribution function of the current timestamp with
+        the collision operator applied.
+        """
+        raise NotImplementedError()
+
+
+class NoCollision(Collision):
+    """Class NoCollision
+
+    A collision operator that is equal to the identity function.
+    This method is mainly for debugging and should not be used
+    for serious simulations!
+    """
+
+    def native_available(self) -> bool:
+        return True
+
+    def create_native(self) -> 'NativeNoCollision':
+        return NativeNoCollision()
+
+    def __call__(self, f: torch.Tensor) -> torch.Tensor:
+        return f
 
 
 class BGKCollision(Collision):
     def __init__(self, lattice, tau, force=None):
+        Collision.__init__(self, lattice)
         self.force = force
         self.lattice = lattice
         self.tau = tau
 
+    def native_available(self) -> bool:
+        return self.lattice.equilibrium.native_available()
+
+    def create_native(self) -> 'NativeBGKCollision':
+        native_equilibrium = self.lattice.equilibrium.create_native()
+        support_no_collision_mask = (self.no_collision_mask is not None) and self.no_collision_mask.any()
+        return NativeBGKCollision(native_equilibrium, support_no_collision_mask)
+
     def __call__(self, f):
         rho = self.lattice.rho(f)
         u_eq = 0 if self.force is None else self.force.u_eq(f)
-        u = self.lattice.u(f) + u_eq
+        u = self.lattice.u(f, rho=rho) + u_eq
         feq = self.lattice.equilibrium(rho, u)
         Si = 0 if self.force is None else self.force.source_term(u)
         return f - 1.0 / self.tau * (f - feq) + Si
@@ -48,7 +104,8 @@ class MRTCollision(Collision):
     The transform does not have to be linear and can, e.g., be any moment or cumulant transform.
     """
 
-    def __init__(self, lattice, relaxation_parameters, transform=None):
+    def __init__(self, lattice, transform, relaxation_parameters):
+        Collision.__init__(self, lattice)
         self.lattice = lattice
         if transform is None:
             try:
@@ -76,13 +133,14 @@ class TRTCollision(Collision):
         """
 
     def __init__(self, lattice, tau, tau_minus=1.0):
+        Collision.__init__(self, lattice)
         self.lattice = lattice
         self.tau_plus = tau
         self.tau_minus = tau_minus
 
     def __call__(self, f):
         rho = self.lattice.rho(f)
-        u = self.lattice.u(f)
+        u = self.lattice.u(f, rho=rho)
         feq = self.lattice.equilibrium(rho, u)
         f_diff_neq = ((f + f[self.lattice.stencil.opposite]) - (feq + feq[self.lattice.stencil.opposite])) / (
             2.0 * self.tau_plus)
@@ -96,6 +154,7 @@ class RegularizedCollision(Collision):
     """Regularized LBM according to Jonas Latt and Bastien Chopard (2006)"""
 
     def __init__(self, lattice, tau):
+        Collision.__init__(self, lattice)
         self.lattice = lattice
         self.tau = tau
         self.Q_matrix = torch.zeros([lattice.Q, lattice.D, lattice.D], device=lattice.device, dtype=lattice.dtype)
@@ -109,7 +168,7 @@ class RegularizedCollision(Collision):
 
     def __call__(self, f):
         rho = self.lattice.rho(f)
-        u = self.lattice.u(f)
+        u = self.lattice.u(f, rho=rho)
         feq = self.lattice.equilibrium(rho, u)
         pi_neq = self.lattice.shear_tensor(f - feq)
         cs4 = self.lattice.cs ** 4
@@ -127,6 +186,7 @@ class KBCCollision2D(Collision):
     """Entropic multi-relaxation time model according to Karlin et al. in two dimensions"""
 
     def __init__(self, lattice, tau):
+        Collision.__init__(self, lattice)
         self.lattice = lattice
         if not lattice.stencil == D2Q9:
             raise LettuceCollisionNotDefined("This implementation only works for the D2Q9 stencil.")
@@ -170,7 +230,9 @@ class KBCCollision2D(Collision):
 
     def __call__(self, f):
         # the deletes are not part of the algorithm, they just keep the memory usage lower
-        feq = self.lattice.equilibrium(self.lattice.rho(f), self.lattice.u(f))
+        rho = self.lattice.rho(f)
+        u = self.lattice.u(f, rho=rho)
+        feq = self.lattice.equilibrium(rho, u)
         # k = torch.zeros_like(f)
 
         m = self.kbc_moment_transform(f)
@@ -206,6 +268,7 @@ class KBCCollision3D(Collision):
     """Entropic multi-relaxation time-relaxation time model according to Karlin et al. in three dimensions"""
 
     def __init__(self, lattice, tau):
+        Collision.__init__(self, lattice)
         self.lattice = lattice
         if not lattice.stencil == D3Q27:
             raise LettuceCollisionNotDefined("This implementation only works for the D3Q27 stencil.")
@@ -298,6 +361,7 @@ class SmagorinskyCollision(Collision):
     """Smagorinsky large eddy simulation (LES) collision model with BGK operator."""
 
     def __init__(self, lattice, tau, smagorinsky_constant=0.17, force=None):
+        Collision.__init__(self, lattice)
         self.force = force
         self.lattice = lattice
         self.tau = tau
@@ -325,10 +389,11 @@ class SmagorinskyCollision(Collision):
         return f - 1.0 / self.tau_eff * (f - feq) + Si
 
 
-class BGKInitialization:
+class BGKInitialization(Collision):
     """Keep velocity constant."""
 
     def __init__(self, lattice, flow, moment_transformation):
+        Collision.__init__(self, lattice)
         self.lattice = lattice
         self.tau = flow.units.relaxation_parameter_lu
         self.moment_transformation = moment_transformation

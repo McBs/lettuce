@@ -13,6 +13,8 @@ import warnings
 import numpy as np
 import torch
 
+from typing import Type
+
 from lettuce.util import LettuceException
 from lettuce.equilibrium import QuadraticEquilibrium
 
@@ -21,7 +23,17 @@ __all__ = ["Lattice"]
 
 class Lattice:
 
-    def __init__(self, stencil, device, dtype=torch.float):
+    stencil: Type['Stencil']
+    device: torch.device
+    dtype: torch.dtype
+    e: torch.Tensor
+    w: torch.Tensor
+    cs: torch.Tensor
+    equilibrium: 'Equilibrium'
+
+    use_native: bool
+
+    def __init__(self, stencil, device, dtype=torch.float, use_native=True):
         self.stencil = stencil
         self.device = device
         self.dtype = dtype
@@ -29,6 +41,7 @@ class Lattice:
         self.w = self.convert_to_tensor(stencil.w)
         self.cs = self.convert_to_tensor(stencil.cs)
         self.equilibrium = QuadraticEquilibrium(self)
+        self.use_native = use_native
 
     def __str__(self):
         return f"Lattice (stencil {self.stencil.__name__}; device {self.device}; dtype {self.dtype})"
@@ -45,7 +58,7 @@ class Lattice:
 
         def is_bool_array(it):
             return (isinstance(it, torch.BoolTensor) or
-                    (isinstance(it, np.ndarray) and it.dtype in [np.bool, np.uint8]))
+                    (isinstance(it, np.ndarray) and it.dtype in [bool, np.uint8]))
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -67,9 +80,19 @@ class Lattice:
         """momentum"""
         return self.einsum("qd,q->d", [self.e, f])
 
-    def u(self, f):
-        """velocity"""
-        return self.j(f) / self.rho(f)
+    def u(self, f, rho=None, acceleration=None):
+        """velocity; the `acceleration` is used to compute the correct velocity in the presence of a forcing scheme."""
+        if rho is None:
+            rho = self.rho(f)
+        v = self.j(f) / rho
+        # apply correction due to forcing, which effectively averages the pre- and post-collision velocity
+        correction = 0.0
+        if acceleration is not None:
+            if len(acceleration.shape) == 1:
+                index = [Ellipsis] + [None]*self.D
+                acceleration = acceleration[index]
+            correction = acceleration / (2 * rho)
+        return v + correction
 
     def incompressible_energy(self, f):
         """incompressible kinetic energy"""
