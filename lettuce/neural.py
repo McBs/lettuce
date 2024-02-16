@@ -336,10 +336,11 @@ class NeuralCollision(torch.nn.Module):
 
     def gt_half(self, tau: torch.Tensor):
         """transform into a value > 0.5"""
-        output = 1.5 + torch.nn.ELU()(tau)
-        #         result = torch.nn.Sigmoid()(a)/2 + tau_phyiscal
+        # output = 1.5 + torch.nn.ELU()(tau)
+        # result = torch.nn.Sigmoid()(a)/2 + tau_phyiscal
+        output = torch.nn.Sigmoid()(tau)/2 + 0.5
         assert not torch.isnan(output).all(), 'The neural network outputs NaN values.'
-        assert (output > 0.5).all(), 'The neural network outputs values smaller than 0.5.'
+        assert (output >= 0.5).all(), 'The neural network outputs values smaller than 0.5.'
         return output
 
     def forward(self, xs):
@@ -347,8 +348,11 @@ class NeuralCollision(torch.nn.Module):
         return y
 
     def _compute_relaxation_parameters(self, f: torch.Tensor):
+
         taus = self.tau * torch.ones_like(f)
-        tau = self.network(f).moveaxis(self.lattice.D, 0)
+        tau = self.network(f[:,:int(f.shape[1]/2),:,:]).moveaxis(self.lattice.D, 0)
+        # if f.shape[1] == 128:
+        tau = torch.cat([tau,self.network(f[:,int(f.shape[1]/2):,:,:]).moveaxis(self.lattice.D, 0)],dim=1)
         tau = self.gt_half(tau)
         for i, order in enumerate(np.arange(3, 3 + self.n_taus)):
             taus[np.where(self.moment_order == order)] = tau[i]

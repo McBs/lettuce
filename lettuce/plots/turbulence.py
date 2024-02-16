@@ -119,8 +119,8 @@ class Plot:
         plt.xlabel("Wavenumber")
         plt.xscale('log')
         plt.yscale('log')
-        ylabels = ([1e-10, 1e-8, 1e-6, 1e-4, 1e-2])
-        plt.ylim([1e-13,1e-0])
+        ylabels = ([1e-4, 1e-2, 1e-0])
+        plt.ylim([1e-5,1e1])
         ax1.set_yticks(ylabels)
         ax1.set_yticklabels(ylabels, ha='right')
         if axis:
