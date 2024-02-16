@@ -215,3 +215,8 @@ def pressure_poisson(units, u, rho0, tol_abs=1e-10, max_num_steps=100000):
     )[None, ...]
 
     return units.convert_pressure_pu_to_density_lu(p_mod)
+
+
+def append_axes(array, n):
+    index = (Ellipsis, ) + (None, ) * n
+    return array[index]
