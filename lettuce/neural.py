@@ -309,7 +309,7 @@ class NeuralCollision(torch.nn.Module):
         Computes the gradient of the collision operator.
     """
 
-    def __init__(self, lattice: Lattice, tau: float, moments: Moments, moment_order_in: int = 2, nodes: int = 20):
+    def __init__(self, lattice: Lattice, tau: float, moments: Moments, moment_order_in: int = 2, nodes: int = 20, slices=1):
         super().__init__()
         self.lattice = lattice
         self.tau = tau
@@ -330,6 +330,7 @@ class NeuralCollision(torch.nn.Module):
 
         self.network = EquivariantNetwork(net=net, group_actions=action)
         self.network.to(dtype=self.lattice.dtype, device=self.lattice.device)
+        self.slices=slices
 
     def __name__(self):
         return "Neural Collision Operator"
@@ -350,9 +351,11 @@ class NeuralCollision(torch.nn.Module):
     def _compute_relaxation_parameters(self, f: torch.Tensor):
 
         taus = self.tau * torch.ones_like(f)
-        tau = self.network(f[:,:int(f.shape[1]/2),:,:]).moveaxis(self.lattice.D, 0)
+        # tau = self.network(f).moveaxis(self.lattice.D, 0)
         # if f.shape[1] == 128:
-        tau = torch.cat([tau,self.network(f[:,int(f.shape[1]/2):,:,:]).moveaxis(self.lattice.D, 0)],dim=1)
+        # tau = torch.cat([tau,self.network(f[:,int(f.shape[1]/2):,:,:]).moveaxis(self.lattice.D, 0)],dim=1)
+        # print(torch.cat([self.network(feature).moveaxis(self.lattice.D, 0) + 1 for feature in torch.chunk(f, slices_size, dim=1)], dim=1).shape)
+        tau = torch.cat([self.network(feature).moveaxis(self.lattice.D, 0) for feature in torch.chunk(f, self.slices, dim=1)], dim=1)
         tau = self.gt_half(tau)
         for i, order in enumerate(np.arange(3, 3 + self.n_taus)):
             taus[np.where(self.moment_order == order)] = tau[i]
