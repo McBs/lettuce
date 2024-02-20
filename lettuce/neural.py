@@ -309,7 +309,13 @@ class NeuralCollision(torch.nn.Module):
         Computes the gradient of the collision operator.
     """
 
-    def __init__(self, lattice: Lattice, tau: float, moments: Moments, moment_order_in: int = 2, nodes: int = 20, slices=1):
+    def __init__(self, lattice: Lattice,
+                 tau: float,
+                 moments: Moments,
+                 moment_order_in: int = 2,
+                 nodes: int = 20,
+                 slices: int = 1,
+                 memory_efficient: bool = True):
         super().__init__()
         self.lattice = lattice
         self.tau = tau
@@ -330,7 +336,8 @@ class NeuralCollision(torch.nn.Module):
 
         self.network = EquivariantNetwork(net=net, group_actions=action)
         self.network.to(dtype=self.lattice.dtype, device=self.lattice.device)
-        self.slices=slices
+        self.slices = slices
+        self.memory_efficient = memory_efficient
 
     def __name__(self):
         return "Neural Collision Operator"
@@ -350,23 +357,33 @@ class NeuralCollision(torch.nn.Module):
 
     def _compute_relaxation_parameters(self, f: torch.Tensor):
 
-        taus = self.tau * torch.ones_like(f)
         # tau = self.network(f).moveaxis(self.lattice.D, 0)
         # if f.shape[1] == 128:
         # tau = torch.cat([tau,self.network(f[:,int(f.shape[1]/2):,:,:]).moveaxis(self.lattice.D, 0)],dim=1)
         # print(torch.cat([self.network(feature).moveaxis(self.lattice.D, 0) + 1 for feature in torch.chunk(f, slices_size, dim=1)], dim=1).shape)
         tau = torch.cat([self.network(feature).moveaxis(self.lattice.D, 0) for feature in torch.chunk(f, self.slices, dim=1)], dim=1)
         tau = self.gt_half(tau)
-        for i, order in enumerate(np.arange(3, 3 + self.n_taus)):
-            taus[np.where(self.moment_order == order)] = tau[i]
-        #         taus[len(self.in_indices):] = tau
+        if self.memory_efficient is False:
+            taus = self.tau * torch.ones_like(f)
+            for i, order in enumerate(np.arange(3, 3 + self.n_taus)):
+                taus[np.where(self.moment_order == order)] = tau[i]
+            #         taus[len(self.in_indices):] = tau
+        else:
+            taus = self.tau * torch.ones_like(f[:self.moment_order.max()+1,...])
+            taus[3:] = tau
+        del f
         return taus
 
     def _forward(self, f: torch.Tensor):
         m = self.moments.transform(f)
         meq = self.moments.equilibrium(m)
         taus = self._compute_relaxation_parameters(f)
-        m_postcollision = m - 1. / taus * (m - meq)
+        if self.memory_efficient is False:
+            m_postcollision = m - 1. / taus * (m - meq)
+        else:
+            m_postcollision = torch.empty_like((m))
+            for order in np.arange(0,self.moment_order.max()+1):
+                m_postcollision[np.where(self.moment_order == order)] = m[np.where(self.moment_order == order)] - 1. / taus[order][None,...] * (m[np.where(self.moment_order == order)] - meq[np.where(self.moment_order == order)])
         del meq;
         del taus;
         del m
