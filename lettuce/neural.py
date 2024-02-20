@@ -361,7 +361,9 @@ class NeuralCollision(torch.nn.Module):
         # if f.shape[1] == 128:
         # tau = torch.cat([tau,self.network(f[:,int(f.shape[1]/2):,:,:]).moveaxis(self.lattice.D, 0)],dim=1)
         # print(torch.cat([self.network(feature).moveaxis(self.lattice.D, 0) + 1 for feature in torch.chunk(f, slices_size, dim=1)], dim=1).shape)
-        tau = torch.cat([self.network(feature).moveaxis(self.lattice.D, 0) for feature in torch.chunk(f, self.slices, dim=1)], dim=1)
+        f = torch.chunk(f, self.slices, dim=1)
+        tau = torch.cat([self.network(feature).moveaxis(self.lattice.D, 0) for feature in f], dim=1)
+        del f
         tau = self.gt_half(tau)
         if self.memory_efficient is False:
             taus = self.tau * torch.ones_like(f)
@@ -369,9 +371,8 @@ class NeuralCollision(torch.nn.Module):
                 taus[np.where(self.moment_order == order)] = tau[i]
             #         taus[len(self.in_indices):] = tau
         else:
-            taus = self.tau * torch.ones_like(f[:self.moment_order.max()+1,...])
-            taus[3:] = tau
-        del f
+            taus = self.tau * torch.ones_like(tau[(None,)+(0,Ellipsis,)].repeat((self.moment_order.max()+1,)+(1,)*self.lattice.D))
+            taus[-self.n_taus:] = tau
         return taus
 
     def _forward(self, f: torch.Tensor):
