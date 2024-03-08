@@ -3,7 +3,7 @@ Example flows.
 """
 
 from lettuce.flows.taylorgreen import TaylorGreenVortex2D, TaylorGreenVortex3D, ReducedTaylorGreenVortex2D,\
-    ReducedTaylorGreenVortex3D,SuperReducedTaylorGreenVortex3D
+    ReducedTaylorGreenVortex3D,SuperReducedTaylorGreenVortex3D, ReducedTaylorGreenVortex2D
 from lettuce.flows.couette import CouetteFlow2D
 from lettuce.flows.obstacle import Obstacle2D, Obstacle3D
 from lettuce.flows.poiseuille import PoiseuilleFlow2D
@@ -21,5 +21,6 @@ flow_by_name = {
     "couette2D": [CouetteFlow2D, D2Q9],
     "decay": [DecayingTurbulence, D2Q9],
     "superreducedtaylor3d": [SuperReducedTaylorGreenVortex3D, D3Q19],
-    "supperreducedtaylor3d+kcb":[SuperReducedTaylorGreenVortex3D, D3Q27]
+    "supperreducedtaylor3d+kcb":[SuperReducedTaylorGreenVortex3D, D3Q27],
+    "superreducedTGV2D":[ReducedTaylorGreenVortex2D, D2Q9]
 }

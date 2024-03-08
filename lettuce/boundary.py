@@ -20,7 +20,7 @@ import numpy as np
 from lettuce import (LettuceException)
 
 __all__ = ["BounceBackBoundary", "AntiBounceBackOutlet", "EquilibriumBoundaryPU", "EquilibriumOutletP"
-    , "TGV3D", "newsuperTGV3D"]
+    , "TGV3D", "newsuperTGV3D","superTGV2D"]
 
 
 class BounceBackBoundary:
@@ -328,5 +328,36 @@ class newsuperTGV3D:
                 f[index[0],*self.corners[index[0]-19]]=\
                     self.f_copies_corners[index[1], index[1]-19]
 
+
+        return f
+
+class superTGV2D:
+
+    def __init__(self, lattice):
+     self.lattice = lattice
+    def __call__(self, f):
+
+        f_copie=f.clone()
+
+        f[3,0,:]=f_copie[2,:,-1]
+        f[6,0,:]=f_copie[5,:,-1]
+        f[7,0,:]=f_copie[6,:,-1]
+
+        f[7,:,0]=f_copie[8,-1,:]
+        f[4,:,0]=f_copie[1,-1,:]
+        f[8,:,0]=f_copie[5,-1,:]
+
+        f[5,-1,:]=f_copie[6,0,:]
+        f[1,-1,:]=f_copie[3,0,:]
+        f[8,-1,:]=f_copie[7,0,:]
+
+        f[5,:,-1]=f_copie[8,:,0]
+        f[2,:,-1]=f_copie[4,:,0]
+        f[6,:,-1]=f_copie[7,:,0]
+
+        f[7,0,0]=f_copie[5,-1,-1]
+        f[8,-1,0]=f_copie[8,-1,0]
+        f[5,-1,-1]=f_copie[7,0,0]
+        f[6,0,-1]=f_copie[6,0,-1]
 
         return f
