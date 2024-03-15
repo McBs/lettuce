@@ -59,9 +59,6 @@ class TaylorGreenVortex3D:
             -np.sin(x[0]) * np.cos(x[1]) * np.cos(x[2]),
             np.zeros_like(np.sin(x[0]))
         ])
-        eps = np.finfo(np.float64).eps
-        u += np.random.uniform(0, high=3*eps, size=u.shape)
-
         p = np.array([1 / 16. * (np.cos(2 * x[0]) + np.cos(2 * x[1])) * (np.cos(2 * x[2]) + 2)])
         return p, u
 
