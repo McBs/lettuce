@@ -55,8 +55,8 @@ class TaylorGreenVortex3D:
     def initial_solution(self, x):
 
         u = np.array([
-            np.cos(x[0]) * np.sin(x[1]) * np.cos(x[2]),
-            -np.sin(x[0]) * np.cos(x[1]) * np.cos(x[2]),
+            np.sin(x[0]) * np.cos(x[1]) * np.cos(x[2]),
+            -np.cos(x[0]) * np.sin(x[1]) * np.cos(x[2]),
             np.zeros_like(np.sin(x[0]))
         ])
         p = np.array([1 / 16. * (np.cos(2 * x[0]) + np.cos(2 * x[1])) * (np.cos(2 * x[2]) + 2)])
