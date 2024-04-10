@@ -22,6 +22,7 @@ from lettuce import TaylorGreenVortex2D, TaylorGreenVortex3D, TaylorGreenVortex2
 from lettuce.flows import flow_by_name
 from lettuce.force import Guo
 
+import lettuce as lt
 
 @click.group()
 @click.version_option(version=lettuce_version)
@@ -111,9 +112,19 @@ def convergence(ctx, init_f_neq):
         mach_number = 8 / resolution
 
         # Simulation
+        moments = lt.D3Q27Hermite(lattice)
         flow = TaylorGreenVortex2D_semi3D(resolution=resolution, reynolds_number=10000, mach_number=mach_number,
                                    lattice=lattice)
         collision = BGKCollision(lattice, tau=flow.units.relaxation_parameter_lu)
+        collision = lt.NeuralCollision(lattice = lattice,
+                                   tau = flow.units.relaxation_parameter_lu,
+                                   moments = moments,
+                                   moment_order_in = 6,
+                                   nodes = 20,
+                                   slices = 9)
+        collision.network.train(False)
+        collision.load_state_dict(torch.load("/home/mbedru3s/neuraloperator/0181/50698/data/"))
+        collision.eval()
         streaming = StandardStreaming(lattice)
         simulation = Simulation(flow=flow, lattice=lattice, collision=collision, streaming=streaming)
         if init_f_neq:
