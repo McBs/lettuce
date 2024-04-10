@@ -15,10 +15,10 @@ import click
 import torch
 import numpy as np
 
-from lettuce import BGKCollision, StandardStreaming, Lattice, D2Q9
+from lettuce import BGKCollision, StandardStreaming, Lattice, D2Q9, D3Q27
 from lettuce import __version__ as lettuce_version
 
-from lettuce import TaylorGreenVortex2D, Simulation, ErrorReporter, VTKReporter
+from lettuce import TaylorGreenVortex2D, TaylorGreenVortex3D, TaylorGreenVortex2D_semi3D, Simulation, ErrorReporter, VTKReporter
 from lettuce.flows import flow_by_name
 from lettuce.force import Guo
 
@@ -101,7 +101,7 @@ def benchmark(ctx, steps, resolution, profile_out, flow, vtk_out):
 def convergence(ctx, init_f_neq):
     """Use Taylor Green 2D for convergence test in diffusive scaling."""
     device, dtype = ctx.obj['device'], ctx.obj['dtype']
-    lattice = Lattice(D2Q9, device, dtype)
+    lattice = Lattice(D3Q27, device, dtype)
     error_u_old = None
     error_p_old = None
     print(("{:>15} " * 5).format("resolution", "error (u)", "order (u)", "error (p)", "order (p)"))
@@ -111,7 +111,7 @@ def convergence(ctx, init_f_neq):
         mach_number = 8 / resolution
 
         # Simulation
-        flow = TaylorGreenVortex2D(resolution=resolution, reynolds_number=10000, mach_number=mach_number,
+        flow = TaylorGreenVortex2D_semi3D(resolution=resolution, reynolds_number=10000, mach_number=mach_number,
                                    lattice=lattice)
         collision = BGKCollision(lattice, tau=flow.units.relaxation_parameter_lu)
         streaming = StandardStreaming(lattice)
