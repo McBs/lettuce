@@ -107,7 +107,7 @@ def convergence(ctx, init_f_neq):
     error_p_old = None
     print(("{:>15} " * 5).format("resolution", "error (u)", "order (u)", "error (p)", "order (p)"))
 
-    for i in range(4, 9):
+    for i in range(8, 9):
         resolution = 2 ** i
         mach_number = 8 / resolution
 
@@ -121,7 +121,7 @@ def convergence(ctx, init_f_neq):
                                    moments = moments,
                                    moment_order_in = 6,
                                    nodes = 20,
-                                   slices = 16)
+                                   slices = 128)
         collision.network.train(False)
         filebase_loading = "/home/mbedru3s/neuraloperator/0181/50698/data/"
         net = 'parameters_86.pth'
