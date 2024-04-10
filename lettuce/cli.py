@@ -121,7 +121,7 @@ def convergence(ctx, init_f_neq):
                                    moments = moments,
                                    moment_order_in = 6,
                                    nodes = 20,
-                                   slices = 9)
+                                   slices = 16)
         collision.network.train(False)
         filebase_loading = "/home/mbedru3s/neuraloperator/0181/50698/data/"
         net = 'parameters_86.pth'
