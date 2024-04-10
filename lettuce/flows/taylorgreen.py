@@ -96,7 +96,7 @@ class TaylorGreenVortex2D_semi3D:
     def grid(self):
         x = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
         y = np.linspace(0, 2 * np.pi, num=self.resolution, endpoint=False)
-        z = np.linspace(0, 2 * np.pi, num=2, endpoint=False)
+        z = np.linspace(0, 2 * np.pi, num=1, endpoint=False)
         return np.meshgrid(x, y, z, indexing='ij')
 
     @property
