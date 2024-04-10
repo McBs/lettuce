@@ -123,7 +123,7 @@ def convergence(ctx, init_f_neq):
                                    nodes = 20,
                                    slices = 9)
         collision.network.train(False)
-        collision.load_state_dict(torch.load("/home/mbedru3s/neuraloperator/0181/50698/data/"))
+        collision.load_state_dict(torch.load("/home/mbedru3s/neuraloperator/0181/50698/data/parameters_86.pt"))
         collision.eval()
         streaming = StandardStreaming(lattice)
         simulation = Simulation(flow=flow, lattice=lattice, collision=collision, streaming=streaming)
