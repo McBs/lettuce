@@ -193,20 +193,6 @@ class TGV3D:
            f[self.lattice.stencil.switch_x[row][1],:,:, -1]=self.saver
 
 
-
-       # f[5,:,:,-1]=torch.flip(f[5,:,:,-1].clone(),[1])
-       # f[11, :, :, -1] = torch.flip(f[11, :, :, -1].clone(), [1])
-       # f[14, :, :, -1] = torch.flip(f[14, :, :, -1].clone(), [1])
-       # self.saver=f[7,:,:,-1].clone()
-       # f[7,:,:,-1]=f[10,:,:,-1]
-       # f[10,:,:,-1]=self.saver
-       # f[6,:,:,0]=torch.flip(f[6,:,:,0].clone(),[1])
-       # f[12, :, :, 0] = torch.flip(f[12, :, :, 0].clone(), [1])
-       # f[13, :, :, 0] = torch.flip(f[13, :, :, 0].clone(), [1])
-       # self.saver=f[8,:,:,0].clone()
-       # f[8,:,:,0]=f[9,:,:,0]
-       # f[9,:,:,0]=self.saver
-
        return f
 
 
