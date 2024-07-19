@@ -1,6 +1,6 @@
 Click>=6.0
 torch>=2.1
-numpy
+numpy>=2.0
 matplotlib
 pyevtk
 pytest
