@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from matplotlib import ticker
 
 __all__ = [
     "Plot"
@@ -21,7 +22,7 @@ class Plot:
         # plt.title(r"\noindent\textbf{" + title + "}", x=1, y=1.075)
         # plt.xlabel(r"\textit{" + xlabel + "}")
         plt.title(title, x=1, y=1.075)
-        plt.xlabel(xlabel)
+        plt.xlabel(r"\textit{" + f"{xlabel}" + "}")
         if log:
             plt.xscale('log')
             plt.yscale('log')
@@ -146,8 +147,12 @@ class Plot:
 
     def dissipation(self, id=0, log=False, y_axis=None, postprocess=None, *args, **kwargs):
         fig, ax1 = plt.subplots()
-        plt.title(r"\noindent\textbf{" + "Dissipation" + "}", x=1, y=1.075)
-        plt.xlabel(r"\textit{" + "Time" + "}")
+        plt.title(f"Dissipation_{id:05d}", x=1, y=1.075)
+        plt.xlabel("Time")
+        ylabels = ([0, 0.005, 0.01, 0.015, 0.02])
+        ax1.set_yticks(ylabels)
+        ax1.set_yticklabels(ylabels, ha='right')
+        ax1.xaxis.set_major_formatter(ticker.FormatStrFormatter('%0.0f'))
         if y_axis:
             plt.ylim(y_axis)
 
