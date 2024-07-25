@@ -155,9 +155,9 @@ class Plot:
             if postprocess:
                 value = postprocess(value)
             if isinstance(value, list):
-                plt.scatter(*value, color="#E2365B", label=key)
+                plt.plot(*value, linestyle='-', label=key)
             else:
-                plt.scatter(value, color="#E2365B", label=key)
+                plt.plot(value, linestyle='-', label=key)
 
         handles, labels = ax1.get_legend_handles_labels()
         order = np.arange(len(handles))
