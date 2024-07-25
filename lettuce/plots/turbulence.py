@@ -144,6 +144,35 @@ class Plot:
 
         self._out(title)
 
+    def dissipation(self, id=0, log=False, y_axis=None, postprocess=None, *args, **kwargs):
+        fig, ax1 = plt.subplots()
+        plt.title(r"\noindent\textbf{" + "Dissipation" + "}", x=1, y=1.075)
+        plt.xlabel(r"\textit{" + "Time" + "}")
+        if y_axis:
+            plt.ylim(y_axis)
+
+        for key, value in kwargs.items():
+            if postprocess:
+                value = postprocess(value)
+            if isinstance(value, list):
+                plt.scatter(*value, color="#E2365B", label=key)
+            else:
+                plt.scatter(value, color="#E2365B", label=key)
+
+        handles, labels = ax1.get_legend_handles_labels()
+        order = np.arange(len(handles))
+        ax1.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
+                   loc=2, bbox_to_anchor=(-0.02, 1.2), frameon=False, ncol=4, columnspacing=1, fontsize=8)
+
+        if self.filebase:
+            plt.savefig(self.filebase + f"dissipation_{id:05d}.png", format='png', bbox_inches='tight', pad_inches=0.01, dpi=300,
+                        transparent=False)
+        if self.show:
+            plt.show()
+        else:
+            plt.close()
+        return
+
     def _out(self, dataname="spectrum"):
         if self.filebase:
             plt.savefig(self.filebase + dataname +".png", format='png', bbox_inches='tight', pad_inches=0.01, dpi=300,
