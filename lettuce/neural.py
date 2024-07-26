@@ -315,7 +315,7 @@ class NeuralCollision(torch.nn.Module):
                  moment_order_in: int = 2,
                  nodes: int = 20,
                  slices: int = 1,
-                 net = None,
+                 network = None,
                  memory_efficient: bool = True):
         super().__init__()
         self.lattice = lattice
@@ -328,14 +328,13 @@ class NeuralCollision(torch.nn.Module):
             self.n_taus = self.n_taus + 1 if np.count_nonzero(self.moment_order == i) > 0 else self.n_taus
         symmetry_group = SymmetryGroup(moments.lattice.stencil)
         action = moments.matrix[:, symmetry_group.permutations].swapaxes(0, 1)[:, self.in_indices, :]
-        if net is None:
-            net = torch.nn.Sequential(torch.nn.Linear(len(self.in_indices), nodes, bias=True),
-                                      torch.nn.ReLU(),
-                                      torch.nn.Linear(nodes, nodes, bias=True),
-                                      torch.nn.ReLU(),
-                                      torch.nn.Linear(nodes, self.n_taus, bias=True))
-        else:
-            net = net
+        network = torch.nn.Linear(nodes, nodes, bias=True) if network is None else network
+
+        net = torch.nn.Sequential(torch.nn.Linear(len(self.in_indices), nodes, bias=True),
+                                  torch.nn.ReLU(),
+                                  network,
+                                  torch.nn.ReLU(),
+                                  torch.nn.Linear(nodes, self.n_taus, bias=True))
 
         self.network = EquivariantNetwork(net=net, group_actions=action)
         self.network.to(dtype=self.lattice.dtype, device=self.lattice.device)
