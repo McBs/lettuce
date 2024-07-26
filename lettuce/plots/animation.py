@@ -25,15 +25,26 @@ def save_gif(filename: str = "./animation",
     - fps (int): Frames per second for the GIF. This determines the speed of the animation. Default is 20.
     - loop (int): Number of times the GIF will loop. Default is 0, which means the GIF will loop indefinitely.
     """
+    # Ensure the database path ends with a slash
     database += '/' if database[-1] != "/" else ''
+
+    # List all files in the database directory
     filesInOrigin = os.listdir(database)
+
+    # Filter files based on the dataName substring
     filesForAnimation = []
     for file in filesInOrigin:
         if dataName in file:
             filesForAnimation.append(file)
+
+    # Print the number of files found
     print(f"Number of files found: {len(filesForAnimation)}")
+
+    # Open and compile the images into a GIF
     imgs = [Image.open(database+file) for file in filesForAnimation]
     imgs[0].save(fp=filename, format='GIF', append_images=imgs[1:], save_all=True, duration=int(1000/fps), loop=loop)
+
+    # Print a confirmation message
     print(f"Animation file \"{filename}\" was created with {fps} fps")
 
 
