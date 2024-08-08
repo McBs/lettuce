@@ -170,6 +170,48 @@ class Plot:
                    loc=2, bbox_to_anchor=(-0.02, 1.2), frameon=False, ncol=4, columnspacing=1, fontsize=8)
 
         if self.filebase:
+            plt.savefig(self.filebase + f"dissipation_{id:05d}.png", format='png', bbox_inches='tight', pad_inches=0.01,
+                        dpi=300,
+                        transparent=False)
+        if self.show:
+            plt.show()
+        else:
+            plt.close()
+        return
+
+    def training_dissipation(self, id=0, log=False, y_axis=None, postprocess=None, *args, **kwargs):
+        fig, ax1 = plt.subplots()
+        plt.title(f"Dissipation_{id:05d}", x=1, y=1.075)
+        plt.xlabel("Time")
+        ylabels = ([0, 0.005, 0.01, 0.015, 0.02])
+        ax1.set_yticks(ylabels)
+        ax1.set_yticklabels(ylabels, ha='right')
+        ax1.xaxis.set_major_formatter(ticker.FormatStrFormatter('%0.0f'))
+        if y_axis:
+            plt.ylim(y_axis)
+
+        for key, value in kwargs.items():
+            if postprocess:
+                value = postprocess(value)
+            if 'Neural' in key:
+                if isinstance(value, list):
+                    plt.plot(*value, linestyle='-', lw=1, label=key, color='#F6423C')
+                else:
+                    plt.plot(value, linestyle='-', lw=1, label=key, color='#F6423C')
+            if 'Reference' in key:
+                if isinstance(value, list):
+                    plt.plot(*value, linestyle='-', lw=1.5, label=key, color='#595959')
+                else:
+                    plt.plot(value, linestyle='-', lw=1.5, label=key, color='#595959')
+
+        handles, labels = ax1.get_legend_handles_labels()
+        labels = ['Reference', 'NCO']
+        order = np.arange(len(handles))
+        # ax1.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
+        ax1.legend([handles[idx] for idx in [0, 1]], [labels[idx] for idx in [0, 1]],
+                   loc=2, bbox_to_anchor=(-0.02, 1.2), frameon=False, ncol=4, columnspacing=1, fontsize=8)
+
+        if self.filebase:
             plt.savefig(self.filebase + f"dissipation_{id:05d}.png", format='png', bbox_inches='tight', pad_inches=0.01, dpi=300,
                         transparent=False)
         if self.show:
