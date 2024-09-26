@@ -10,7 +10,7 @@ from lettuce.util import torch_gradient
 from packaging import version
 
 __all__ = ["Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
-           "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV"]
+           "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter"]
 
 
 class Observable:
@@ -235,3 +235,44 @@ class Dissipation_TGV(Observable):
         enstrophy= nu*vorticity * dx ** self.lattice.D
         return torch.stack([dissipation, enstrophy])
 
+class SymmetryReporter(Observable):
+
+    def __call__(self, f):
+        u = self.lattice.u(f)
+        n=u.size()[1]
+        u_new = torch.zeros(3, n // 2, n // 2, n // 2)
+
+        # Verwende ganzzahlige Divisionen (//) für alle Indizes
+        u_new[:, :n // 4, :n // 4, :n // 4] = u[:, :n // 4, :n // 4, :n // 4]
+
+        u_new[0, :n // 4, n // 4:, :n // 4] = torch.flip(torch.transpose(u[1, :n // 4, :n // 4, :n // 4], 0, 1), [1])
+        u_new[1, :n // 4, n // 4:, :n // 4] = -1*torch.flip(torch.transpose(u[0, :n // 4, :n // 4, :n // 4], 0, 1), [1])
+        u_new[2, :n // 4, n // 4:, :n // 4] = torch.flip(torch.transpose(u[2, :n // 4, :n // 4, :n // 4], 0, 1), [1])
+
+        u_new[0, n // 4:, :, :n // 4] = -1*torch.flip(torch.flip(u_new[0, :n // 4, :, :n // 4], [0]), [1])
+        u_new[1, n // 4:, :, :n // 4] = -1*torch.flip(torch.flip(u_new[1, :n // 4, :, :n // 4], [0]), [1])
+        u_new[2, n // 4:, :, :n // 4] = torch.flip(torch.flip(u_new[2, :n // 4, :, :n // 4], [0]), [1])
+
+        u_new[0, :, :, n // 4:] = torch.flip(u_new[0, :, :, :n // 4], [2])
+        u_new[1, :, :, n // 4:] = torch.flip(u_new[1, :, :, :n // 4], [2])
+        u_new[2, :, :, n // 4:] = -1*torch.flip(u_new[2, :, :, :n // 4], [2])
+
+        Symmetrie = torch.zeros(8)
+
+        # Symmetrie-Berechnungen
+        Symmetrie[0] = torch.max(torch.abs(u[:, :n // 2, :n // 2, :n // 2] - u_new))
+        Symmetrie[1] = torch.max(torch.abs(u[:, n // 2:, n // 2:, :n // 2] - u_new))
+        Symmetrie[2] = torch.max(torch.abs(u[:, n // 2:, :n // 2, n // 2:] - u_new))
+        Symmetrie[3] = torch.max(torch.abs(u[:, :n // 2, n // 2:, n // 2:] - u_new))
+
+        u_new = torch.flip(u_new, [1])
+        u_new[0, :, :, :] = -u_new[0, :, :, :]
+
+        Symmetrie[4] = torch.max(torch.abs(u[:, :n // 2, :n // 2, n // 2:] - u_new))
+        Symmetrie[5] = torch.max(torch.abs(u[:, n // 2:, n // 2:, n // 2:] - u_new))
+        Symmetrie[6] = torch.max(torch.abs(u[:, n // 2:, :n // 2, :n // 2] - u_new))
+        Symmetrie[7] = torch.max(torch.abs(u[:, :n // 2, n // 2:, :n // 2] - u_new))
+
+        Symmetrie = torch.max(Symmetrie)
+
+        return Symmetrie
