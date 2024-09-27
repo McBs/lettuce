@@ -240,7 +240,7 @@ class SymmetryReporter(Observable):
     def __call__(self, f):
         u = self.lattice.u(f)
         n=u.size()[1]
-        u_new = torch.zeros(3, n // 2, n // 2, n // 2)
+        u_new = torch.zeros(3, n // 2, n // 2, n // 2, device = u.device)
 
         # Verwende ganzzahlige Divisionen (//) für alle Indizes
         u_new[:, :n // 4, :n // 4, :n // 4] = u[:, :n // 4, :n // 4, :n // 4]
