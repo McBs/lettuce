@@ -239,6 +239,7 @@ class SymmetryReporter(Observable):
 
     def __call__(self, f):
         u = self.lattice.u(f)
+
         n=u.size()[1]
         u_new = torch.zeros(3, n // 2, n // 2, n // 2, device = u.device)
 
@@ -260,18 +261,18 @@ class SymmetryReporter(Observable):
         Symmetrie = torch.zeros(8)
 
         # Symmetrie-Berechnungen
-        Symmetrie[0] = torch.max(torch.abs(u[:, :n // 2, :n // 2, :n // 2] - u_new))
-        Symmetrie[1] = torch.max(torch.abs(u[:, n // 2:, n // 2:, :n // 2] - u_new))
-        Symmetrie[2] = torch.max(torch.abs(u[:, n // 2:, :n // 2, n // 2:] - u_new))
-        Symmetrie[3] = torch.max(torch.abs(u[:, :n // 2, n // 2:, n // 2:] - u_new))
+        Symmetrie[0] = torch.max(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0))
+        Symmetrie[1] = torch.max(torch.norm(u[:, n // 2:, n // 2:, :n // 2] - u_new, dim=0))
+        Symmetrie[2] = torch.max(torch.norm(u[:, n // 2:, :n // 2, n // 2:] - u_new, dim=0))
+        Symmetrie[3] = torch.max(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0))
 
         u_new = torch.flip(u_new, [1])
         u_new[0, :, :, :] = -u_new[0, :, :, :]
 
-        Symmetrie[4] = torch.max(torch.abs(u[:, :n // 2, :n // 2, n // 2:] - u_new))
-        Symmetrie[5] = torch.max(torch.abs(u[:, n // 2:, n // 2:, n // 2:] - u_new))
-        Symmetrie[6] = torch.max(torch.abs(u[:, n // 2:, :n // 2, :n // 2] - u_new))
-        Symmetrie[7] = torch.max(torch.abs(u[:, :n // 2, n // 2:, :n // 2] - u_new))
+        Symmetrie[4] = torch.max(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new, dim=0))
+        Symmetrie[5] = torch.max(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new, dim=0))
+        Symmetrie[6] = torch.max(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new, dim=0))
+        Symmetrie[7] = torch.max(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new, dim=0))
 
         Symmetrie = torch.max(Symmetrie)
 
