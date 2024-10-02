@@ -267,7 +267,7 @@ class SymmetryReporter(Observable):
         Symmetrie[3] = torch.max(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0))
 
         u_new = torch.flip(u_new, [1])
-        u_new[0, :, :, :] = -u_new[0, :, :, :]
+        u_new[0, :, :, :] = -1*u_new[0, :, :, :]
 
         Symmetrie[4] = torch.max(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new, dim=0))
         Symmetrie[5] = torch.max(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new, dim=0))
