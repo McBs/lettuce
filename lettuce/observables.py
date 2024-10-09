@@ -10,7 +10,7 @@ from lettuce.util import torch_gradient
 from packaging import version
 
 __all__ = ["Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
-           "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter"]
+           "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter","EnergySpectrum2"]
 
 
 class Observable:
@@ -97,6 +97,14 @@ class EnergySpectrum(Observable):
             self.norm = self.dimensions[0] / self.dx
 
         self.wavenumbers = torch.arange(int(torch.max(wavenorms)))
+
+        self.wavenumbers = torch.arange(0, int(self.dimensions[0] / 2))
+
+        self.wavemask = (
+                (wavenorms[..., None] > self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
+                (wavenorms[..., None] <= self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
+        )
+
         self.wavemask = (
                 (wavenorms[..., None] > self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
                 (wavenorms[..., None] <= self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
@@ -135,6 +143,72 @@ class EnergySpectrum(Observable):
         ]) / self.norm)
         ekin = torch.sum(0.5 * (uh.imag ** 2 + uh.real ** 2), dim=0)
         return ekin
+
+
+class EnergySpectrum2(Observable):
+    """
+    Calculates the energy spectrum of a velocity using the Fast Fourier Transform (FFT).
+
+    Args:
+        f (torch.Tensor): Population.
+
+    Returns:
+        ek (torch.Tensor): Energy spectrum according to Pope (Eq. 6.193).
+
+    Notes:
+        - This function is applicable for a three-dimensional flow only.
+        - This function is applicable for an isotropic turbulence simulation only.
+        - The function is normed for a physical characteristic length of 2π.
+          For further normalization options see: https://github.com/fdietzsc/hita/tree/master
+        - Conditions may be defined within initialization process, which has been omitted due to memory constraints.
+    """
+
+    def __init__(self, lattice, flow):
+        super().__init__(lattice, flow)
+        assert lattice.D == 3, "This is not a three-dimensional flow."
+        self.dx = self.flow.units.convert_length_to_pu(1.0)
+        self.dimensions = self.flow.grid[0].shape
+        frequencies = [self.lattice.convert_to_tensor(np.fft.fftfreq(dim, d=1 / dim)) for dim in self.dimensions]
+        self.wavenorms = torch.norm(torch.stack(torch.meshgrid(*frequencies)), dim=0)
+        wavenumbers = torch.arange(self.dimensions[0])
+        self.wavemask = (
+                (self.wavenorms[..., None] > wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
+                (self.wavenorms[..., None] <= wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
+        )
+        self.k = (torch.arange(0, int(self.dimensions[0] / 2)) + 1).to(dtype=lattice.dtype, device=lattice.device)
+
+    def __call__(self, f: torch.Tensor) -> torch.Tensor:
+        return self.spectrum_from_u(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
+
+    def spectrum_from_u(self, u: torch.Tensor) -> torch.Tensor:
+        # Computes the N dimensional discrete Fourier transform of the velocity
+        uh = torch.stack([
+            torch.abs(torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="backward")) * self.dimensions[0]*-3 for i in
+            range(self.lattice.D)])
+
+        # Compute the values of spectrum elementwise
+        ekin = torch.sum(((uh) ** 2), dim=0)
+        spectrum = torch.zeros_like(self.k, dtype=self.lattice.dtype)
+        counter = torch.zeros_like(self.k, dtype=self.lattice.dtype)
+
+        # Calculate values of specturm (for wavenumbers [k0+1,kmax-1])
+        for nr, k in enumerate(self.k[1:-1]):
+            condition = (self.wavenorms <= (float(k) + 0.5)) & (self.wavenorms > (float(k) - 0.5))
+            spectrum[nr + 1] = ekin[condition].sum()
+            counter[nr + 1] = condition.sum()
+
+        # Calculate first value of spectrum (for the wavenumber k0)
+        condition = (self.wavenorms <= (self.k[0] + 0.5))
+        spectrum[0] = ekin[condition].sum()
+        counter[0] = condition.sum()
+
+        # Calculate last value of spectrum (for the wavenumber kmax)
+        condition = (self.wavenorms <= self.k[-1]) & (self.wavenorms > (self.k[-1] - 0.5))
+        spectrum[-1] = ekin[condition].sum()
+        counter[-1] = condition.sum()
+
+        # Norm the spectrum with respect to the spherical shell
+        return spectrum * (2 * np.pi) * (self.k) ** 2 / (counter)
 
 
 class Mass(Observable):
@@ -237,6 +311,10 @@ class Dissipation_TGV(Observable):
 
 class SymmetryReporter(Observable):
 
+    def __init__(self, lattice, flow):
+        self.lattice = lattice
+        self.flow = flow
+
     def __call__(self, f):
         u = self.lattice.u(f)
 
@@ -266,14 +344,15 @@ class SymmetryReporter(Observable):
         Symmetrie[2] = torch.max(torch.norm(u[:, n // 2:, :n // 2, n // 2:] - u_new, dim=0))
         Symmetrie[3] = torch.max(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0))
 
-        u_new = torch.flip(u_new, [1])
-        u_new[0, :, :, :] = -1*u_new[0, :, :, :]
+        u_new2 = torch.flip(u_new, [1])
+        u_new2[0, :, :, :] = -1*u_new2[0, :, :, :]
 
-        Symmetrie[4] = torch.max(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new, dim=0))
-        Symmetrie[5] = torch.max(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new, dim=0))
-        Symmetrie[6] = torch.max(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new, dim=0))
-        Symmetrie[7] = torch.max(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new, dim=0))
-
-        Symmetrie = torch.max(Symmetrie)
+        Symmetrie[4] = torch.max(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new2, dim=0))
+        Symmetrie[5] = torch.max(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new2, dim=0))
+        Symmetrie[6] = torch.max(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new2, dim=0))
+        Symmetrie[7] = torch.max(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new2, dim=0))
+        print(Symmetrie)
+        #print(u_new)
+        Symmetrie = self.flow.units.convert_velocity_to_pu(torch.max(Symmetrie))
 
         return Symmetrie
