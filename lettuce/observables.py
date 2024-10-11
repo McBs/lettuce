@@ -154,13 +154,6 @@ class EnergySpectrum2(Observable):
 
     Returns:
         ek (torch.Tensor): Energy spectrum according to Pope (Eq. 6.193).
-
-    Notes:
-        - This function is applicable for a three-dimensional flow only.
-        - This function is applicable for an isotropic turbulence simulation only.
-        - The function is normed for a physical characteristic length of 2π.
-          For further normalization options see: https://github.com/fdietzsc/hita/tree/master
-        - Conditions may be defined within initialization process, which has been omitted due to memory constraints.
     """
 
     def __init__(self, lattice, flow):
@@ -171,9 +164,16 @@ class EnergySpectrum2(Observable):
         frequencies = [self.lattice.convert_to_tensor(np.fft.fftfreq(dim, d=1 / dim)) for dim in self.dimensions]
         self.wavenorms = torch.norm(torch.stack(torch.meshgrid(*frequencies)), dim=0)
         wavenumbers = torch.arange(self.dimensions[0])
+
+        # Normierungsfaktor wie in der EnergySpectrum-Klasse
+        if self.lattice.D == 3:
+            self.norm = self.dimensions[0] * np.sqrt(2 * np.pi) / self.dx ** 2
+        else:
+            self.norm = self.dimensions[0] / self.dx
+
         self.wavemask = (
-                (self.wavenorms[..., None] > wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
-                (self.wavenorms[..., None] <= wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
+            (self.wavenorms[..., None] > wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
+            (self.wavenorms[..., None] <= wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
         )
         self.k = (torch.arange(0, int(self.dimensions[0] / 2)) + 1).to(dtype=lattice.dtype, device=lattice.device)
 
@@ -181,18 +181,18 @@ class EnergySpectrum2(Observable):
         return self.spectrum_from_u(self.flow.units.convert_velocity_to_pu(self.lattice.u(f)))
 
     def spectrum_from_u(self, u: torch.Tensor) -> torch.Tensor:
-        # Computes the N dimensional discrete Fourier transform of the velocity
+        # Computes the N-dimensional discrete Fourier transform of the velocity
         uh = torch.stack([
-            torch.abs(torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="backward")) * self.dimensions[0]*-3 for i in
-            range(self.lattice.D)
+            torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="backward") / self.norm
+            for i in range(self.lattice.D)
         ])
 
         # Compute the values of spectrum elementwise
-        ekin = torch.sum(((uh) ** 2), dim=0)
+        ekin = torch.sum((uh.real ** 2 + uh.imag ** 2), dim=0)
         spectrum = torch.zeros_like(self.k, dtype=self.lattice.dtype)
         counter = torch.zeros_like(self.k, dtype=self.lattice.dtype)
 
-        # Calculate values of specturm (for wavenumbers [k0+1,kmax-1])
+        # Calculate values of spectrum (for wavenumbers [k0+1, kmax-1])
         for nr, k in enumerate(self.k[1:-1]):
             condition = (self.wavenorms <= (float(k) + 0.5)) & (self.wavenorms > (float(k) - 0.5))
             spectrum[nr + 1] = ekin[condition].sum()
@@ -209,8 +209,7 @@ class EnergySpectrum2(Observable):
         counter[-1] = condition.sum()
 
         # Norm the spectrum with respect to the spherical shell
-        return spectrum * (2 * np.pi) * (self.k) ** 2 / (counter)
-
+        return spectrum * (2 * np.pi) * (self.k ** 2) / counter
 
 
 
