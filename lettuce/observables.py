@@ -96,14 +96,14 @@ class EnergySpectrum(Observable):
         else:
             self.norm = self.dimensions[0] / self.dx
 
-        self.wavenumbers = torch.arange(int(torch.max(wavenorms)))
+        #self.wavenumbers = torch.arange(int(torch.max(wavenorms)))
 
         self.wavenumbers = torch.arange(0, int(self.dimensions[0] / 2))
 
-        self.wavemask = (
-                (wavenorms[..., None] > self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
-                (wavenorms[..., None] <= self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
-        )
+        #self.wavemask = (
+        #        (wavenorms[..., None] > self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
+        #        (wavenorms[..., None] <= self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) + 0.5)
+        #)
 
         self.wavemask = (
                 (wavenorms[..., None] > self.wavenumbers.to(dtype=lattice.dtype, device=lattice.device) - 0.5) &
@@ -164,7 +164,7 @@ class EnergySpectrum2(Observable):
     """
 
     def __init__(self, lattice, flow):
-        super().__init__(lattice, flow)
+        super(EnergySpectrum2, self).__init__(lattice, flow)
         assert lattice.D == 3, "This is not a three-dimensional flow."
         self.dx = self.flow.units.convert_length_to_pu(1.0)
         self.dimensions = self.flow.grid[0].shape
@@ -184,7 +184,8 @@ class EnergySpectrum2(Observable):
         # Computes the N dimensional discrete Fourier transform of the velocity
         uh = torch.stack([
             torch.abs(torch.fft.fftn(u[i], dim=tuple(torch.arange(self.lattice.D)), norm="backward")) * self.dimensions[0]*-3 for i in
-            range(self.lattice.D)])
+            range(self.lattice.D)
+        ])
 
         # Compute the values of spectrum elementwise
         ekin = torch.sum(((uh) ** 2), dim=0)
@@ -209,6 +210,8 @@ class EnergySpectrum2(Observable):
 
         # Norm the spectrum with respect to the spherical shell
         return spectrum * (2 * np.pi) * (self.k) ** 2 / (counter)
+
+
 
 
 class Mass(Observable):
