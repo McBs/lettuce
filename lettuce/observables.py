@@ -355,6 +355,6 @@ class SymmetryReporter(Observable):
         Symmetrie[7] = torch.max(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new2, dim=0))
         print(Symmetrie)
         #print(u_new)
-        Symmetrie = self.flow.units.convert_velocity_to_pu(torch.max(Symmetrie))/torch.max(torch.norm(u, dim=0))
+        Symmetrie = torch.max(Symmetrie)/torch.max(torch.norm(u, dim=0))
 
         return Symmetrie
