@@ -321,7 +321,7 @@ class SymmetryReporter(Observable):
         u = self.lattice.u(f)
 
         n=u.size()[1]
-        u_new = torch.zeros(3, n // 2, n // 2, n // 2, device = u.device)
+        u_new = torch.zeros(3, n // 2, n // 2, n // 2, device = u.device, dtype = u.dtype)
 
         # Verwende ganzzahlige Divisionen (//) für alle Indizes
         u_new[:, :n // 4, :n // 4, :n // 4] = u[:, :n // 4, :n // 4, :n // 4]
@@ -338,7 +338,7 @@ class SymmetryReporter(Observable):
         u_new[1, :, :, n // 4:] = torch.flip(u_new[1, :, :, :n // 4], [2])
         u_new[2, :, :, n // 4:] = -1*torch.flip(u_new[2, :, :, :n // 4], [2])
 
-        Symmetrie = torch.zeros(8)
+        Symmetrie = torch.zeros(8, device = u.device, dtype = u.dtype)
 
         # Symmetrie-Berechnungen
         Symmetrie[0] = torch.max(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0))
