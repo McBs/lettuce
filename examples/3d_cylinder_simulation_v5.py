@@ -37,8 +37,8 @@ warnings.simplefilter("ignore")
 # PUT IN YOUR PATHS TO storage, bulk-storage and refrerence-data dir:
 
 output_path = "/home/bpicar3s/CylinderFlow"  # WHERE TO PUT DATA-FOLDER
-scratch_dir = "/scratch/bpicar3s/CylinderFlow/Data"  # WHERE TP PUT VTK- and CPT-FILES (checkpoint, off by default)
-diIlio_path = '/scratch/bpicar3s/CylinderFlow/Reference/'  # WHERE TO GET REFERENCE-DATA FOR AVG-VELOCITY-PROFILES FROM
+scratch_dir = "/work/bpicar3s/CylinderFlow/Data"  # WHERE TP PUT VTK- and CPT-FILES (checkpoint, off by default)
+diIlio_path = '/work/bpicar3s/CylinderFlow/Reference/'  # WHERE TO GET REFERENCE-DATA FOR AVG-VELOCITY-PROFILES FROM
 
 
 ##################################################
@@ -2483,7 +2483,7 @@ class Simulation:
 # ARGUMENT PARSING
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--re", default=200, type=float, help="Reynolds number")
-parser.add_argument("--n_steps", default=100000, type=int, help="number of steps to simulate, overwritten by t_target, if t_target is >0")
+parser.add_argument("--n_steps", default=10000, type=int, help="number of steps to simulate, overwritten by t_target, if t_target is >0")
 parser.add_argument("--gpd", default=20, type=int, help="number of gridpoints per diameter")
 parser.add_argument("--dpx", default=0, type=int, help="domain length in diameters")
 parser.add_argument("--dpy", default=19, type=int, help="domain height in diameters")
