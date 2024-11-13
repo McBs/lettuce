@@ -7,9 +7,12 @@ import torch
 
 __all__ = [
     "LettuceException", "LettuceWarning", "InefficientCodeWarning", "ExperimentalWarning",
-    "get_subclasses", "torch_gradient", "torch_jacobi", "grid_fine_to_coarse", "pressure_poisson"
+    "get_subclasses", "torch_gradient", "torch_jacobi", "grid_fine_to_coarse", "pressure_poisson", "append_axes"
 ]
 
+def append_axes(array, n):
+    index = (Ellipsis, ) + (None, ) * n
+    return array[index]
 
 class LettuceException(Exception):
     pass
