@@ -2660,7 +2660,7 @@ else:
     collision_choice = "bgk"
 
 # solver
-sim = lt.Simulation(flow, lattice,
+sim = Simulation(flow, lattice,
                     collision,
                     # lt.BGKCollision(lattice, tau),
                     # lt.RegularizedCollision(lattice, tau),
@@ -2687,13 +2687,13 @@ if output_vtk == True:
     )
 
 # Observable reporter: drag coefficient
-DragObservable = lt.DragCoefficient(lattice, flow, sim._boundaries[-1],
+DragObservable = DragCoefficient(lattice, flow, sim._boundaries[-1],
                                     area=setup_diameter)  # create observable // ! area A=2*r is in PU
 Dragreport = lt.ObservableReporter(DragObservable, out=None)  # create reporter and link to created observable
 sim.reporters.append(Dragreport)  # append reporter to reporter-list of simulator/solver
 
 # Observable reporter: lift coefficient
-LiftObservable = lt.LiftCoefficient(lattice, flow, sim._boundaries[-1], area=setup_diameter)
+LiftObservable = LiftCoefficient(lattice, flow, sim._boundaries[-1], area=setup_diameter)
 Liftreport = lt.ObservableReporter(LiftObservable, out=None)
 sim.reporters.append(Liftreport)
 
@@ -2706,11 +2706,11 @@ if calculate_velocity_profile:
     print("V_avg positions:" + " p1: " + str(position_1) + " p2:  " + str(position_2) + " p3:  " + str(position_3))
 
     # create and append AvgVelocity-reporter
-    AvgVelocity1 = lt.AverageVelocityReporter(lattice, flow, position_1)
+    AvgVelocity1 = AverageVelocityReporter(lattice, flow, position_1)
     sim.reporters.append(AvgVelocity1)
-    AvgVelocity2 = lt.AverageVelocityReporter(lattice, flow, position_2)
+    AvgVelocity2 = AverageVelocityReporter(lattice, flow, position_2)
     sim.reporters.append(AvgVelocity2)
-    AvgVelocity3 = lt.AverageVelocityReporter(lattice, flow, position_3)
+    AvgVelocity3 = AverageVelocityReporter(lattice, flow, position_3)
     sim.reporters.append(AvgVelocity3)
 
 # NaN STOP
