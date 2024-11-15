@@ -2483,7 +2483,7 @@ class Simulation:
 # ARGUMENT PARSING
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument("--re", default=200, type=float, help="Reynolds number")
-parser.add_argument("--n_steps", default=100000, type=int,
+parser.add_argument("--n_steps", default=1000, type=int,
                     help="number of steps to simulate, overwritten by t_target, if t_target is >0")
 parser.add_argument("--gpd", default=20, type=int, help="number of gridpoints per diameter")
 parser.add_argument("--dpx", default=0, type=int, help="domain length in diameters")
