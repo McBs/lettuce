@@ -2602,7 +2602,10 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
     output_path = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS
     scratch_dir = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS for vti-output of big simulations
     dir_name = "/re"+str(re)+"/gpd"+str(gridpoints_per_diameter)+"/Mach"+str(Ma)+"/"+str(Precision)  # create directory name for all outputs to be saved in
-    os.makedirs(output_path + dir_name)
+    try:
+        os.makedirs(output_path + dir_name)
+    except FileExistsError:
+        pass
 
     # specify input directory/path for rerefence data
     # diIlio_path = '/home/mbille/lettuce/myTest/DiIlio_Fig09_data/'  # likal HBRS
