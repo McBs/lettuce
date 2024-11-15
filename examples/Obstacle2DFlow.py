@@ -2601,12 +2601,12 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
     # output_path = "/home/max/Documents/lbm_simulations"  # lokal Bonn
     output_path = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS
     scratch_dir = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS for vti-output of big simulations
-    dir_name = "/re"+str(re)+"/gpd"+str(gridpoints_per_diameter)+"/Mach"+str(Ma)+"/"+str(Precision)+"/vtk"  # create directory name for all outputs to be saved in
+    dir_name = "/re"+str(re)+"/gpd"+str(gridpoints_per_diameter)+"/Mach"+str(Ma)+"/"+str(Precision)  # create directory name for all outputs to be saved in
     os.makedirs(output_path + dir_name)
 
     # specify input directory/path for rerefence data
     # diIlio_path = '/home/mbille/lettuce/myTest/DiIlio_Fig09_data/'  # likal HBRS
-    diIlio_path = '/scratch/mbille3s/21_LBM/03_reference_data/DiIlio_2018/'  # cluster HBRS
+    diIlio_path = '/scratch/bpicar3s/21_LBM/03_reference_data/DiIlio_2018/'  # cluster HBRS
 
     if calculate_velocity_profile:
         os.makedirs(output_path + dir_name + "/AvgVelocity_Data")
