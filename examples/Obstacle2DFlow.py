@@ -2621,7 +2621,10 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
         vtk_path = scratch_dir + dir_name + "/vtk/out"
         print("vtk_path: " + vtk_path)
     elif write_cpt:
-        os.makedirs(scratch_dir + dir_name)
+        try:
+            os.makedirs(scratch_dir + dir_name)
+        except FileExistsError:
+            pass
 else:  # "no output" suppresses the vtk output too
     output_vtk = False
 
