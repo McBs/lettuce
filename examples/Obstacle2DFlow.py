@@ -2508,7 +2508,7 @@ parser.add_argument("--cpt_file", default=None, help="path and name of cpt_file 
 parser.add_argument("--sim_i", default=0, type=int,
                     help="step index of last checkpoints-step to start from for time-indexing of observables etc.")
 parser.add_argument("--write_cpt", default=False, help="write checkpoint after finishing simulation")
-parser.add_argument("--Mach", default = 0.05)
+parser.add_argument("--Mach", default = 0.05, type = float)
 parser.add_argument("--precision", default = "Double")
 args = vars(parser.parse_args())
 
