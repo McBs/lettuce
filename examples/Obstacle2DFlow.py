@@ -2598,8 +2598,8 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
     # specify output directory/path
     # output_path = "/mnt/ScratchHDD1/Max_Scratch/lbm_simulations"  # lokal HBRS
     # output_path = "/home/max/Documents/lbm_simulations"  # lokal Bonn
-    output_path = "/scratch/bpicar3s/MP2/Cylinder"  # cluster HBRS
-    scratch_dir = "/scratch/bpicar3s/MP2/Cylinder"  # cluster HBRS for vti-output of big simulations
+    output_path = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS
+    scratch_dir = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS for vti-output of big simulations
     dir_name = "/data_" + str(timestamp) + "_" + name  # create directory name for all outputs to be saved in
     os.makedirs(output_path + dir_name)
 
