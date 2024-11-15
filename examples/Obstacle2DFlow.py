@@ -2601,7 +2601,7 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
     # output_path = "/home/max/Documents/lbm_simulations"  # lokal Bonn
     output_path = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS
     scratch_dir = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS for vti-output of big simulations
-    dir_name = "/data_" + str(timestamp) + "_" + name  # create directory name for all outputs to be saved in
+    dir_name = "/re"+str(re)+"/gpd"+str(gridpoints_per_diameter)+"/Mach"+str(Ma)+"/"+str(Precision)+"/vtk"  # create directory name for all outputs to be saved in
     os.makedirs(output_path + dir_name)
 
     # specify input directory/path for rerefence data
