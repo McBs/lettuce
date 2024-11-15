@@ -147,3 +147,4 @@ class Obstacle3D(object):
                                       np.array([self.units.characteristic_velocity_pu, 0, 0])),
                 AntiBounceBackOutlet(self.units.lattice, [1, 0, 0]),
                 BounceBackBoundary(self.mask, self.units.lattice)]
+
