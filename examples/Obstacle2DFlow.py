@@ -38,7 +38,7 @@ warnings.simplefilter("ignore")
 
 output_path = "/home/bpicar3s/CylinderFlow"  # WHERE TO PUT DATA-FOLDER
 scratch_dir = "/work/bpicar3s/CylinderFlow/Data"  # WHERE TP PUT VTK- and CPT-FILES (checkpoint, off by default)
-diIlio_path = '/work/bpicar3s/CylinderFlow/Reference/'  # WHERE TO GET REFERENCE-DATA FOR AVG-VELOCITY-PROFILES FROM
+diIlio_path = '/home/bpicar3s/CylinderFlow/literature/DiIlio_2018'  # WHERE TO GET REFERENCE-DATA FOR AVG-VELOCITY-PROFILES FROM
 
 
 ##################################################
@@ -2609,7 +2609,7 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
 
     # specify input directory/path for rerefence data
     # diIlio_path = '/home/mbille/lettuce/myTest/DiIlio_Fig09_data/'  # likal HBRS
-    diIlio_path = '/scratch/bpicar3s/21_LBM/03_reference_data/DiIlio_2018/'  # cluster HBRS
+    diIlio_path = '/home/bpicar3s/CylinderFlow/literature/DiIlio_2018/'  # cluster HBRS
 
     if calculate_velocity_profile:
         os.makedirs(output_path + dir_name + "/AvgVelocity_Data")
