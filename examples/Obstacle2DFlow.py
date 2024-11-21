@@ -2270,7 +2270,7 @@ class AverageVelocityReporter:
         self.t_out = []
         self.out = []
         self.x_position = int(round(position, 0))  # rounded LU position
-
+        self.interpol = False
         # linear interpolation of u for x_pos off grid
         if position % 1 != 0:
             self.interpol = True
