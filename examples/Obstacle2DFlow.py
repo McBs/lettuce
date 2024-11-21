@@ -2612,8 +2612,10 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
     diIlio_path = '/home/bpicar3s/CylinderFlow/literature/DiIlio_2018/'  # cluster HBRS
 
     if calculate_velocity_profile:
-        os.makedirs(output_path + dir_name + "/AvgVelocity_Data")
-
+        try:
+            os.makedirs(output_path + dir_name + "/AvgVelocity_Data")
+        except FileExistsError:
+            pass
     print("dir_name: " + dir_name)
     if output_vtk:
         # vtk_path = output_path+dir_name+"/vtk/out"  # subdirectory for vtk/vti output
