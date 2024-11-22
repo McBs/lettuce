@@ -2583,7 +2583,7 @@ if args["write_cpt"]:
 
 if output_data:  # only calculate u-profiles if data should be saved
     calculate_velocity_profile = args["calcUProfiles"]
-
+    print(calculate_velocity_profile)
     if calculate_velocity_profile == "True":  # only output u-profiles, if they are calculated
         output_velocity_profile = args["outputUProfiles"]
     else:
