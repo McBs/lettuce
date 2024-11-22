@@ -2523,6 +2523,8 @@ flow_velocity = 1  # U_PU = char_velocity_pu -> this defines the PU-Reference ve
 
 periodic_start = 0.9  # relative start of peak_finding for Cd_mean Measurement to cut of any transients
 
+
+
 gridpoints_per_diameter = args["gpd"]  # gp_per_D -> this defines the resolution ( D_LU = GPD+1)
 domain_height_in_D = args["dpy"]  # D/Y  -> this defines the domain-size and total number of Lattice-Nodes
 if args["dpx"] == 0:
@@ -2581,7 +2583,8 @@ if args["write_cpt"]:
 
 if output_data:  # only calculate u-profiles if data should be saved
     calculate_velocity_profile = args["calcUProfiles"]
-    if calculate_velocity_profile:  # only output u-profiles, if they are calculated
+
+    if calculate_velocity_profile == "True":  # only output u-profiles, if they are calculated
         output_velocity_profile = args["outputUProfiles"]
     else:
         output_velocity_profile = False
@@ -2592,7 +2595,7 @@ else:
 # naming: specify name/number and parameters to put in directory- and datafile-names
 name = args["name"]
 
-if output_data:  # toggle output of parameters, observables and vti/vtk files
+if output_data == "True":  # toggle output of parameters, observables and vti/vtk files
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%y%m%d") + "_" + timestamp.strftime("%H%M%S")
 
