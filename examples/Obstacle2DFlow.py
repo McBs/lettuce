@@ -2567,7 +2567,7 @@ gridpoints = gridpoints_per_diameter ** 2 * domain_length_in_D * domain_height_i
 # DATA OUTPUT SETTINGS (observables, stats and vtk)
 
 output_data = True  # output/log parameters, observables and vtk or vti (if output_vtk=True)
-if args["output_vtk"]:
+if args["output_vtk"] == "True":
     output_vtk = True  # is overwritten by output_data=False (see below)
 else:
     output_vtk = False
@@ -2620,7 +2620,7 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
         except FileExistsError:
             pass
     print("dir_name: " + dir_name)
-    if output_vtk == "True":
+    if output_vtk:
         # vtk_path = output_path+dir_name+"/vtk/out"  # subdirectory for vtk/vti output
         try:
             os.makedirs(scratch_dir + dir_name + "/vtk/")
@@ -2685,7 +2685,7 @@ sim = Simulation(flow, lattice,
 ### Reporter
 
 # VTK Reporter -> visualization
-if output_vtk == True:
+if output_vtk:
     VTKreport = lt.VTKReporter(lattice, flow, interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
                                filename_base=vtk_path)
     sim.reporters.append(VTKreport)
