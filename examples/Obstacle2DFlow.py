@@ -2586,6 +2586,7 @@ if output_data:  # only calculate u-profiles if data should be saved
     print(calculate_velocity_profile)
     if calculate_velocity_profile == "True":  # only output u-profiles, if they are calculated
         output_velocity_profile = args["outputUProfiles"]
+        calculate_velocity_profile = True
     else:
         output_velocity_profile = False
 else:
