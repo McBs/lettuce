@@ -2595,7 +2595,7 @@ else:
 # naming: specify name/number and parameters to put in directory- and datafile-names
 name = args["name"]
 
-if output_data == "True":  # toggle output of parameters, observables and vti/vtk files
+if output_data:  # toggle output of parameters, observables and vti/vtk files
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%y%m%d") + "_" + timestamp.strftime("%H%M%S")
 
@@ -2620,7 +2620,7 @@ if output_data == "True":  # toggle output of parameters, observables and vti/vt
         except FileExistsError:
             pass
     print("dir_name: " + dir_name)
-    if output_vtk:
+    if output_vtk == "True":
         # vtk_path = output_path+dir_name+"/vtk/out"  # subdirectory for vtk/vti output
         try:
             os.makedirs(scratch_dir + dir_name + "/vtk/")
