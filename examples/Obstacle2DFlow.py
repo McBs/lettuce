@@ -2496,9 +2496,9 @@ parser.add_argument("--lateral_walls", default='periodic',
 parser.add_argument("--bc_type", default='fwbb', help="bounce back algorithm (fwbb, hwbb, ibb1)")
 parser.add_argument("--name", default="2Dcylinder", help="name of the simulation, appears in output directory name")
 parser.add_argument("--stencil", default="D2Q9", help="stencil (D2Q9, D3Q27, D3Q19, D3Q15)")
-parser.add_argument("--output_vtk", default="False",  help="bool, output vtk-data with 10 fps (large!)")
+parser.add_argument("--output_vtk", default=False, type=bool, help="bool, output vtk-data with 10 fps (large!)")
 parser.add_argument("--device", default="cuda:0", help="cuda-device for multi-gpu nodes cuda:[0,1,2,3]")
-parser.add_argument("--calcUProfiles", default="False",
+parser.add_argument("--calcUProfiles", default=False, type = bool,
                     help="calculate average velocity profiles as in Di Ilio et al. 2018 and output plots and time-averages data for plots")
 parser.add_argument("--outputUProfiles", default=False,
                     help="output average velocity profiles over time (full timeseries)")
@@ -2522,8 +2522,6 @@ setup_diameter = 1  # D_PU = char_length_pu -> this defines the PU-Reference
 flow_velocity = 1  # U_PU = char_velocity_pu -> this defines the PU-Reference velocity (u_max of inflow)
 
 periodic_start = 0.9  # relative start of peak_finding for Cd_mean Measurement to cut of any transients
-
-
 
 gridpoints_per_diameter = args["gpd"]  # gp_per_D -> this defines the resolution ( D_LU = GPD+1)
 domain_height_in_D = args["dpy"]  # D/Y  -> this defines the domain-size and total number of Lattice-Nodes
@@ -2567,7 +2565,7 @@ gridpoints = gridpoints_per_diameter ** 2 * domain_length_in_D * domain_height_i
 # DATA OUTPUT SETTINGS (observables, stats and vtk)
 
 output_data = True  # output/log parameters, observables and vtk or vti (if output_vtk=True)
-if args["output_vtk"] == "True":
+if args["output_vtk"]:
     output_vtk = True  # is overwritten by output_data=False (see below)
 else:
     output_vtk = False
@@ -2583,10 +2581,8 @@ if args["write_cpt"]:
 
 if output_data:  # only calculate u-profiles if data should be saved
     calculate_velocity_profile = args["calcUProfiles"]
-    print(calculate_velocity_profile)
-    if calculate_velocity_profile == "True":  # only output u-profiles, if they are calculated
+    if calculate_velocity_profile:  # only output u-profiles, if they are calculated
         output_velocity_profile = args["outputUProfiles"]
-        calculate_velocity_profile = True
     else:
         output_velocity_profile = False
 else:
@@ -2686,7 +2682,7 @@ sim = Simulation(flow, lattice,
 ### Reporter
 
 # VTK Reporter -> visualization
-if output_vtk:
+if output_vtk == True:
     VTKreport = lt.VTKReporter(lattice, flow, interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
                                filename_base=vtk_path)
     sim.reporters.append(VTKreport)
