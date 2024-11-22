@@ -2498,7 +2498,7 @@ parser.add_argument("--name", default="2Dcylinder", help="name of the simulation
 parser.add_argument("--stencil", default="D2Q9", help="stencil (D2Q9, D3Q27, D3Q19, D3Q15)")
 parser.add_argument("--output_vtk", default=False, type=bool, help="bool, output vtk-data with 10 fps (large!)")
 parser.add_argument("--device", default="cuda:0", help="cuda-device for multi-gpu nodes cuda:[0,1,2,3]")
-parser.add_argument("--calcUProfiles", default=False,
+parser.add_argument("--calcUProfiles", default=False, type = bool,
                     help="calculate average velocity profiles as in Di Ilio et al. 2018 and output plots and time-averages data for plots")
 parser.add_argument("--outputUProfiles", default=False,
                     help="output average velocity profiles over time (full timeseries)")
