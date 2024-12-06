@@ -2591,6 +2591,7 @@ else:
 
 # naming: specify name/number and parameters to put in directory- and datafile-names
 name = args["name"]
+collision_choice = args["collision"]
 
 if output_data:  # toggle output of parameters, observables and vti/vtk files
     timestamp = datetime.datetime.now()
@@ -2601,7 +2602,7 @@ if output_data:  # toggle output of parameters, observables and vti/vtk files
     # output_path = "/home/max/Documents/lbm_simulations"  # lokal Bonn
     output_path = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS
     scratch_dir = "/work/bpicar3s/MP2/Cylinder"  # cluster HBRS for vti-output of big simulations
-    dir_name = "/"+str(bc_type)+"/re"+str(re)+"/gpd"+str(gridpoints_per_diameter)+"/Mach"+str(Ma)+"/"+str(Precision)  # create directory name for all outputs to be saved in
+    dir_name = "/"+str(bc_type)+"/re"+str(re)+"/"+str(collision_choice)+"/gpd"+str(gridpoints_per_diameter)+"/Mach"+str(Ma)+"/"+str(Precision)  # create directory name for all outputs to be saved in
     try:
         os.makedirs(output_path + dir_name)
     except FileExistsError:
