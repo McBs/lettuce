@@ -320,41 +320,57 @@ class SymmetryReporter(Observable):
     def __call__(self, f):
         u = self.lattice.u(f)
 
-        n=u.size()[1]
-        u_new = torch.zeros(3, n // 2, n // 2, n // 2, device = u.device, dtype = u.dtype)
+        n = u.size()[1]
+        u_new = torch.zeros(3, n // 2, n // 2, n // 2, device=u.device, dtype=u.dtype)
 
         # Verwende ganzzahlige Divisionen (//) für alle Indizes
         u_new[:, :n // 4, :n // 4, :n // 4] = u[:, :n // 4, :n // 4, :n // 4]
 
         u_new[0, :n // 4, n // 4:, :n // 4] = torch.flip(torch.transpose(u[1, :n // 4, :n // 4, :n // 4], 0, 1), [1])
-        u_new[1, :n // 4, n // 4:, :n // 4] = -1*torch.flip(torch.transpose(u[0, :n // 4, :n // 4, :n // 4], 0, 1), [1])
+        u_new[1, :n // 4, n // 4:, :n // 4] = -1 * torch.flip(torch.transpose(u[0, :n // 4, :n // 4, :n // 4], 0, 1), [1])
         u_new[2, :n // 4, n // 4:, :n // 4] = torch.flip(torch.transpose(u[2, :n // 4, :n // 4, :n // 4], 0, 1), [1])
 
-        u_new[0, n // 4:, :, :n // 4] = -1*torch.flip(torch.flip(u_new[0, :n // 4, :, :n // 4], [0]), [1])
-        u_new[1, n // 4:, :, :n // 4] = -1*torch.flip(torch.flip(u_new[1, :n // 4, :, :n // 4], [0]), [1])
+        u_new[0, n // 4:, :, :n // 4] = -1 * torch.flip(torch.flip(u_new[0, :n // 4, :, :n // 4], [0]), [1])
+        u_new[1, n // 4:, :, :n // 4] = -1 * torch.flip(torch.flip(u_new[1, :n // 4, :, :n // 4], [0]), [1])
         u_new[2, n // 4:, :, :n // 4] = torch.flip(torch.flip(u_new[2, :n // 4, :, :n // 4], [0]), [1])
 
         u_new[0, :, :, n // 4:] = torch.flip(u_new[0, :, :, :n // 4], [2])
         u_new[1, :, :, n // 4:] = torch.flip(u_new[1, :, :, :n // 4], [2])
-        u_new[2, :, :, n // 4:] = -1*torch.flip(u_new[2, :, :, :n // 4], [2])
+        u_new[2, :, :, n // 4:] = -1 * torch.flip(u_new[2, :, :, :n // 4], [2])
 
-        Symmetrie = torch.zeros(8, device = u.device, dtype = u.dtype)
+        Symmetrie = torch.zeros(8, device=u.device, dtype=u.dtype)
+        Symmetrie_mean = torch.zeros(8, device=u.device, dtype=u.dtype)
 
         # Symmetrie-Berechnungen
         Symmetrie[0] = torch.max(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0))
+        Symmetrie_mean[0] = torch.mean(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0)**2, dim = [0,1,2])
+
         Symmetrie[1] = torch.max(torch.norm(u[:, n // 2:, n // 2:, :n // 2] - u_new, dim=0))
+        Symmetrie_mean[1] = torch.mean(torch.norm(u[:, n // 2:, n // 2:, :n // 2] - u_new, dim=0)**2)
+
         Symmetrie[2] = torch.max(torch.norm(u[:, n // 2:, :n // 2, n // 2:] - u_new, dim=0))
+        Symmetrie_mean[2] = torch.mean(torch.norm(u[:, n // 2:, :n // 2, n // 2:] - u_new, dim=0)**2)
+
         Symmetrie[3] = torch.max(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0))
+        Symmetrie_mean[3] = torch.mean(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0)**2)
 
         u_new2 = torch.flip(u_new, [1])
-        u_new2[0, :, :, :] = -1*u_new2[0, :, :, :]
+        u_new2[0, :, :, :] = -1 * u_new2[0, :, :, :]
 
         Symmetrie[4] = torch.max(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new2, dim=0))
+        Symmetrie_mean[4] = torch.mean(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new2, dim=0)**2)
+
         Symmetrie[5] = torch.max(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new2, dim=0))
+        Symmetrie_mean[5] = torch.mean(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new2, dim=0)**2)
+
         Symmetrie[6] = torch.max(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new2, dim=0))
+        Symmetrie_mean[6] = torch.mean(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new2, dim=0)**2)
+
         Symmetrie[7] = torch.max(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new2, dim=0))
+        Symmetrie_mean[7] = torch.mean(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new2, dim=0)**2)
 
+        Symmetrie_max = torch.max(Symmetrie) / torch.max(torch.norm(u, dim=0))
+        Symmetrie_mean_final = torch.mean(Symmetrie_mean) / torch.mean(torch.abs(torch.norm(u, dim=0)))
 
-        Symmetrie = torch.max(Symmetrie)/torch.max(torch.norm(u, dim=0))
+        return torch.stack([Symmetrie_max, Symmetrie_mean_final])
 
-        return Symmetrie
