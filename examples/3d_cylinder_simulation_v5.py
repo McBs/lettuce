@@ -95,7 +95,7 @@ class ObstacleCylinder:
         )
 
         # flow and boundary settings
-        self.perturb_init = perturb_init  # toggle: introduce asymmetry in initial solution to trigger v'Karman Vortex Street
+        self.perturb_init = perturb_init  # toggle: introduce asymmetry in initial solution to trigger v Karman Vortex Street
         self.u_init = u_init  # toggle: initial solution velocity profile type
         self.lateral_walls = lateral_walls  # toggle: lateral walls to be bounce back (bounceback), slip wall (slip) or periodic (periodic)
         self.bc_type = bc_type  # toggle: bounce back algorithm: halfway (hwbb) or fullway (fwbb)
@@ -161,6 +161,13 @@ class ObstacleCylinder:
                 # create u_xyz inlet yz-plane:
                 self.u_inlet = np.stack([parabola_yz, parabola_yz_zeros, parabola_yz_zeros], axis=0)  # stack/pack u-field
 
+        self.disturbance_ax = 1/50 * char_velocity_pu  # Amplitude der Störung in x-Richtung
+        self.disturbance_ay = 1/50 * char_velocity_pu  # Amplitude der Störung in y-Richtung
+        self.disturbance_norm = char_length_pu  # Wellenlänge der Sinus-Funktion
+        self.disturbance_c = 0.1  # Dämpfungskoeffizient der Exponentialfunktion
+        self.disturbance_b = 0.5  # 1/5 der Breite
+
+
     @property
     def obstacle_mask(self):
         return self._obstacle_mask
@@ -171,7 +178,7 @@ class ObstacleCylinder:
         self._obstacle_mask = m.astype(bool)
         # self.solid_mask[np.where(self._obstacle_mask)] = 1  # (!) this line is not doing what it should! solid_mask is now defined in the initial solution (see below)!
 
-    def initial_solution(self, x):
+    def initial_solution2(self, x):
         p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_max_pu = self.units.characteristic_velocity_pu * self._unit_vector()
         u_max_pu = append_axes(u_max_pu, self.units.lattice.D)
@@ -229,6 +236,54 @@ class ObstacleCylinder:
                     u[0][1] = np.einsum('y,yz->yz', factor, u[0][1])
                     factor = 1 + np.sin(np.linspace(0, nz, nz) / nz * 2 * np.pi) * 0.1  # pertubation in z-direction
                     u[0][1] = np.einsum('z,yz->yz', factor, u[0][1])
+        return p, u
+
+    def initial_solution(self, x):
+        """
+        Initialisiert das Geschwindigkeitsfeld mit einer Sinus-Schwingung und einer Exponentialfunktion.
+
+        Args:
+            x: List oder Array der Gitterkoordinaten (x, y, z).
+
+        Returns:
+            p: Druckfeld, initialisiert auf Null.
+            u: Geschwindigkeitsfeld, initialisiert mit einer Störfunktion.
+        """
+        # Druckfeld initialisieren
+        p = np.zeros_like(x[0], dtype=float)[None, ...]
+
+        # Basisgeschwindigkeit in x- und y-Richtung
+        u_max_pu = self.units.characteristic_velocity_pu * self._unit_vector()
+        u_max_pu = append_axes(u_max_pu, self.units.lattice.D)
+        u = (1 - self.solid_mask) * u_max_pu  # Setzt die Anfangsgeschwindigkeit
+
+        # Geschwindigkeit in x-Richtung mit Sinus-Störung
+        if hasattr(self, 'disturbance_ax') and self.disturbance_ax > 0:
+            disturbance_x = self.disturbance_ax * np.sin(2 * np.pi * x[1] / self.disturbance_norm) * \
+                            np.exp(-self.disturbance_c * (x[0] - self.disturbance_b) ** 2)
+            u[0] += disturbance_x
+
+        # Geschwindigkeit in y-Richtung mit Sinus-Störung
+        if hasattr(self, 'disturbance_ay') and self.disturbance_ay > 0:
+            disturbance_y = self.disturbance_ay * np.sin(2 * np.pi * x[1] / self.disturbance_norm) * \
+                            np.exp(-self.disturbance_c * (x[0] - self.disturbance_b) ** 2)
+            u[1] += disturbance_y
+
+        # Symmetriestörung, falls aktiviert
+        if self.perturb_init:
+            ny = x[1].shape[1]
+            nz = x[2].shape[2] if self.units.lattice.D == 3 else None
+            amplitude_y = np.sin(np.linspace(0, ny, ny) / ny * 2 * np.pi) * self.units.characteristic_velocity_pu * 0.1
+            if self.units.lattice.D == 2:
+                u[0][1] += amplitude_y
+            elif self.units.lattice.D == 3:
+                plane_yz = np.ones_like(u[0, 1])
+                u[0][1] = np.einsum('y,yz->yz', amplitude_y, plane_yz)
+                if nz is not None:
+                    amplitude_z = np.sin(
+                        np.linspace(0, nz, nz) / nz * 2 * np.pi) * self.units.characteristic_velocity_pu * 0.1
+                    u[0][1] += np.einsum('z,yz->yz', amplitude_z, plane_yz)
+
         return p, u
 
     @property

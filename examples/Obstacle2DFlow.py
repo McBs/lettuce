@@ -2513,7 +2513,7 @@ parser.add_argument("--precision", default = "Double")
 args = vars(parser.parse_args())
 
 
-vtk = "Reduced"  #Reduced oder Full
+vtk = "Full"  #Reduced oder Full
 ########################################
 # PARAMETERS
 Precision = args["precision"]
