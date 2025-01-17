@@ -2695,29 +2695,30 @@ import pyevtk.hl as vtk
 
 def write_vtk(point_dict, id=0, filename_base="./data/output"):
     """
-    Schreibt eine VTK-Datei mit den Daten aus point_dict.
-    :param point_dict: Dictionary mit Punktdaten, z. B. {"p": pressure_array, "u": velocity_array}
-    :param id: Datei-Index
-    :param filename_base: Basis-Dateiname
+    Writes a VTK file using point_dict data.
+    :param point_dict: Dictionary with point data, e.g., {"p": pressure_array, "u": velocity_array}
+    :param id: File index for naming
+    :param filename_base: Base filename
     """
-    # Prüfen, ob "p" vorhanden ist
+    # Ensure "p" is present in the data
     if "p" not in point_dict:
-        raise ValueError("'p' muss im point_dict enthalten sein.")
+        raise ValueError("'p' must be in the point_dict.")
 
-    # Dimensionen bestimmen
-    nx, ny, nz = point_dict["p"].shape[:3]
+    # Determine dimensions from "p"
+    nx, ny = point_dict["p"].shape[:2]
+    nz = 1  # For 2D data, the z-dimension is 1
 
-    # Sicherstellen, dass alle Arrays dieselbe Größe haben
+    # Check consistency of other arrays in the dictionary
     for key, value in point_dict.items():
-        if value.shape[:3] != (nx, ny, nz):
-            raise ValueError(f"Array {key} hat inkonsistente Dimensionen: {value.shape[:3]} erwartet: {(nx, ny, nz)}.")
+        if value.shape[:2] != (nx, ny):
+            raise ValueError(f"Array {key} has inconsistent dimensions: {value.shape[:2]}, expected: ({nx}, {ny}).")
 
-    # Gitterkoordinaten definieren
+    # Generate grid coordinates for 2D data
     x = np.arange(0, nx)
     y = np.arange(0, ny)
-    z = np.arange(0, nz)
+    z = np.array([0])  # Single-layer in z for 2D
 
-    # Schreiben der VTK-Datei
+    # Write VTK file
     vtk.gridToVTK(f"{filename_base}_{id:08d}", x, y, z, pointData=point_dict)
 
 
@@ -2741,10 +2742,10 @@ class VTKReporter_reduced:
 
     def __call__(self, i, t, f):
         if i % self.interval == 0:
-            u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
-            p = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
-            u = u[:, self.xmin:self.xmax, self.ymin:self.ymax]
-            p = p[:, self.xmin:self.xmax, self.ymin:self.ymax]
+            u0 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+            p0 = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
+            u = u0[:, self.xmin:self.xmax, self.ymin:self.ymax]
+            p = p0[:, self.xmin:self.xmax, self.ymin:self.ymax]
             if self.lattice.D == 2:
                 self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None])
                 for d in range(self.lattice.D):
