@@ -2513,7 +2513,7 @@ parser.add_argument("--precision", default = "Double")
 args = vars(parser.parse_args())
 
 
-vtk = "Full"  #Reduced oder Full
+vtk = "Reduced"  #Reduced oder Full
 ########################################
 # PARAMETERS
 Precision = args["precision"]
@@ -2694,11 +2694,32 @@ sim = Simulation(flow, lattice,
 import pyevtk.hl as vtk
 
 def write_vtk(point_dict, id=0, filename_base="./data/output"):
-    vtk.gridToVTK(f"{filename_base}_{id:08d}",
-                  np.arange(0, point_dict["p"].shape[0]),
-                  np.arange(0, point_dict["p"].shape[1]),
-                  np.arange(0, point_dict["p"].shape[2]),
-                  pointData=point_dict)
+    """
+    Schreibt eine VTK-Datei mit den Daten aus point_dict.
+    :param point_dict: Dictionary mit Punktdaten, z. B. {"p": pressure_array, "u": velocity_array}
+    :param id: Datei-Index
+    :param filename_base: Basis-Dateiname
+    """
+    # Prüfen, ob "p" vorhanden ist
+    if "p" not in point_dict:
+        raise ValueError("'p' muss im point_dict enthalten sein.")
+
+    # Dimensionen bestimmen
+    nx, ny, nz = point_dict["p"].shape[:3]
+
+    # Sicherstellen, dass alle Arrays dieselbe Größe haben
+    for key, value in point_dict.items():
+        if value.shape[:3] != (nx, ny, nz):
+            raise ValueError(f"Array {key} hat inkonsistente Dimensionen: {value.shape[:3]} erwartet: {(nx, ny, nz)}.")
+
+    # Gitterkoordinaten definieren
+    x = np.arange(0, nx)
+    y = np.arange(0, ny)
+    z = np.arange(0, nz)
+
+    # Schreiben der VTK-Datei
+    vtk.gridToVTK(f"{filename_base}_{id:08d}", x, y, z, pointData=point_dict)
+
 
 
 class VTKReporter_reduced:
