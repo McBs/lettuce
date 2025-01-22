@@ -2513,7 +2513,7 @@ parser.add_argument("--precision", default = "Double")
 args = vars(parser.parse_args())
 
 
-vtk = "Reduced"  #Reduced oder Full
+vtk_data = "Reduced"  #Reduced oder Full
 ########################################
 # PARAMETERS
 Precision = args["precision"]
@@ -2777,7 +2777,7 @@ class VTKReporter_reduced:
 
 # VTK Reporter -> visualization
 if output_vtk == True:
-    if vtk == "Reduced":
+    if vtk_data == "Reduced":
         VTKreport = VTKReporter_reduced(lattice, flow, interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
                                    filename_base=vtk_path, xmin=int(xmin), xmax = int(xmax), ymin = int(ymin), ymax = int(ymax))
     else:
