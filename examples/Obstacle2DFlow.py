@@ -2693,23 +2693,6 @@ sim = Simulation(flow, lattice,
 ### Reporter
 import pyevtk.hl as vtk
 
-self.xmin = xmin
-self.xmax = xmax
-self.ymin = ymin
-self.ymax = ymax
-directory = os.path.dirname(filename_base)
-if not os.path.isdir(directory):
-    os.mkdir(directory)
-self.point_dict = dict()
-
-
-def __call__(self, i, t, f):
-    if i % self.interval == 0:
-        u0 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
-        p0 = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
-        u = u0[:, self.xmin:self.xmax, self.ymin:self.ymax]
-        p = p0[:, self.xmin:self.xmax, self.ymin:self.ymax]
-
 
 def write_vtk(point_dict, id=0, filename_base="./data/output"):
     """
