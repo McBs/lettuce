@@ -2796,7 +2796,7 @@ class VTKReporter_reduced:
 if output_vtk == True:
     if vtk == "Reduced":
         VTKreport = VTKReporter_reduced(lattice, flow, interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
-                                   filename_base=vtk_path, xmin=xmin, xmax = xmax, ymin = ymin, ymax = ymax)
+                                   filename_base=vtk_path, xmin=int(xmin), xmax = int(xmax), ymin = int(ymin), ymax = int(ymax))
     else:
         VTKreport = lt.VTKReporter(lattice, flow, interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
                                filename_base=vtk_path)
