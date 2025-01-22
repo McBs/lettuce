@@ -2694,47 +2694,21 @@ sim = Simulation(flow, lattice,
 import pyevtk.hl as vtk
 
 def write_vtk(point_dict, id=0, filename_base="./data/output"):
-    """
-    Writes a VTK file using point_dict data.
-    :param point_dict: Dictionary with point data, e.g., {"p": pressure_array, "u": velocity_array}
-    :param id: File index for naming
-    :param filename_base: Base filename
-    """
-    # Ensure "p" is present in the data
-    if "p" not in point_dict:
-        raise ValueError("'p' must be in the point_dict.")
-
-    # Determine dimensions from "p"
-    nx, ny = point_dict["p"].shape[:2]
-    nz = 1  # For 2D data, the z-dimension is 1
-
-    # Check consistency of other arrays in the dictionary
-    for key, value in point_dict.items():
-        if value.shape[:2] != (nx, ny):
-            raise ValueError(f"Array {key} has inconsistent dimensions: {value.shape[:2]}, expected: ({nx}, {ny}).")
-
-    # Generate grid coordinates for 2D data
-    x = np.arange(0, nx)
-    y = np.arange(0, ny)
-    z = np.array([0])  # Single-layer in z for 2D
-
-    # Write VTK file
-    vtk.gridToVTK(f"{filename_base}_{id:08d}", x, y, z, pointData=point_dict)
-
+    vtk.gridToVTK(f"{filename_base}_{id:08d}",
+                  np.arange(0, point_dict["p"].shape[0]),
+                  np.arange(0, point_dict["p"].shape[1]),
+                  np.arange(0, point_dict["p"].shape[2]),
+                  pointData=point_dict)
 
 
 class VTKReporter_reduced:
     """General VTK Reporter for velocity and pressure"""
 
-    def __init__(self, lattice, flow, interval=50, filename_base="./data/output", xmin=0, xmax=None, ymin=0, ymax=None):
+    def __init__(self, lattice, flow, interval=50, filename_base="./data/output"):
         self.lattice = lattice
         self.flow = flow
         self.interval = interval
         self.filename_base = filename_base
-        self.xmin = xmin
-        self.xmax = xmax
-        self.ymin = ymin
-        self.ymax = ymax
         directory = os.path.dirname(filename_base)
         if not os.path.isdir(directory):
             os.mkdir(directory)
@@ -2742,10 +2716,8 @@ class VTKReporter_reduced:
 
     def __call__(self, i, t, f):
         if i % self.interval == 0:
-            u0 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
-            p0 = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
-            u = u0[:, self.xmin:self.xmax, self.ymin:self.ymax]
-            p = p0[:, self.xmin:self.xmax, self.ymin:self.ymax]
+            u = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+            p = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
             if self.lattice.D == 2:
                 self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None])
                 for d in range(self.lattice.D):
@@ -2769,7 +2741,6 @@ class VTKReporter_reduced:
                       np.arange(0, point_dict["mask"].shape[1]),
                       np.arange(0, point_dict["mask"].shape[2]),
                       pointData=point_dict)
-
 
 
 
