@@ -6,29 +6,64 @@ from lettuce.flows.flow import Flow
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
+import sys
 warnings.filterwarnings("ignore")
 
 dist.init_process_group(backend="mpi", rank=-1, world_size=-1)
 
 
-res = 50
-time = 1 #sec
-step = 2
-device = "cpu"
-interval = 50
-re = 400
+#res = 50
+time = 70 # seconds
+step = None
+device = "cuda"
+interval = 5 # seconds
+time_start_recording = 5 # seconds
+re = 3900
+dtype = torch.float64
+clock_interval = 0.5 #seconds
+vtk_interval = 10 #seconds
 
 grid_points_per_D_in_X = 14
 grid_points_per_D_in_Y = 10
 grid_points_per_D_in_Z = 3
 D = 10
+path = "/scratch/mbedru3s/cylinder/re3900_float64/"
+position_1 = torch.tensor(int(round(5*D + D * 1.06, 0)))
+position_2 = torch.tensor(int(round(5*D + D * 1.54, 0)))
+position_3 = torch.tensor(int(round(5*D + D * 2.02, 0)))
+print("position 1: ",position_1,"; position 1: ",position_2,"; position 3: ",position_3)
 
-position_1 = [(int(round(5*D + D * 1.06, 0)),0,0)]
-position_1 = torch.tensor([int(round(5*D + D * 1.06, 0)),0,0])
-position_2 = [(int(round(5*D + D * 1.54, 0)),0,0)]
-position_3 = [(int(round(5*D + D * 2.02, 0)),0,0)]
-time_start_recording = 1
+class AveragedVelocityReporter:
+    """Reports the streamwise velocity averaged in span direction (z) at x=x_row"""
+    def __init__(self, lattice, flow, position, interval=1, starting_step=1):
+        self.lattice = lattice
+        self.flow = flow
+        self.interval = interval
+        self.starting_step = starting_step
+        self.out = []
+        self.x_row = self.flow.domain.is_on_grid(position)
+        self.position = position
 
+    def __call__(self, i, t, f):
+        # print("reporter-call has started")
+        # print(self.x_row, self.position)
+        if self.x_row is not False and t > self.starting_step:
+            # print("Condition is fulfilled")
+            if i % self.interval == 0:
+                print(t)
+                u = self.lattice.u(f)[:,self.x_row,:,:]
+                u = self.flow.units.convert_velocity_to_pu(u).cpu().numpy()
+                entry = np.mean(u,axis=2)
+                self.out.append(entry)
+                path = "/scratch/mbedru3s/cylinder/re3900_float64/"
+                np.save((path+str(self.position)+"_step-"+str(i)+"_rank"+str(self.flow.domain.mpi_rank)+".npy"), entry)
+                #np.save((path+"f_step-"+str(i)+"_rank"+str(self.flow.domain.mpi_rank)+".npy"), f.cpu().numpy())
+
+                # "/tmp/mbedru3s_cylinder/" +
+                # path = str(self.position)+"_step-"+str(i)+"_rank"+str(self.flow.domain.mpi_rank)+".pt"
+                # torch.save(f[:,self.x_row,:,:],path)
+                print("Saved value at position ",str(self.position)," at step: ", i)
+        # return entry
 
 class cylinder3D(Flow):
     """Flow class to simulate the flow around an object (mask) in 3D.
@@ -62,6 +97,7 @@ class cylinder3D(Flow):
         p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_char = np.array([self.units.characteristic_velocity_pu, 0.0, 0.0])[..., None, None, None]
         u = (1 - self.mask.astype(np.float)) * u_char
+        print("shape:",u.shape)
         return p, u
 
     @property
@@ -80,34 +116,30 @@ class cylinder3D(Flow):
                 lt.BounceBackBoundary(self.mask, self.units.lattice)]
         return boundaries
 
-class AveragedVelocityReporter:
+class NaNReporter:
+    """Reports any NaN and aborts the simulation"""
+    def __call__(self,i,t,f):
+        if torch.isnan(f).any()==True:
+            print ("NaN detected in time step ", i)
+            print ("Abort")
+            sys.exit()
+
+class Clock:
     """Reports the streamwise velocity averaged in span direction (z) at x=x_row"""
-    def __init__(self, lattice, flow, position, interval=1, starting_step=1, out=None):
+    def __init__(self, lattice, flow, interval=1,):
         self.lattice = lattice
         self.flow = flow
         self.interval = interval
-        self.starting_step = starting_step
-        self.out = [] if out is None else out
-        self.is_on_rank =(self.flow.domain.contains(torch.tensor(position)))
-        print(self.is_on_rank)
-        if self.is_on_rank is True:
-            self.x_row = self.flow.domain.contains(torch.tensor(position))
-            print(self.flow.domain.grid()[0][:,0,0])
-            print(self.x_row)
+
     def __call__(self, i, t, f):
-        if self.is_on_rank is True:
-            u = self.lattice.u(f)[:,self.x_row,:,:]
-            u = self.flow.units.convert_velocity_to_pu(u).cpu().numpy()
-            entry = np.mean(u,axis=2)
-        else:
-            entry = None
-        return entry
+        if i % self.interval == 0 and self.flow.domain.mpi_rank == 0:
+            print(t)
 
 
-dtype = torch.float64
+
 domain = dd.BoxDomain(
     lower=torch.zeros(3),
-    upper=10*torch.tensor([grid_points_per_D_in_X,
+    upper=D*torch.tensor([grid_points_per_D_in_X,
                         grid_points_per_D_in_Y,
                         grid_points_per_D_in_Z]),
     resolution=torch.Size([grid_points_per_D_in_X*D,
@@ -159,10 +191,13 @@ mask_np = np.zeros(domains[0].shape,dtype=bool)
 center_x = 5*D
 center_y = int(grid_points_per_D_in_Y/2*D)
 
+
 # Set the mask for the cylinder (Note that bounce back boundaries set the wall between the fluid and the boundary node)
 for X in np.arange(domains[0].shape[0]):
     for Y in np.arange(domains[0].shape[1]):
-        if ((X-center_x)**2 + (Y-center_y)**2) <= (((D-1)/2)**2):
+        XX = domains[0].grid()[0][X,0,0]
+        YY = domains[0].grid()[1][0,Y,0]
+        if ((XX-center_x)**2 + (YY-center_y)**2) <= (((D-1)/2)**2):
             mask_np[X,Y,:] = True
 
 boundary_points_mask = np.zeros_like(mask_np)
@@ -174,8 +209,29 @@ flows.mask = mask_np
 collision = lt.BGKCollision(lattice_gpu, tau=flows.units.relaxation_parameter_lu)
 streaming = dd.MPIStreaming(lattice=lattice_gpu, decom=decom, device=device)
 simulation = lt.Simulation(flow=flows, lattice=lattice_gpu,  collision=collision, streaming=streaming)
-Velocity0 = AveragedVelocityReporter(lattice_gpu, flow, position_1, 1, int(flow.units.convert_time_to_lu(time_start_recording)))
-# simulation.reporters.append(Velocity0)
+
+Velocity1 = AveragedVelocityReporter(lattice_gpu, flows, position_1, interval=int(flow.units.convert_time_to_lu(interval)), starting_step=time_start_recording)
+simulation.reporters.append(Velocity1)
+Velocity2 = AveragedVelocityReporter(lattice_gpu, flows, position_2, interval=int(flow.units.convert_time_to_lu(interval)), starting_step=time_start_recording)
+simulation.reporters.append(Velocity2)
+Velocity3 = AveragedVelocityReporter(lattice_gpu, flows, position_3, interval=int(flow.units.convert_time_to_lu(interval)), starting_step=time_start_recording)
+simulation.reporters.append(Velocity3)
+
+VTKreport = dd.VTKReporter(lattice_cpu, flows, decomposition=decom, endpoint=True, interval=int(flow.units.convert_time_to_lu(vtk_interval)), filename_base=path+"vtk")
+simulation.reporters.append(VTKreport)
+
+# Velocity1 = AveragedVelocityReporter(lattice_gpu, flows, position_1, interval=1, starting_step=0)
+# simulation.reporters.append(Velocity1)
+# Velocity2 = AveragedVelocityReporter(lattice_gpu, flows, position_2, interval=1, starting_step=0)
+# simulation.reporters.append(Velocity2)
+# Velocity3 = AveragedVelocityReporter(lattice_gpu, flows, position_3, interval=1, starting_step=0)
+# simulation.reporters.append(Velocity3)
+
+clock = Clock(lattice_gpu, flows, interval=int(flow.units.convert_time_to_lu(clock_interval)))
+simulation.reporters.append(clock)
+
+NaN=NaNReporter()
+simulation.reporters.append(NaN)
 #
 # energy = lt.IncompressibleKineticEnergy(lattice_gpu, flow)
 # reporter = dd.MPIObservableReporter(energy, decomposition=decom, interval=interval,)
@@ -188,4 +244,5 @@ print(f"Start simulation on rank: {domains[0].rank}")
 mlups = simulation.step(steps)
 print(f"Finish with {mlups} MLUPS")
 # simulation.save_checkpoint(filename="test"+str(domains[0].rank))
-
+# if Velocity0.out is not None:
+#     print(Velocity0.out[0].shape)

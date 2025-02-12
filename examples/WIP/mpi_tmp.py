@@ -13,21 +13,21 @@ dist.init_process_group(backend="mpi", rank=-1, world_size=-1)
 
 
 #res = 50
-time = 70 # seconds
-step = 3#None
+time = 100 # seconds
+step = None
 device = "cuda"
 interval = 5 # seconds
 time_start_recording = 5 # seconds
 re = 400
-
-clock_interval = 0.1 #seconds
+dtype = torch.float64
+clock_interval = 0.5 #seconds
 vtk_interval = 10 #seconds
 
 grid_points_per_D_in_X = 14
 grid_points_per_D_in_Y = 10
 grid_points_per_D_in_Z = 3
-D = 10
-path = "/scratch/mbedru3s/cylinder/re400_float32/"
+D = 15
+path = "/scratch/mbedru3s/tmp/"
 position_1 = torch.tensor(int(round(5*D + D * 1.06, 0)))
 position_2 = torch.tensor(int(round(5*D + D * 1.54, 0)))
 position_3 = torch.tensor(int(round(5*D + D * 2.02, 0)))
@@ -55,7 +55,7 @@ class AveragedVelocityReporter:
                 u = self.flow.units.convert_velocity_to_pu(u).cpu().numpy()
                 entry = np.mean(u,axis=2)
                 self.out.append(entry)
-                path = "/scratch/mbedru3s/cylinder/re400_float32/"
+                path = "/scratch/mbedru3s/tmp/"
                 np.save((path+str(self.position)+"_step-"+str(i)+"_rank"+str(self.flow.domain.mpi_rank)+".npy"), entry)
                 #np.save((path+"f_step-"+str(i)+"_rank"+str(self.flow.domain.mpi_rank)+".npy"), f.cpu().numpy())
 
@@ -97,6 +97,8 @@ class cylinder3D(Flow):
         p = np.zeros_like(x[0], dtype=float)[None, ...]
         u_char = np.array([self.units.characteristic_velocity_pu, 0.0, 0.0])[..., None, None, None]
         u = (1 - self.mask.astype(np.float)) * u_char
+        u[1] = np.tanh(np.array(self.domain.grid()[2]))/20 * np.sin(2*np.pi/(grid_points_per_D_in_X*D*2)*np.array(self.domain.grid()[0]))
+        u[2] = np.tanh(np.array(self.domain.grid()[2]))/20 * np.sin(2*np.pi/(grid_points_per_D_in_X*D*2)*np.array(self.domain.grid()[0]))
         return p, u
 
     @property
@@ -135,7 +137,7 @@ class Clock:
             print(t)
 
 
-dtype = torch.float32
+
 domain = dd.BoxDomain(
     lower=torch.zeros(3),
     upper=D*torch.tensor([grid_points_per_D_in_X,
@@ -147,7 +149,7 @@ domain = dd.BoxDomain(
     n_ghost=[[0, 0], [0, 0], [0, 0]],
     mpi_rank=0,
     device="cpu",
-    dtype=torch.float32,
+    dtype=torch.float64,
     endpoint=True)
 if domain.rank == 0:
     print(domain)
@@ -216,10 +218,7 @@ simulation.reporters.append(Velocity2)
 Velocity3 = AveragedVelocityReporter(lattice_gpu, flows, position_3, interval=int(flow.units.convert_time_to_lu(interval)), starting_step=time_start_recording)
 simulation.reporters.append(Velocity3)
 
-#VTKreport = dd.VTKReporter(lattice_cpu, flows, decomposition=decom, endpoint=True, interval=int(flow.units.convert_time_to_lu(vtk_interval)), filename_base=path)
-#simulation.reporters.append(VTKreport)
-
-VTKreport = dd.VTKReporter(lattice_cpu, flows, decomposition=decom, endpoint=True, interval=1, filename_base=path)
+VTKreport = dd.VTKReporter(lattice_cpu, flows, decomposition=decom, endpoint=True, interval=int(flow.units.convert_time_to_lu(vtk_interval)), filename_base=path+"vtk")
 simulation.reporters.append(VTKreport)
 
 # Velocity1 = AveragedVelocityReporter(lattice_gpu, flows, position_1, interval=1, starting_step=0)
