@@ -17,6 +17,7 @@ import numpy as np
 
 from lettuce import *
 from lettuce import __version__ as lettuce_version
+from lettuce import StreamingStrategy
 from lettuce.ext import (BGKCollision, ErrorReporter, VTKReporter,
                          flow_by_name, Guo)
 
