@@ -14,6 +14,7 @@ import pstats
 import click
 import torch
 import numpy as np
+from typing import Dict, Tuple, Type, AnyStr
 
 from lettuce import *
 from lettuce import __version__ as lettuce_version
@@ -21,6 +22,11 @@ from lettuce import StreamingStrategy
 from lettuce.ext import (BGKCollision, ErrorReporter, VTKReporter,
                          flow_by_name, Guo)
 
+strategy_by_name : Dict[AnyStr, Tuple[Type['StreamingStrategy']]] = {
+    'PRE_STREAMING': (StreamingStrategy.PRE_STREAMING),
+    'POST_STREAMING': (StreamingStrategy.POST_STREAMING),
+    'NO_STREAMING': (StreamingStrategy.NO_STREAMING),
+    'DOUBLE_STREAMING': (StreamingStrategy.DOUBLE_STREAMING)}
 
 @click.group()
 @click.version_option(version=lettuce_version)
@@ -81,7 +87,7 @@ def main(ctx, cuda, gpu_id, precision):
               default=True,
               help="whether to use the cuda_native implementation or not.")
 @click.option("--strategy",
-              default=StreamingStrategy.PRE_STREAMING,
+              default="PRE_STREAMING",
               help="StreamingStrategy.NO_STREAMING, StreamingStrategy.PRE_STREAMING, StreamingStrategy.POST_STREAMING, StreamingStrategy.DOUBLE_STREAMING")
 
 @click.pass_context  # pass parameters to sub-commands
@@ -96,7 +102,8 @@ def benchmark(ctx, steps, resolution, profile_out, flow, vtk_out,
         profile.enable()
 
     # setup and run simulation
-
+    print(strategy_by_name[strategy])
+    strategy = StreamingStrategy.PRE_STREAMING
     flow_class, stencil = flow_by_name[flow]
     context = Context(ctx.obj['device'], ctx.obj['dtype'], use_cuda_native)
 
