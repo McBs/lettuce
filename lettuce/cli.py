@@ -79,6 +79,10 @@ def main(ctx, cuda, gpu_id, precision):
 @click.option("--use-cuda_native/--use-no-cuda_native",
               default=True,
               help="whether to use the cuda_native implementation or not.")
+@click.option("--streaming",
+              default=StreamingStrategy.PRE_STREAMING,
+              help="StreamingStrategy.NO_STREAMING, StreamingStrategy.PRE_STREAMING, StreamingStrategy.POST_STREAMING, StreamingStrategy.DOUBLE_STREAMING")
+
 @click.pass_context  # pass parameters to sub-commands
 def benchmark(ctx, steps, resolution, profile_out, flow, vtk_out,
               use_cuda_native):
@@ -108,7 +112,7 @@ def benchmark(ctx, steps, resolution, profile_out, flow, vtk_out,
     if vtk_out:
         reporter.append(VTKReporter(interval=10))
 
-    simulation = Simulation(flow, collision, reporter)
+    simulation = Simulation(flow, collision, reporter, streaming_strategy=StreamingStrategy.DOUBLE_STREAMING)
     mlups = simulation(num_steps=steps)
 
     # write profiling output
