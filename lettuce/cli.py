@@ -88,7 +88,7 @@ def benchmark(ctx, steps, resolution, profile_out, flow, vtk_out,
               use_cuda_native, strategy):
     """Run a short simulation and print performance in MLUPS.
     """
-
+    print(strategy)
     # start profiling
     if profile_out:
         profile = cProfile.Profile()
