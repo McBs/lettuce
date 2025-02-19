@@ -10,7 +10,8 @@ from lettuce.util import torch_gradient
 from packaging import version
 
 __all__ = ["Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
-           "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter","EnergySpectrum2"]
+           "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter","EnergySpectrum2",
+           "SymmetryTopPercentageReporter"]
 
 
 class Observable:
@@ -340,6 +341,7 @@ class SymmetryReporter(Observable):
 
         Symmetrie = torch.zeros(8, device=u.device, dtype=u.dtype)
         Symmetrie_mean = torch.zeros(8, device=u.device, dtype=u.dtype)
+        top_symmetry_coords = {}  # Dictionary für die Top-1%-Koordinaten pro Symmetrie-Bereich
 
         # Symmetrie-Berechnungen
         Symmetrie[0] = torch.max(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0))
@@ -374,3 +376,64 @@ class SymmetryReporter(Observable):
 
         return torch.stack([Symmetrie_max, Symmetrie_mean_final])
 
+
+class SymmetryTopPercentageReporter(Observable):
+
+    def __init__(self, lattice, flow):
+        self.lattice = lattice
+        self.flow = flow
+
+    def __call__(self, f):
+        u = self.lattice.u(f)
+
+        n = u.size()[1]
+        u_new = torch.zeros(3, n // 2, n // 2, n // 2, device=u.device, dtype=u.dtype)
+
+        # Verwende ganzzahlige Divisionen (//) für alle Indizes
+        u_new[:, :n // 4, :n // 4, :n // 4] = u[:, :n // 4, :n // 4, :n // 4]
+
+        u_new[0, :n // 4, n // 4:, :n // 4] = torch.flip(torch.transpose(u[1, :n // 4, :n // 4, :n // 4], 0, 1), [1])
+        u_new[1, :n // 4, n // 4:, :n // 4] = -1 * torch.flip(torch.transpose(u[0, :n // 4, :n // 4, :n // 4], 0, 1), [1])
+        u_new[2, :n // 4, n // 4:, :n // 4] = torch.flip(torch.transpose(u[2, :n // 4, :n // 4, :n // 4], 0, 1), [1])
+
+        u_new[0, n // 4:, :, :n // 4] = -1 * torch.flip(torch.flip(u_new[0, :n // 4, :, :n // 4], [0]), [1])
+        u_new[1, n // 4:, :, :n // 4] = -1 * torch.flip(torch.flip(u_new[1, :n // 4, :, :n // 4], [0]), [1])
+        u_new[2, n // 4:, :, :n // 4] = torch.flip(torch.flip(u_new[2, :n // 4, :, :n // 4], [0]), [1])
+
+        u_new[0, :, :, n // 4:] = torch.flip(u_new[0, :, :, :n // 4], [2])
+        u_new[1, :, :, n // 4:] = torch.flip(u_new[1, :, :, :n // 4], [2])
+        u_new[2, :, :, n // 4:] = -1 * torch.flip(u_new[2, :, :, :n // 4], [2])
+
+        u_new2 = torch.flip(u_new, [1])
+        u_new2[0, :, :, :] = -1 * u_new2[0, :, :, :]
+
+        top_symmetry_coords = {}
+
+        regions = [
+            (u[:, :n // 2, :n // 2, :n // 2], u_new),
+            (u[:, n // 2:, n // 2:, :n // 2], u_new),
+            (u[:, n // 2:, :n // 2, n // 2:], u_new),
+            (u[:, :n // 2, n // 2:, n // 2:], u_new),
+            (u[:, :n // 2, :n // 2, n // 2:], u_new2),
+            (u[:, n // 2:, n // 2:, n // 2:], u_new2),
+            (u[:, n // 2:, :n // 2, :n // 2], u_new2),
+            (u[:, :n // 2, n // 2:, :n // 2], u_new2)
+        ]
+
+        for i, (region, reference) in enumerate(regions):
+            diff = torch.norm(region - reference, dim=0)
+            num_top = max(1, int(diff.numel() * 0.005))
+
+            top_values, top_indices = torch.topk(diff.flatten(), num_top)
+
+            n1, n2, n3 = diff.shape
+            top_x = torch.div(top_indices, (n2 * n3), rounding_mode='floor')
+            top_y = torch.div(torch.remainder(top_indices, (n2 * n3)), n3, rounding_mode='floor')
+            top_z = torch.remainder(top_indices, n3)
+
+            top_symmetry_coords[i] = torch.stack((top_x, top_y, top_z), dim=1)
+
+        # ✅ Fix: Dictionary in einen Tensor umwandeln
+        all_coords = torch.cat([coords.flatten() for coords in top_symmetry_coords.values()])
+
+        return all_coords  # Jetzt gibt die Methode einen Tensor zurück
