@@ -422,7 +422,7 @@ class SymmetryTopPercentageReporter(Observable):
 
         for i, (region, reference) in enumerate(regions):
             diff = torch.norm(region - reference, dim=0)
-            num_top = max(1, int(diff.numel() * 0.005))
+            num_top = max(1, int(diff.numel() * 0.001))
 
             top_values, top_indices = torch.topk(diff.flatten(), num_top)
 
