@@ -95,15 +95,15 @@ def benchmark(ctx, steps, resolution, profile_out, flow, vtk_out,
               use_cuda_native, strategy):
     """Run a short simulation and print performance in MLUPS.
     """
-    print(strategy)
+
     # start profiling
     if profile_out:
         profile = cProfile.Profile()
         profile.enable()
 
     # setup and run simulation
-    print(strategy_by_name[strategy])
-    strategy = StreamingStrategy.PRE_STREAMING
+    strategy = strategy_by_name[strategy]
+    print(strategy)
     flow_class, stencil = flow_by_name[flow]
     context = Context(ctx.obj['device'], ctx.obj['dtype'], use_cuda_native)
 
