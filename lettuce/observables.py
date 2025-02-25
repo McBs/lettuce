@@ -345,31 +345,31 @@ class SymmetryReporter(Observable):
 
         # Symmetrie-Berechnungen
         Symmetrie[0] = torch.max(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0))
-        Symmetrie_mean[0] = torch.mean(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0)**2, dim = [0,1,2])
+        Symmetrie_mean[0] = torch.mean(torch.norm(u[:, :n // 2, :n // 2, :n // 2] - u_new, dim=0))
 
         Symmetrie[1] = torch.max(torch.norm(u[:, n // 2:, n // 2:, :n // 2] - u_new, dim=0))
-        Symmetrie_mean[1] = torch.mean(torch.norm(u[:, n // 2:, n // 2:, :n // 2] - u_new, dim=0)**2)
+        Symmetrie_mean[1] = torch.mean(torch.norm(u[:, n // 2:, n // 2:, :n // 2] - u_new, dim=0))
 
         Symmetrie[2] = torch.max(torch.norm(u[:, n // 2:, :n // 2, n // 2:] - u_new, dim=0))
-        Symmetrie_mean[2] = torch.mean(torch.norm(u[:, n // 2:, :n // 2, n // 2:] - u_new, dim=0)**2)
+        Symmetrie_mean[2] = torch.mean(torch.norm(u[:, n // 2:, :n // 2, n // 2:] - u_new, dim=0))
 
         Symmetrie[3] = torch.max(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0))
-        Symmetrie_mean[3] = torch.mean(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0)**2)
+        Symmetrie_mean[3] = torch.mean(torch.norm(u[:, :n // 2, n // 2:, n // 2:] - u_new, dim=0))
 
         u_new2 = torch.flip(u_new, [1])
         u_new2[0, :, :, :] = -1 * u_new2[0, :, :, :]
 
         Symmetrie[4] = torch.max(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new2, dim=0))
-        Symmetrie_mean[4] = torch.mean(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new2, dim=0)**2)
+        Symmetrie_mean[4] = torch.mean(torch.norm(u[:, :n // 2, :n // 2, n // 2:] - u_new2, dim=0))
 
         Symmetrie[5] = torch.max(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new2, dim=0))
-        Symmetrie_mean[5] = torch.mean(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new2, dim=0)**2)
+        Symmetrie_mean[5] = torch.mean(torch.norm(u[:, n // 2:, n // 2:, n // 2:] - u_new2, dim=0))
 
         Symmetrie[6] = torch.max(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new2, dim=0))
-        Symmetrie_mean[6] = torch.mean(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new2, dim=0)**2)
+        Symmetrie_mean[6] = torch.mean(torch.norm(u[:, n // 2:, :n // 2, :n // 2] - u_new2, dim=0))
 
         Symmetrie[7] = torch.max(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new2, dim=0))
-        Symmetrie_mean[7] = torch.mean(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new2, dim=0)**2)
+        Symmetrie_mean[7] = torch.mean(torch.norm(u[:, :n // 2, n // 2:, :n // 2] - u_new2, dim=0))
 
         Symmetrie_max = torch.max(Symmetrie) / torch.max(torch.norm(u, dim=0))
         Symmetrie_mean_final = torch.mean(Symmetrie_mean) / torch.mean(torch.abs(torch.norm(u, dim=0)))
