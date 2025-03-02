@@ -16,7 +16,6 @@ parser.add_argument("--nvtk", type=int, default=200)
 parser.add_argument("--tmax", type=int, default=20)
 parser.add_argument("--Re", type=int, default=100)
 parser.add_argument("--collision_operator", type=str, choices=["BGK", "KBC"], default="BGK")
-parser.add_argument("--Precision", type=str, choices=["Single", "Double", "Half"], default="Double")
 parser.add_argument("--Mach", type=float, default=0.005)
 
 args = parser.parse_args()
@@ -29,101 +28,87 @@ res = args.resolution
 tmax = args.tmax
 collision_operator = args.collision_operator
 Mach = args.Mach
-Precision = args.Precision
+
 
 # Falls Ordner nicht existieren, erstelle sie
 os.makedirs(csvdir, exist_ok=True)
 os.makedirs(vtkdir, exist_ok=True)
 
-# Setze die Präzision
-if Precision == "Single":
-    dtype = torch.float32
-elif Precision == "Double":
-    dtype = torch.float64
-elif Precision == "Half":
-    dtype = torch.float16
+def compute_dissipation(simulation):
+    energy = np.array(simulation.reporters[0].out)
+    dEdt = np.zeros(len(energy[:, 2]))
+    dt = energy[1, 1] - energy[0, 1]
+    nmax = len(energy[:, 2])
 
-# Lattice und Flow Setup
-lattice = lt.Lattice(lt.D3Q27, device="cuda", dtype=dtype)
-flow = lt.TaylorGreenVortex3D(resolution=res, reynolds_number=Re, mach_number=Mach, lattice=lattice)
+    for i in range(nmax):
+        if i == 0:
+            dEdt[i] = (energy[1, 2] - energy[0, 2]) / dt
+        elif i == 1:
+            dEdt[i] = (energy[2, 2] - energy[0, 2]) / (2 * dt)
+        elif i == 2:
+            dEdt[i] = (1 / 12 * energy[0, 2] - 2 / 3 * energy[1, 2] + 2 / 3 * energy[3, 2] - 1 / 12 * energy[4, 2]) / dt
+        elif i >= (nmax - 3):
+            if i == (nmax - 3):
+                dEdt[i] = (1 / 12 * energy[nmax - 5, 2] - 2 / 3 * energy[nmax - 4, 2] + 2 / 3 * energy[
+                    nmax - 2, 2] - 1 / 12 * energy[nmax - 1, 2]) / dt
+            elif i == (nmax - 2):
+                dEdt[i] = (energy[nmax - 1, 2] - energy[nmax - 3, 2]) / (2 * dt)
+            elif i == (nmax - 1):
+                dEdt[i] = (energy[nmax - 1, 2] - energy[nmax - 2, 2]) / dt
+        else:
+            dEdt[i] = (-1 / 60 * energy[i - 3, 2] + 3 / 20 * energy[i - 2, 2] - 3 / 4 * energy[i - 1, 2] +
+                       3 / 4 * energy[i + 1, 2] - 3 / 20 * energy[i + 2, 2] + 1 / 60 * energy[i + 3, 2]) / dt
 
-# Auswahl des Kollisionsmodells
-if collision_operator == "BGK":
-    collision = lt.BGKCollision(lattice, tau=flow.units.relaxation_parameter_lu)
-elif collision_operator == "KBC":
-    collision = lt.KBCCollision3D(lattice, tau=flow.units.relaxation_parameter_lu)
+    return np.array([energy[:, 1], -dEdt / (np.pi * 2) ** 3])
 
-# Simulation initialisieren
-streaming = lt.StandardStreaming(lattice)
-simulation = lt.Simulation(flow=flow, lattice=lattice, collision=collision, streaming=streaming)
 
-# Reporter hinzufügen
-interval_out = int((flow.units.convert_time_to_lu(tmax)) / 500)
-interval_vtk = int((flow.units.convert_time_to_lu(tmax)) / 20)
+# **1️⃣ Simulation mit Float64 für f & tau**
+lattice_64 = lt.Lattice(lt.D3Q27, device="cuda", dtype=torch.float64)
+flow_64 = lt.TaylorGreenVortex3D(resolution=res, reynolds_number=Re, mach_number=Mach, lattice=lattice_64)
+collision_64_tau64 = lt.BGKCollision(lattice_64, tau=flow_64.units.relaxation_parameter_lu)
+simulation_64_tau64 = lt.Simulation(flow=flow_64, lattice=lattice_64, collision=collision_64_tau64,
+                                    streaming=lt.StandardStreaming(lattice_64))
+inter = int((flow_64.units.convert_time_to_lu(tmax)) / 500)
 
-simulation.reporters.append(lt.ObservableReporter(lt.IncompressibleKineticEnergy(lattice, flow), interval=interval_out, out=None))
-simulation.reporters.append(lt.ObservableReporter(lt.Dissipation_sij(lattice, flow), interval=interval_out, out=None))
-simulation.reporters.append(lt.ObservableReporter(lt.Enstrophy(lattice, flow), interval=interval_out, out=None))
-simulation.reporters.append(lt.ObservableReporter(lt.EnergySpectrum2(lattice, flow), interval=interval_out, out=None))
-simulation.reporters.append(lt.ObservableReporter(lt.SymmetryReporter(lattice, flow), interval=interval_out, out=None))
-simulation.reporters.append(lt.VTKReporter(lattice, flow, interval=interval_vtk, filename_base=vtkdir + "out"))
 
-# Simulation starten
-simulation.initialize_f_neq()
-steps = int(flow.units.convert_time_to_lu(tmax))
-mlups = simulation.step(num_steps=steps)
-print("Performance in MLUPS:", mlups)
+simulation_64_tau64.reporters.append(
+    lt.ObservableReporter(lt.IncompressibleKineticEnergy(lattice_64, flow_64), interval=inter, out=None))
+simulation_64_tau64.initialize_f_neq()
+simulation_64_tau64.step(num_steps=int(flow_64.units.convert_time_to_lu(tmax)))
+dissipation_64_tau64 = compute_dissipation(simulation_64_tau64)
 
-# Daten aus den Reportern extrahieren
-energy = np.array(simulation.reporters[0].out)
-dissipation = np.array(simulation.reporters[1].out)
-enstrophy = np.array(simulation.reporters[2].out)
-energy_spectrum = np.array(simulation.reporters[3].out)
-symmetry = np.array(simulation.reporters[4].out)
+# **2️⃣ Simulation mit Float64 für f, aber Tau in Float32**
+collision_64_tau32 = lt.BGKCollision(lattice_64, tau=np.float64(np.float32(flow_64.units.relaxation_parameter_lu)))
+simulation_64_tau32 = lt.Simulation(flow=flow_64, lattice=lattice_64, collision=collision_64_tau32,
+                                    streaming=lt.StandardStreaming(lattice_64))
+simulation_64_tau32.reporters.append(
+    lt.ObservableReporter(lt.IncompressibleKineticEnergy(lattice_64, flow_64), interval=inter, out=None))
+simulation_64_tau32.initialize_f_neq()
+simulation_64_tau32.step(num_steps=int(flow_64.units.convert_time_to_lu(tmax)))
+dissipation_64_tau32 = compute_dissipation(simulation_64_tau32)
 
-# Dissipation berechnen
-dt = energy[1, 1] - energy[0, 1]
-dEdt = np.gradient(energy[:, 2], dt)
-dissipation_ekin = np.array([energy[:, 1], -dEdt / (np.pi * 2) ** 3])
-dissipation_ens = np.array([enstrophy[:, 1], flow.units.viscosity_pu / (np.pi * 2) ** 3 * enstrophy[:, 2]])
-dissipation_sij = np.array([dissipation[:, 1], dissipation[:, 2]])
+# **3️⃣ Simulation mit Float32 Initialisierung, dann Float64**
+lattice_32 = lt.Lattice(lt.D3Q27, device="cuda", dtype=torch.float32)
+flow_32 = lt.TaylorGreenVortex3D(resolution=res, reynolds_number=Re, mach_number=Mach, lattice=lattice_32)
+collision_32 = lt.BGKCollision(lattice_32, tau=flow_32.units.relaxation_parameter_lu)
+simulation_32 = lt.Simulation(flow=flow_32, lattice=lattice_32, collision=collision_32,
+                              streaming=lt.StandardStreaming(lattice_32))
+simulation_32.initialize_f_neq()
+f_64 = simulation_32.f.to(torch.float64)
 
-# Daten speichern
-np.savetxt(csvdir + "DissipationEkin.csv", dissipation_ekin.T, delimiter=",")
-np.savetxt(csvdir + "DissipationEnstrophy.csv", dissipation_ens.T, delimiter=",")
-np.savetxt(csvdir + "DissipationSij.csv", dissipation_sij.T, delimiter=",")
-np.savetxt(csvdir + "EnergySpectrum.csv", energy_spectrum, delimiter=",")
-np.savetxt(csvdir + "Symmetry.csv", symmetry, delimiter=",")
+# Neue Simulation mit Float64
+simulation_64_init32 = lt.Simulation(flow=flow_64, lattice=lattice_64, collision=collision_64_tau64,
+                                     streaming=lt.StandardStreaming(lattice_64))
+simulation_64_init32.f = f_64
+simulation_64_init32.reporters.append(
+    lt.ObservableReporter(lt.IncompressibleKineticEnergy(lattice_64, flow_64), interval=inter, out=None))
+simulation_64_init32.step(num_steps=int(flow_64.units.convert_time_to_lu(tmax)))
+dissipation_init32_rest64 = compute_dissipation(simulation_64_init32)
 
-# Referenzdaten laden
-if Re in [100, 800]:
-    ref_file = f"/home/ben/Schreibtisch/Enstropy Brachet/Brachet/Brachet_1983_tgv3d_enstrophy_Re{Re}.csv"
-    ref_data = np.loadtxt(ref_file, delimiter=";", skiprows=1).T
-elif Re == 1600:
-    ref_file = f"/home/ben/Schreibtisch/Referenz/Re{Re}.csv"
-    ref_data = np.genfromtxt(ref_file, delimiter=";", dtype=str)
-    ref_data = np.char.replace(ref_data, ',', '.').astype(float).T
-else:
-    ref_file = f"/home/ben/Schreibtisch/Referenz/Re{Re}.csv"
-    ref_data = np.loadtxt(ref_file, delimiter=",")
+# **Daten speichern**
+np.savetxt(csvdir + "DissipationEkin_BGK64_tau64.csv", dissipation_64_tau64.T, delimiter=",")
+np.savetxt(csvdir + "DissipationEkin_BGK64_tau32.csv", dissipation_64_tau32.T, delimiter=",")
+np.savetxt(csvdir + "DissipationEkin_Init32_rest64.csv", dissipation_init32_rest64.T, delimiter=",")
 
-# Plot: Vergleich mit Referenz
+# **Plots**
 plt.figure()
-plt.plot(ref_data[0, :], ref_data[1, :], label="Referenz", linestyle="dashed")
-plt.plot(dissipation_ekin[0, :], dissipation_ekin[1, :], label="Standard", marker="o")
-plt.xlabel("Zeit")
-plt.ylabel("Dissipation")
-plt.legend()
-plt.title(f"Dissipation Vergleich Re={Re}")
-plt.savefig(csvdir + "Dissipation_Comparison.png")
-plt.show()
-
-# Plot: Relative Differenz
-plt.figure()
-plt.plot(dissipation_ekin[0, :], (dissipation_ekin[1, :] - dissipation_sij[1, :]) / dissipation_ekin[1, :], label="Rel. Diff")
-plt.xlabel("Zeit")
-plt.ylabel("Relative Differenz")
-plt.legend()
-plt.title("Relative Dissipation Differenz")
-plt.savefig(csvdir + "Dissipation_Relative_Diff.png")
-plt.show()
