@@ -16,7 +16,8 @@ class ExtFlow(Flow, ABC):
     def __init__(self, context: 'Context', resolution: Union[int, List[int]],
                  reynolds_number, mach_number,
                  stencil: Optional['Stencil'] = None,
-                 equilibrium: Optional['Equilibrium'] = None):
+                 equilibrium: Optional['Equilibrium'] = None,
+                 mpi: bool = False):
         # set stencil or default stencil based on dimension
         resolution = self.make_resolution(resolution, stencil)
         assert len(resolution) in [1, 2, 3], \
