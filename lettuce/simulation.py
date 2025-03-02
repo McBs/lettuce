@@ -1,6 +1,9 @@
 """Lattice Boltzmann Solver"""
 
 from timeit import default_timer as timer
+
+import numpy
+
 from lettuce import (
     LettuceException, get_default_moment_transform, BGKInitialization, ExperimentalWarning, torch_gradient
 )
@@ -12,7 +15,6 @@ import torch
 import numpy as np
 
 __all__ = ["Simulation"]
-
 
 class Simulation:
     """High-level API for simulations.
@@ -121,19 +123,19 @@ class Simulation:
         )
         self.f = self.lattice.equilibrium(rho, u)
 
-    def initialize_f_neq(self):
+    def initialize_f_neq(self, order=6):
         """Initialize the distribution function values. The f^(1) contributions are approximated by finite differences.
         See Krüger et al. (2017).
         """
         rho = self.lattice.rho(self.f)
         u = self.lattice.u(self.f)
 
-        grad_u0 = torch_gradient(u[0], dx=1, order=6)[None, ...]
-        grad_u1 = torch_gradient(u[1], dx=1, order=6)[None, ...]
+        grad_u0 = torch_gradient(u[0], dx=1, order=order)[None, ...]
+        grad_u1 = torch_gradient(u[1], dx=1, order=order)[None, ...]
         S = torch.cat([grad_u0, grad_u1])
 
         if self.lattice.D == 3:
-            grad_u2 = torch_gradient(u[2], dx=1, order=6)[None, ...]
+            grad_u2 = torch_gradient(u[2], dx=1, order=order)[None, ...]
             S = torch.cat([S, grad_u2])
 
         Pi_1 = 1.0 * self.flow.units.relaxation_parameter_lu * rho * S / self.lattice.cs ** 2
@@ -142,6 +144,95 @@ class Simulation:
         Pi_1_Q = self.lattice.einsum('ab,iab->i', [Pi_1, Q])
         fneq = self.lattice.einsum('i,i->i', [self.lattice.w, Pi_1_Q])
 
+        feq = self.lattice.equilibrium(rho, u)
+        self.f = feq + fneq
+
+    def analytical_gradient_tgv(self, x, y, z):
+        """Berechnet den analytischen Gradienten des Taylor-Green Vortex Geschwindigkeitsfeldes."""
+        grad = torch.zeros((3, 3, *x.shape), dtype=x.dtype, device=x.device)
+
+        # ux Ableitungen
+        grad[0, 0] = torch.cos(x) * torch.cos(y) * torch.cos(z)  # ∂ux/∂x
+        grad[0, 1] = -torch.sin(x) * torch.sin(y) * torch.cos(z)  # ∂ux/∂y
+        grad[0, 2] = -torch.sin(x) * torch.cos(y) * torch.sin(z)  # ∂ux/∂z
+
+        # uy Ableitungen
+        grad[1, 0] = torch.sin(x) * torch.sin(y) * torch.cos(z)  # ∂uy/∂x
+        grad[1, 1] = -torch.cos(x) * torch.cos(y) * torch.cos(z)  # ∂uy/∂y
+        grad[1, 2] = torch.cos(x) * torch.sin(y) * torch.sin(z)  # ∂uy/∂z
+
+        # uz = 0, also sind die Ableitungen 0
+        # grad[2, 0] = grad[2, 1] = grad[2, 2] = 0 (bereits durch torch.zeros gesetzt)
+
+        return grad
+
+    def initialize_f_neq_float32(self, order=6):
+        """Initialize the distribution function values in Float32 precision, but keep computations in Float64."""
+
+        # Float32-Genauigkeit erzwingen, aber in Float64 zurückwandeln
+        def fake_float32(tensor):
+            return tensor.to(torch.float32).to(torch.float64)
+
+        rho = fake_float32(self.lattice.rho(self.f))
+        u = fake_float32(self.lattice.u(self.f))
+
+        grad_u0 = fake_float32(torch_gradient(u[0], dx=1, order=order)[None, ...])
+        grad_u1 = fake_float32(torch_gradient(u[1], dx=1, order=order)[None, ...])
+        S = torch.cat([grad_u0, grad_u1])
+
+        if self.lattice.D == 3:
+            grad_u2 = fake_float32(torch_gradient(u[2], dx=1, order=order)[None, ...])
+            S = torch.cat([S, grad_u2])
+
+        Pi_1 = fake_float32(1.0 * self.flow.units.relaxation_parameter_lu * rho * S / self.lattice.cs ** 2)
+
+        Q = (torch.einsum('ia,ib->iab', [self.lattice.e, self.lattice.e])
+             - torch.eye(self.lattice.D, device=self.lattice.device, dtype=self.lattice.dtype) * self.lattice.cs ** 2)
+
+        Q = fake_float32(Q)  # Fake Float32 für Q
+        Pi_1_Q = self.lattice.einsum('ab,iab->i', [Pi_1, Q])
+        fneq = self.lattice.einsum('i,i->i', [self.lattice.w, Pi_1_Q])
+
+        # Fake Float32 für rho, u und e
+        rho = fake_float32(rho)
+        u = fake_float32(u)
+        e = fake_float32(self.lattice.e)
+
+        feq = self.lattice.equilibrium(rho, u)  # Jetzt sind alle Inputs "fake" Float32
+        self.f = (feq + fneq)  # Float64 bleibt erhalten, da fake_float32 die Präzision nur abschneidet
+
+    def initialize_fneq_with_analytical_gradient(self, mach):
+
+        """Initialisiert f basierend auf dem analytischen Gradienten des TGV."""
+        L = 2 * torch.pi
+        N = self.f.shape[1]  # Annahme: f hat die Form [q, Nx, Ny, Nz]
+
+        # Erstelle Gitterpunkte mit "endpoint=False"
+        dx = L / N
+        x = torch.arange(0, L, dx, device=self.f.device) + dx / 2
+        y = torch.arange(0, L, dx, device=self.f.device) + dx / 2
+        z = torch.arange(0, L, dx, device=self.f.device) + dx / 2
+
+        # Erstelle das Gitter
+        X, Y, Z = torch.meshgrid(x, y, z, indexing='ij')
+
+        # Analytisches Geschwindigkeitsfeld
+        rho = self.lattice.rho(self.f)  # Dichte ist typischerweise 1 im TGV
+
+        u = self.lattice.u(self.f)
+
+        # Berechne den analytischen Gradienten
+        grad_u = (self.analytical_gradient_tgv(X, Y, Z)) * mach * 1 / torch.sqrt(
+            torch.tensor(3.0, device=X.device)) * torch.pi * 2 / N
+
+        # Berechnung von Pi_1 und fneq
+        Pi_1 = 1.0 * self.flow.units.relaxation_parameter_lu * rho * grad_u / self.lattice.cs ** 2
+        Q = (torch.einsum('ia,ib->iab', [self.lattice.e, self.lattice.e])
+             - torch.eye(self.lattice.D, device=self.lattice.device, dtype=self.lattice.dtype) * self.lattice.cs ** 2)
+        Pi_1_Q = self.lattice.einsum('ab,iab->i', [Pi_1, Q])
+        fneq = self.lattice.einsum('i,i->i', [self.lattice.w, Pi_1_Q])
+
+        # Berechnung von feq und f
         feq = self.lattice.equilibrium(rho, u)
         self.f = feq + fneq
 
