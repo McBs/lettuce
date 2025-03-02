@@ -57,7 +57,7 @@ class TaylorGreenVortex_mpi(ExtFlow):
         print(dist.get_world_size())
         print(dist.get_rank())
         for i in range(dist.get_world_size()):
-            x_endpoint =  [2 * torch.pi (1 - 1 / n) for n in 
+            x_endpoint =  [2 * torch.pi * (1 - 1 / n) for n in 
                          self.resolution]
             print(x_endpoint)
 
