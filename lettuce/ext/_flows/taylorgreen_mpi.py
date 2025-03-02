@@ -6,16 +6,17 @@ import warnings
 from typing import Union, List, Optional
 
 import torch
+import torch.distributed as dist
 
 from ... import UnitConversion
 from .._stencil import D2Q9
 from . import ExtFlow
 
 
-__all__ = ['TaylorGreenVortex', 'TaylorGreenVortex2D', 'TaylorGreenVortex3D']
+__all__ = ['TaylorGreenVortex_mpi', 'TaylorGreenVortex2D_mpi', 'TaylorGreenVortex3D_mpi']
 
 
-class TaylorGreenVortex(ExtFlow):
+class TaylorGreenVortex_mpi(ExtFlow):
     def __init__(self, context: 'Context', resolution: Union[int, List[int]],
                  reynolds_number, mach_number,
                  stencil: Optional['Stencil'] = None,
@@ -53,6 +54,13 @@ class TaylorGreenVortex(ExtFlow):
 
     @property
     def grid(self):
+        print(dist.get_world_size())
+        print(dist.get_rank())
+        for i in range(dist.get_world_size):
+            x_endpoint =  [2 * torch.pi (1 - 1 / n) for n in 
+                         self.resolution]
+            print(x_endpoint)
+
         endpoints = [2 * torch.pi * (1 - 1 / n) for n in
                      self.resolution]  # like endpoint=False in np.linspace
         xyz = tuple(torch.linspace(0, endpoints[n],
@@ -100,25 +108,25 @@ class TaylorGreenVortex(ExtFlow):
         return []
 
 
-def TaylorGreenVortex3D(context: 'Context', resolution: Union[int, List[int]],
+def TaylorGreenVortex3D_mpi(context: 'Context', resolution: Union[int, List[int]],
                         reynolds_number, mach_number,
                         stencil: Optional['Stencil'] = None,
                         equilibrium: Optional['Equilibrium'] = None):
     warnings.warn("TaylorGreenVortex3D is deprecated. Use TaylorGreenVortex"
                   " instead", DeprecationWarning)
-    return TaylorGreenVortex(context=context, resolution=resolution,
+    return TaylorGreenVortex_mpi(context=context, resolution=resolution,
                              reynolds_number=reynolds_number,
                              mach_number=mach_number, stencil=stencil,
                              equilibrium=equilibrium)
 
 
-def TaylorGreenVortex2D(context: 'Context', resolution: Union[int, List[int]],
+def TaylorGreenVortex2D_mpi(context: 'Context', resolution: Union[int, List[int]],
                         reynolds_number, mach_number,
                         stencil: Optional['Stencil'] = None,
                         equilibrium: Optional['Equilibrium'] = None):
     warnings.warn("TaylorGreenVortex2D is deprecated. Use TaylorGreenVortex"
                   " instead", DeprecationWarning)
-    return TaylorGreenVortex(context=context, resolution=resolution,
+    return TaylorGreenVortex_mpi(context=context, resolution=resolution,
                              reynolds_number=reynolds_number,
                              mach_number=mach_number, stencil=stencil,
                              equilibrium=equilibrium)
