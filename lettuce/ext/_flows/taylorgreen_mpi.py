@@ -56,18 +56,16 @@ class TaylorGreenVortex_mpi(ExtFlow):
     def grid(self):
         print(dist.get_world_size())
         print(dist.get_rank())
-        for i in range(dist.get_world_size()):
-            x_endpoint =  [2 * torch.pi * (1 - 1 / n) for n in 
-                         self.resolution]
-            print(x_endpoint)
-
+        print(self.resolution)
         endpoints = [2 * torch.pi * (1 - 1 / n) for n in
                      self.resolution]  # like endpoint=False in np.linspace
+        print(endpoints)
         xyz = tuple(torch.linspace(0, endpoints[n],
                                    steps=self.resolution[n],
                                    device=self.context.device,
                                    dtype=self.context.dtype)
                     for n in range(self.stencil.d))
+        #torch.split(xyz, ,dim=0)
         return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):
