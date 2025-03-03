@@ -56,7 +56,7 @@ class TaylorGreenVortex_mpi(ExtFlow):
     def grid(self):
         print(dist.get_world_size())
         print(dist.get_rank())
-        print(self.resolution)
+        print(self.resolution[0])
         endpoints = [2 * torch.pi * (1 - 1 / n) for n in
                      self.resolution]  # like endpoint=False in np.linspace
         print(endpoints)
