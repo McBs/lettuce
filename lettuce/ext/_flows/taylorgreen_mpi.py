@@ -67,7 +67,7 @@ class TaylorGreenVortex_mpi(ExtFlow):
                                    device=self.context.device,
                                    dtype=self.context.dtype)
                     for n in range(self.stencil.d))
-        #print(torch.split(xyz, nodes, dim=0))
+        print(torch.split(xyz, nodes, dim=0))
         return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):
