@@ -13,8 +13,7 @@ class QuadraticEquilibrium(Equilibrium):
         self.lattice = lattice
 
     def __call__(self, rho, u, *args):
-        print(rho.dtype)
-        print(u.dtype)
+
         exu = torch.tensordot(self.lattice.e, u, dims=1)
         uxu = self.lattice.einsum("d,d->", [u, u])
         feq = self.lattice.einsum(
