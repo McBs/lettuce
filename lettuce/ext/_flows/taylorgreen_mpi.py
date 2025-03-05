@@ -67,6 +67,8 @@ class TaylorGreenVortex_mpi(ExtFlow):
                      self.resolution]  # like endpoint=False in np.linspace
         print("--------endpoints----------")
         print(endpoints)
+        print("--------self.stencil.d-------")
+        print(self.stencil.d)
         for n in range(self.stencil.d): 
             lspace=torch.linspace(0, endpoints[n],
                                        steps=self.resolution[n],
