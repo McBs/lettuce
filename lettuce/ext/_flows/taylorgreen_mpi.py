@@ -67,16 +67,16 @@ class TaylorGreenVortex_mpi(ExtFlow):
                                        steps=self.resolution[n],
                                        device=self.context.device,
                                        dtype=self.context.dtype)
-        print(lspace)
+        print("lspace:" + lspace)
 
-        print(torch.split(lspace, nodes, dim=0))
+        print("split lspace" + torch.split(lspace, nodes, dim=0))
 
         xyz_test = tuple(torch.split(torch.linspace(0, endpoints[n],
                                    steps=self.resolution[n],
                                    device=self.context.device,
                                    dtype=self.context.dtype), nodes, dim=0)
                     for n in range(self.stencil.d))
-        print(xyz_test)
+        print("xyz:" + str(xyz_test))
 
 
         xyz = tuple(torch.linspace(0, endpoints[n],
@@ -84,7 +84,7 @@ class TaylorGreenVortex_mpi(ExtFlow):
                                    device=self.context.device,
                                    dtype=self.context.dtype)
                     for n in range(self.stencil.d))
-        print("xyz:" + xyz)
+        print("xyz:" + str(xyz))
         return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):
