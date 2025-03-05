@@ -54,6 +54,7 @@ class TaylorGreenVortex_mpi(ExtFlow):
 
     @property
     def grid(self):
+        pritn(test)
         print("--------Worldsize----------")
         print(dist.get_world_size())
         print("--------Rank----------")
