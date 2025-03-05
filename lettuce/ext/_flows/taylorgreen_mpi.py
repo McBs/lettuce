@@ -69,10 +69,10 @@ class TaylorGreenVortex_mpi(ExtFlow):
         print(endpoints)
         print("--------self.stencil.d-------")
         print(self.stencil.d)
-        lspace=torch.linspace(0, endpoints[0],
+        lspace=torch.split(torch.linspace(0, endpoints[0],
                                        steps=self.resolution[0],
                                        device=self.context.device,
-                                       dtype=self.context.dtype)
+                                       dtype=self.context.dtype), nodes, dim=0)
         for n in range(self.stencil.d - 1): 
             lspace=torch.linspace(0, endpoints[n],
                                        steps=self.resolution[n],
@@ -80,14 +80,8 @@ class TaylorGreenVortex_mpi(ExtFlow):
                                        dtype=self.context.dtype)
         print("--------lspace----------")
         print(lspace)
-        print("--------split lspace----------")
-        print(torch.split(lspace, nodes, dim=0))
 
-        xyz_test = tuple(torch.split(torch.linspace(0, endpoints[n],
-                                   steps=self.resolution[n],
-                                   device=self.context.device,
-                                   dtype=self.context.dtype), nodes, dim=0)
-                    for n in range(self.stencil.d))
+        xyz_test = tuple(lspace)
         print("--------xyz with split lspace----------")
         print(xyz_test)
 
