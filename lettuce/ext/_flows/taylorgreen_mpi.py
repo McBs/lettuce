@@ -72,7 +72,7 @@ class TaylorGreenVortex_mpi(ExtFlow):
         lspace=torch.split(torch.linspace(0, endpoints[0],
                                        steps=self.resolution[0],
                                        device=self.context.device,
-                                       dtype=self.context.dtype), nodes, dim=1)
+                                       dtype=self.context.dtype), nodes, dim=0)
         
         for n in range(1, self.stencil.d): 
             lspace=torch.linspace(0, endpoints[n],
