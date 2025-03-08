@@ -105,6 +105,8 @@ class TaylorGreenVortex_mpi(ExtFlow):
         if t > 0 and self.stencil.d > 2:
             warnings.warn("The analytic solution is only true for the 2D TGV!")
         grid = self.grid
+        print("------grid------")
+        print(grid)
         nu = self.context.convert_to_tensor(self.units.viscosity_pu)
         if len(self.resolution) == 2:
             u = torch.stack(
