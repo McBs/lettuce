@@ -54,39 +54,8 @@ class TaylorGreenVortex_mpi(ExtFlow):
 
     @property
     def grid(self):
-        print("--------Worldsize----------")
-        print(dist.get_world_size())
-        print("--------Rank----------")
-        print(dist.get_rank())
-        print("--------resulution----------")
-        print(self.resolution[0])
-        nodes = int(self.resolution[0] / dist.get_world_size())
-        print("--------nodes----------")
-        print(nodes)
         endpoints = [2 * torch.pi * (1 - 1 / n) for n in
                      self.resolution]  # like endpoint=False in np.linspace
-        print("--------endpoints----------")
-        print(endpoints)
-        print("--------self.stencil.d-------")
-        print(self.stencil.d)
-        #lspace=torch.split(torch.linspace(0, endpoints[0],
-        #                               steps=self.resolution[0],
-        #                               device=self.context.device,
-        #                               dtype=self.context.dtype), 2)
-        
-        #for n in range(1, self.stencil.d): 
-        #    lspace=torch.linspace(0, endpoints[n],
-        #                               steps=self.resolution[n],
-        #                               device=self.context.device,
-        #                               dtype=self.context.dtype)
-        #print("--------lspace----------")
-        #print(lspace)
-
-        #xyz_test = tuple(lspace)
-        #print("--------xyz with split lspace----------")
-        #print(xyz_test)
-
-
         xyz = tuple(torch.linspace(0, endpoints[n],
                                    steps=self.resolution[n],
                                    device=self.context.device,
@@ -107,6 +76,9 @@ class TaylorGreenVortex_mpi(ExtFlow):
         grid = self.grid
         print("------grid------")
         print(grid)
+        slice_size = len(grid[0]) // dist.get_world_size()
+        print("----slice_size----")
+        print(slice_size)
         nu = self.context.convert_to_tensor(self.units.viscosity_pu)
         if len(self.resolution) == 2:
             u = torch.stack(
