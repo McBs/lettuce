@@ -6,6 +6,7 @@ import warnings
 from typing import Union, List, Optional
 
 import torch
+import torch.distributed as dist
 
 from ... import UnitConversion
 from .._stencil import D2Q9
@@ -20,7 +21,8 @@ class TaylorGreenVortex(ExtFlow):
                  reynolds_number, mach_number,
                  stencil: Optional['Stencil'] = None,
                  equilibrium: Optional['Equilibrium'] = None,
-                 initialize_fneq: bool = True):
+                 initialize_fneq: bool = True,
+                 dist: Optional['dist'] = None):
         self.initialize_fneq = initialize_fneq
         if stencil is None and not isinstance(resolution, list):
             warnings.warn("Requiring information about dimensionality!"
@@ -53,14 +55,20 @@ class TaylorGreenVortex(ExtFlow):
 
     @property
     def grid(self):
-        endpoints = [2 * torch.pi * (1 - 1 / n) for n in
-                     self.resolution]  # like endpoint=False in np.linspace
-        xyz = tuple(torch.linspace(0, endpoints[n],
-                                   steps=self.resolution[n],
-                                   device=self.context.device,
-                                   dtype=self.context.dtype)
-                    for n in range(self.stencil.d))
-        return torch.meshgrid(*xyz, indexing='ij')
+        if dist == "mpi":
+            rank = dist.get_rank()
+            
+            endpoints = [torch.pi * (1 - 1 / n ) for n in
+                        self.resolution] 
+        else:
+            endpoints = [2 * torch.pi * (1 - 1 / n) for n in
+                        self.resolution]  # like endpoint=False in np.linspace
+            xyz = tuple(torch.linspace(0, endpoints[n],
+                                    steps=self.resolution[n],
+                                    device=self.context.device,
+                                    dtype=self.context.dtype)
+                        for n in range(self.stencil.d))
+            return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):
         return self.analytic_solution(t=0)
