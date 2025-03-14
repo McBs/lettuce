@@ -56,6 +56,8 @@ class TaylorGreenVortex(ExtFlow):
     @property
     def grid(self):
         if dist == "mpi":
+            print("Multi node function")
+
             rank = dist.get_rank()
             
             endpoints = [torch.pi * (1 - 1 / n ) for n in
@@ -86,6 +88,7 @@ class TaylorGreenVortex(ExtFlow):
             print(xyz)
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
+            print("singel node function")
             endpoints = [2 * torch.pi * (1 - 1 / n) for n in
                         self.resolution]  # like endpoint=False in np.linspace
             xyz = tuple(torch.linspace(0, endpoints[n],
