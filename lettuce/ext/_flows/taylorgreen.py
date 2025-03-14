@@ -58,7 +58,7 @@ class TaylorGreenVortex(ExtFlow):
     def grid(self):
         if self.dist == "mpi":
             print("Multi node function")
-
+            print(self.stencil.d)
             rank = dist.get_rank()
             
             endpoints = [torch.pi * (1 - 1 / n ) for n in
