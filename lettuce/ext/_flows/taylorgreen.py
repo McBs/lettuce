@@ -24,6 +24,7 @@ class TaylorGreenVortex(ExtFlow):
                  initialize_fneq: bool = True,
                  dist: Optional['dist'] = None):
         self.initialize_fneq = initialize_fneq
+        self.dist = dist 
         if stencil is None and not isinstance(resolution, list):
             warnings.warn("Requiring information about dimensionality!"
                           " Either via stencil or resolution. Setting "
