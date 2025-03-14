@@ -55,7 +55,7 @@ class TaylorGreenVortex(ExtFlow):
 
     @property
     def grid(self):
-        if dist == "mpi":
+        if self.dist == "mpi":
             print("Multi node function")
 
             rank = dist.get_rank()
