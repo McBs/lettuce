@@ -72,7 +72,7 @@ class TaylorGreenVortex(ExtFlow):
                                         steps=self.resolution[n],
                                         device=self.context.device,
                                         dtype=self.context.dtype))        
-                            for n in range(self.stencil.d))
+                            for n in range(self.stencil.d-1))
             if rank == 1:
                 xyz = tuple((torch.linspace(endpoints[0]/2, endpoints[0],
                                         steps=int(self.resolution[0]/2),
@@ -82,7 +82,7 @@ class TaylorGreenVortex(ExtFlow):
                                         steps=self.resolution[n],
                                         device=self.context.device,
                                         dtype=self.context.dtype))        
-                            for n in range(self.stencil.d))
+                            for n in range(self.stencil.d-1))
             print("-----rank-----")
             print(rank)
             print("------xyz-----")
