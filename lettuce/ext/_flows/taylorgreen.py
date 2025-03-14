@@ -61,15 +61,29 @@ class TaylorGreenVortex(ExtFlow):
             endpoints = [torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
             if rank == 0:
-            xyz = tuple(torch.linspace(0, endpoints[0]/2,
-                                    steps=int(self.resolution[0]/2),
-                                    device=self.context.device,
-                                    dtype=self.context.dtype),
-                        torch.linspace(0, endpoints[0]/2,
-                                steps=int(self.resolution[0]/2),
-                                device=self.context.device,
-                                dtype=self.context.dtype)        
-                        for n in range(self.stencil.d))
+                xyz = tuple(torch.linspace(0, endpoints[0]/2,
+                                        steps=int(self.resolution[0]/2),
+                                        device=self.context.device,
+                                        dtype=self.context.dtype),
+                            torch.linspace(0, endpoints[n],
+                                        steps=self.resolution[n],
+                                        device=self.context.device,
+                                        dtype=self.context.dtype)        
+                            for n in range(self.stencil.d))
+            if rank == 1:
+                xyz = tuple(torch.linspace(endpoints[0]/2, endpoints[0],
+                                        steps=int(self.resolution[0]/2),
+                                        device=self.context.device,
+                                        dtype=self.context.dtype),
+                            torch.linspace(0, endpoints[n],
+                                        steps=self.resolution[n],
+                                        device=self.context.device,
+                                        dtype=self.context.dtype)        
+                            for n in range(self.stencil.d))
+            print("-----rank-----")
+            print(rank)
+            print("------xyz-----")
+            print(xyz)
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
             endpoints = [2 * torch.pi * (1 - 1 / n) for n in
