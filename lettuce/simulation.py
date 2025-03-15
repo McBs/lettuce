@@ -4,6 +4,7 @@ from timeit import default_timer as timer
 
 import numpy
 
+import lettuce
 from lettuce import (
     LettuceException, get_default_moment_transform, BGKInitialization, ExperimentalWarning, torch_gradient
 )
@@ -65,23 +66,34 @@ class Simulation:
             self.streaming.no_stream_mask = no_stream_mask
 
     def step(self, num_steps):
+
         """Take num_steps stream-and-collision steps and return performance in MLUPS."""
         start = timer()
+
         if self.i == 0:
             self._report()
         for _ in range(num_steps):
             self.i += 1
 
             self.f = self.streaming(self.f)
+
             # Perform the collision routine everywhere, expect where the no_collision_mask is true
             self.f = torch.where(self.no_collision_mask, self.f, self.collision(self.f))
+
             for boundary in self._boundaries:
                 self.f = boundary(self.f)
+
             self._report()
+
+
+
         end = timer()
         seconds = end - start
         num_grid_points = self.lattice.rho(self.f).numel()
         mlups = num_steps * num_grid_points / 1e6 / seconds
+
+
+
         return mlups
 
     def _report(self):
@@ -171,8 +183,8 @@ class Simulation:
 
         # Float32-Genauigkeit erzwingen, aber in Float64 zurückwandeln
         def fake_float32(tensor):
-            return tensor.to(torch.float32).to(torch.float64)
-
+            return tensor.round(decimals=7)
+        self.f = fake_float32(self.f)
         rho = fake_float32(self.lattice.rho(self.f))
         u = fake_float32(self.lattice.u(self.f))
 
@@ -190,16 +202,16 @@ class Simulation:
              - torch.eye(self.lattice.D, device=self.lattice.device, dtype=self.lattice.dtype) * self.lattice.cs ** 2)
 
         Q = fake_float32(Q)  # Fake Float32 für Q
-        Pi_1_Q = self.lattice.einsum('ab,iab->i', [Pi_1, Q])
-        fneq = self.lattice.einsum('i,i->i', [self.lattice.w, Pi_1_Q])
+        Pi_1_Q = fake_float32(self.lattice.einsum('ab,iab->i', [Pi_1, Q]))
+        fneq = fake_float32(self.lattice.einsum('i,i->i', [self.lattice.w, Pi_1_Q]))
 
         # Fake Float32 für rho, u und e
         rho = fake_float32(rho)
         u = fake_float32(u)
         e = fake_float32(self.lattice.e)
 
-        feq = self.lattice.equilibrium(rho, u)  # Jetzt sind alle Inputs "fake" Float32
-        self.f = (feq + fneq)  # Float64 bleibt erhalten, da fake_float32 die Präzision nur abschneidet
+        feq = fake_float32(self.lattice.equilibrium(rho, u))  # Jetzt sind alle Inputs "fake" Float32
+        self.f = fake_float32(feq + fneq)  # Float64 bleibt erhalten, da fake_float32 die Präzision nur abschneidet
 
     def initialize_fneq_with_analytical_gradient(self, mach):
 
