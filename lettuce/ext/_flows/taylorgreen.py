@@ -97,6 +97,10 @@ class TaylorGreenVortex(ExtFlow):
                                     device=self.context.device,
                                     dtype=self.context.dtype)
                         for n in range(self.stencil.d))
+            print("-----rank (singel)-----")
+            print(rank)
+            print("------xyz (single)-----")
+            print(xyz)
             return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):
