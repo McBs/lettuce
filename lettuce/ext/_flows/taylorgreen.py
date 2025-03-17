@@ -63,7 +63,7 @@ class TaylorGreenVortex(ExtFlow):
             endpoints = [torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
             #create linspace for x-axis
-            x_axis = torch.linspace(0, endpoints,
+            x_axis = torch.linspace(0, endpoints[0],
                                         steps=self.resolution,
                                         device=self.context.device,
                                         dtype=self.context.dtype)
