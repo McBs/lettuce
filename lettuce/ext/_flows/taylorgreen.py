@@ -63,8 +63,8 @@ class TaylorGreenVortex(ExtFlow):
             endpoints = [torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
             #create linspace for x-axis
-            x_axis = torch.linspace(0, endpoints[0]/dist.get_world_size(),
-                                        steps=int(self.resolution[0]/dist.get_world_size()),
+            x_axis = torch.linspace(0, endpoints,
+                                        steps=int(self.resolution),
                                         device=self.context.device,
                                         dtype=self.context.dtype)
             # Split the linspace 
@@ -78,7 +78,7 @@ class TaylorGreenVortex(ExtFlow):
             print("-----Rank------")
             print(dist.get_rank())
             print("-----split-----")
-            print(splits[dist.get_rank() + 1])
+            print(splits[dist.get_rank()])
             remainder = self.resolution[0] % dist.get_world_size()
             if remainder > 0:
                 splits[-1] = torch.cat([splits[-1], linspace[-remainder:]])
@@ -95,7 +95,7 @@ class TaylorGreenVortex(ExtFlow):
             #    extended_split = torch.cat([left_neighbor, splits[i], right_neighbor])
             #    extended_splits.append(extended_split)
 
-            xyz = tuple((splits[dist.get_rank() + 1],
+            xyz = tuple((splits[dist.get_rank()],
                         torch.linspace(0, endpoints[n],
                                     steps=self.resolution[n],
                                     device=self.context.device,
