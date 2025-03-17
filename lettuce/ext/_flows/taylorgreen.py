@@ -90,7 +90,7 @@ class TaylorGreenVortex(ExtFlow):
                                     dtype=self.context.dtype))        
                         for n in range(self.stencil.d-1))
             print("-----rank-----")
-            print(rank)
+            print(dist.get_rank())
             print("------xyz-----")
             print(xyz)
             return torch.meshgrid(*xyz, indexing='ij')    
