@@ -69,8 +69,12 @@ class TaylorGreenVortex(ExtFlow):
                                         dtype=self.context.dtype)
             # Split the linspace 
             split_size = self.resolution[0] // dist.get_world_size()
+            print("-----split_size-----")
+            print(split_size)
             splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
             # handle remainder
+            print("-----split-----")
+            print(split)
             remainder = self.resolution[0] % dist.get_world_size()
             if remainder > 0:
                 splits[-1] = torch.cat([splits[-1], linspace[-remainder:]])
