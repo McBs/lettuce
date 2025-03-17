@@ -73,6 +73,10 @@ class TaylorGreenVortex(ExtFlow):
             print(split_size)
             splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
             # handle remainder
+            print("-----Worldsize------")
+            print(dist.get_world_size())
+            print("-----Rank------")
+            print(dist.get_rank())
             print("-----split-----")
             print(splits[dist.get_rank()])
             remainder = self.resolution[0] % dist.get_world_size()
