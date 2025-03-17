@@ -59,30 +59,30 @@ class TaylorGreenVortex(ExtFlow):
         if self.dist == "mpi":
             print("Multi node function")
             print(self.stencil.d)
-            rank = dist.get_rank()
             
             endpoints = [torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
-            if rank == 0:
-                xyz = tuple((torch.linspace(0, endpoints[0]/2,
+            #create linspace for x-axis
+            x = torch.linspace(0, endpoints[0]/2,
                                         steps=int(self.resolution[0]/2),
                                         device=self.context.device,
-                                        dtype=self.context.dtype),
-                            torch.linspace(0, endpoints[n],
-                                        steps=self.resolution[n],
-                                        device=self.context.device,
-                                        dtype=self.context.dtype))        
-                            for n in range(self.stencil.d-1))
-            if rank == 1:
-                xyz = tuple((torch.linspace(endpoints[0]/2, endpoints[0],
-                                        steps=int(self.resolution[0]/2),
-                                        device=self.context.device,
-                                        dtype=self.context.dtype),
-                            torch.linspace(0, endpoints[n],
-                                        steps=self.resolution[n],
-                                        device=self.context.device,
-                                        dtype=self.context.dtype))        
-                            for n in range(self.stencil.d-1))
+                                        dtype=self.context.dtype)
+            # Split the linspace 
+            split_size = resolution[0] // dist.get_world_size()
+            splits = [linspace[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
+            # handle remainder
+            remainder = resolution[0] % dist.get_world_size()
+            if remainder > 0:
+                splits[-1] = torch.cat([splits[-1], linspace[-remainder:]])
+            
+            
+
+            xyz = tuple((splits[dist.get_rank()],
+                        torch.linspace(0, endpoints[n],
+                                    steps=self.resolution[n],
+                                    device=self.context.device,
+                                    dtype=self.context.dtype))        
+                        for n in range(self.stencil.d-1))
             print("-----rank-----")
             print(rank)
             print("------xyz-----")
