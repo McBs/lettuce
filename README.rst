@@ -148,3 +148,107 @@ License
 
 .. _LICENSE: https://github.com/lettucecfd/lettuce/blob/master/LICENSE
 
+## Installation with Pytroch Distributed 
+
+ 
+
+**Slurm Script for installation of Pytorch:**
+
+```
+#!/bin/bash
+#SBATCH --partition=gpu
+#SBATCH --nodes=1
+#SBATCH --time=12:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem=16G
+
+module load cuda/12.4 cmake/default openmpi/default python3/default
+
+nvcc --version
+
+conda install -y astunparse numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing_extensions future six requests dataclasses
+
+source ~/env.txt
+
+git clone --recursive https://github.com/pytorch/pytorch
+cd pytorch
+make triton
+python3 setup.py develop
+
+```
+
+**env.txt:**
+
+```
+export CUDA_BIN_PATH=/usr/local/cuda-12.4/
+
+export MPI_INCLUDE_PATH=/usr/local/openmpi/openmpi-4.1.5/
+
+
+
+export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-12.4/bin
+
+export CUDA_NVCC_EXECUTABLE=/usr/local/cuda-12.4/bin/nvcc
+
+export CUDA_INCLUDE_DIRS=/usr/local/cuda-12.4/targets/x86_64-linux/include/
+
+
+export CUDNN_LIBRARY_PATH=/usr/local/fb03-fem/cuda/lib64/libcudnn.so
+
+export CUDNN_INCLUDE_PATH=/usr/local/fb03-fem/cuda/include/cudnn.h
+
+export CUDNN_INCLUDE_DIR=/usr/local/fb03-fem/cuda/lib64/
+
+export CUDNN_LIB_DIR=/usr/local/fb03-fem/cuda/lib64/lib64
+
+export CUDNN_INCLUDE_DIR=/usr/local/fb03-fem/cuda/lib64/include
+
+
+export CMAKE_CUDA_COMPILER=/usr/local/cuda-12.4/bin/nvcc
+
+
+export USE_KINETO=OFF
+
+export BUILD_SPLIT_CUDA=OFF
+
+export BUILD_TEST=OFF
+
+export BUILD_CAFFE2_OPS=OFF
+
+export BUILD_CAFFE2=OFF
+
+export USE_DISTRIBUTED=ON
+
+export USE_ROCM=OFF
+
+export USE_CUDA=ON
+
+export USE_MPI=ON
+
+#USE_CUDNN=0
+
+export CMAKE_PREFIX_PATH=*${CONDA_PREFIX:-**"$(dirname $(which conda))/../"**}*
+
+export MAX_JOBS="4"
+export CMAKE_BUILD_PARALLEL_LEVEL=2
+
+```
+
+**Slurm Script for lettuce installation:**
+
+```
+#!/bin/bash
+#SBATCH --partition=gpu
+#SBATCH --nodes=1
+#SBATCH --time=12:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem=16G
+
+module load cuda/12.4 cmake/default openmpi/default python3/default
+
+nvcc --version
+
+cd lettuce/
+python3 setup.py develop
+
+```
