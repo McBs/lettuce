@@ -252,3 +252,64 @@ cd lettuce/
 python3 setup.py develop
 
 ```
+
+Exmaple script `mpi_lettuce.py`` to run lettuce with PyTorch Distributed:
+
+```
+#!/usr/bin/env python3
+import torch
+import torch.distributed as dist
+import lettuce as lt
+import os
+
+
+def main():
+    dist.init_process_group(backend="mpi")
+
+    flow = lt.TaylorGreenVortex(
+       lt.Context(dtype=torch.float64),
+       resolution=128,
+       reynolds_number=100,
+       mach_number=0.05,
+       stencil=lt.D2Q9,
+       dist="mpi"
+    )
+
+    simulation = lt.Simulation(
+        flow=flow,
+        collision=lt.BGKCollision(tau=flow.units.relaxation_parameter_lu),
+        reporter=[])
+    mlups = simulation(num_steps=1000)
+    print("Performance in MLUPS:", mlups)
+
+    print(f"Size: {dist.get_world_size()}", f"Rank: {dist.get_rank()}")
+    dist.destroy_process_group()
+
+if __name__ == "__main__":
+    main()
+```
+
+Example Slurm script to run lettuce with PyTorch Distributed:
+
+```
+#!/bin/bash
+#SBATCH --partition=gpu
+#SBATCH --nodes=2
+#SBATCH --time=30:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem=16G
+#SBATCH --nodelist=wr[15-19]
+
+
+module load cuda/12.4 cmake/default openmpi/default python3/default
+
+which nvcc
+
+nvcc --version
+
+source $HOME/activate
+conda activate base
+
+mpirun -n 2 python /home/mbecke3g/mpi_lettuce.py
+echo "----Finish----"
+```
