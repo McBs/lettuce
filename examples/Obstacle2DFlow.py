@@ -2724,78 +2724,97 @@ def write_vtk(point_dict, id=0, filename_base="./data/output"):
 
 
 
-class VTKReporter_reduced:
-    """General VTK Reporter for velocity and pressure"""
+import os
+import numpy as np
 
-    def __init__(self, lattice, flow, interval=50, filename_base="./data/output", xmin=0, xmax=None, ymin=0, ymax=None):
+class VTKReporter_reduced:
+    """Smart VTK Reporter: first10 + fullsim + last10"""
+
+    def __init__(self, lattice, flow, sim_time_end, vtk_fps, filename_base="./data/output", xmin=0, xmax=None, ymin=0, ymax=None):
         self.lattice = lattice
         self.flow = flow
-        self.interval = interval
+        self.sim_time_end = sim_time_end
+        self.vtk_fps = vtk_fps
         self.filename_base = filename_base
         self.xmin = xmin
         self.xmax = xmax
         self.ymin = ymin
         self.ymax = ymax
-        directory = os.path.dirname(filename_base)
-        if not os.path.isdir(directory):
-            os.mkdir(directory)
+
+        # Erstelle Ordner für first10, fullsim, last10
+        self.folder_first10 = os.path.join(filename_base, "first10")
+        self.folder_fullsim = os.path.join(filename_base, "fullsim")
+        self.folder_last10 = os.path.join(filename_base, "last10")
+        for folder in [self.folder_first10, self.folder_fullsim, self.folder_last10]:
+            os.makedirs(folder, exist_ok=True)
+
         self.point_dict = dict()
 
     def __call__(self, i, t, f):
-        if i % self.interval == 0:
-            u0 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
-            p0 = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
-            u = u0[:, self.xmin:self.xmax, self.ymin:self.ymax]
-            p = p0[:, self.xmin:self.xmax, self.ymin:self.ymax]
-            if self.lattice.D == 2:
-                self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None])
-                for d in range(self.lattice.D):
-                    self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ..., None])
-            else:
-                self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...])
-                for d in range(self.lattice.D):
-                    self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...])
-            write_vtk(self.point_dict, i, self.filename_base)
+        # Bestimme Zielordner
+        folder = None
+        if t <= 10.0:
+            folder = self.folder_first10
+        elif t >= self.sim_time_end - 10.0:
+            folder = self.folder_last10
+        elif abs(t % 1.0) < 1e-6:  # Jede volle Sekunde
+            folder = self.folder_fullsim
 
-    def output_mask(self, no_collision_mask):
-        """Outputs the no_collision_mask of the simulation object as VTK-file with range [0,1]
-        Usage: vtk_reporter.output_mask(simulation.no_collision_mask)"""
-        point_dict = dict()
+        if folder is None:
+            return  # Nichts speichern
+
+        # Konvertiere Felder
+        u0 = self.flow.units.convert_velocity_to_pu(self.lattice.u(f))
+        p0 = self.flow.units.convert_density_lu_to_pressure_pu(self.lattice.rho(f))
+        u = u0[:, self.xmin:self.xmax, self.ymin:self.ymax]
+        p = p0[:, self.xmin:self.xmax, self.ymin:self.ymax]
+
+        # Punktdaten zusammenstellen
         if self.lattice.D == 2:
-            point_dict["mask"] = self.lattice.convert_to_numpy(no_collision_mask)[..., None].astype(int)
+            self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ..., None])
+            for d in range(self.lattice.D):
+                self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ..., None])
         else:
-            point_dict["mask"] = self.lattice.convert_to_numpy(no_collision_mask).astype(int)
-        vtk.gridToVTK(self.filename_base + "_mask",
-                      np.arange(0, point_dict["mask"].shape[0]),
-                      np.arange(0, point_dict["mask"].shape[1]),
-                      np.arange(0, point_dict["mask"].shape[2]),
-                      pointData=point_dict)
+            self.point_dict["p"] = self.lattice.convert_to_numpy(p[0, ...])
+            for d in range(self.lattice.D):
+                self.point_dict[f"u{'xyz'[d]}"] = self.lattice.convert_to_numpy(u[d, ...])
+
+        # Schreibe VTK-Datei
+        write_vtk(self.point_dict, i, os.path.join(folder, "frame"))
 
 
 
 
 
 # VTK Reporter -> visualization
-if output_vtk == True:
+if output_vtk:
     if vtk_data == "Reduced":
-        VTKreport = VTKReporter_reduced(lattice, flow, interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
-                                   filename_base=vtk_path, xmin=int(xmin), xmax = int(xmax), ymin = int(ymin), ymax = int(ymax))
+        VTKreport = VTKReporter_reduced(
+            lattice,
+            flow,
+            sim_time_end=T_target,  # ACHTUNG: das brauchst du, z.B. in Sekunden
+            vtk_fps=vtk_fps,
+            filename_base=vtk_path,
+            xmin=int(xmin),
+            xmax=int(xmax),
+            ymin=int(ymin),
+            ymax=int(ymax)
+        )
     else:
-        VTKreport = lt.VTKReporter(lattice, flow, interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
-                               filename_base=vtk_path)
+        VTKreport = lt.VTKReporter(
+            lattice,
+            flow,
+            interval=int(flow.units.convert_time_to_lu(1 / vtk_fps)),
+            filename_base=vtk_path
+        )
 
     sim.reporters.append(VTKreport)
-    # export obstacle
-    mask_dict = dict()
-    mask_dict["mask"] = flow.obstacle_mask[..., None].astype(int)
-    imageToVTK(
-        path=scratch_dir + dir_name + "/vtk/obstacle_point",
-        pointData=mask_dict,
-    )
-    imageToVTK(
-        path=scratch_dir + dir_name + "/vtk/obstacle_cell",
-        cellData=mask_dict,
-    )
+
+    # Export obstacle
+    mask_dict = {"mask": flow.obstacle_mask[..., None].astype(int)}
+    imageToVTK(os.path.join(scratch_dir, dir_name, "vtk/obstacle_point"), pointData=mask_dict)
+    imageToVTK(os.path.join(scratch_dir, dir_name, "vtk/obstacle_cell"), cellData=mask_dict)
+
 
 # Observable reporter: drag coefficient
 DragObservable = DragCoefficient(lattice, flow, sim._boundaries[-1],
