@@ -2795,17 +2795,15 @@ class VTKReporter_reduced:
         point_dict = {}
 
         if self.lattice.D == 2:
-            point_dict["mask"] = self.lattice.convert_to_numpy(no_collision_mask)[..., None].astype(int)
+            point_dict["mask"] = no_collision_mask[..., None].astype(int)
         else:
-            point_dict["mask"] = self.lattice.convert_to_numpy(no_collision_mask).astype(int)
+            point_dict["mask"] = no_collision_mask.astype(int)
 
         vtk_path = self.base_dir
         os.makedirs(vtk_path, exist_ok=True)
 
         imageToVTK(os.path.join(vtk_path, "obstacle_point"), pointData=point_dict)
         imageToVTK(os.path.join(vtk_path, "obstacle_cell"), cellData=point_dict)
-
-
 
 
 # VTK Reporter -> visualization
