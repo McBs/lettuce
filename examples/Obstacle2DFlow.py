@@ -2815,7 +2815,7 @@ if output_vtk:
         VTKreport = VTKReporter_reduced(
             lattice,
             flow,
-            sim_time_end=t_end,  # z. B. 40.0
+            sim_time_end=T_target,  # z. B. 40.0
             vtk_fps=vtk_fps,
             filename_base=vtk_path,
             xmin=int(xmin),
