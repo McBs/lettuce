@@ -81,7 +81,7 @@ class TaylorGreenVortex(ExtFlow):
             print(splits[dist.get_rank()])
             remainder = self.resolution[0] % dist.get_world_size()
             if remainder > 0:
-                splits[-1] = torch.cat([splits[-1], linspace[-remainder:]])
+                splits[-1] = torch.cat([splits[-1], x_axis[-remainder:]])
             print("-----splits-----")
             print(splits[0])
             print("-----splits-----")
