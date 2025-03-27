@@ -97,7 +97,7 @@ class TaylorGreenVortex(ExtFlow):
             
             print(extended_splits)
 
-            xyz = tuple((splits[dist.get_rank()],
+            xyz = tuple((extended_splits[dist.get_rank()],
                         torch.linspace(0, endpoints[n],
                                     steps=self.resolution[n],
                                     device=self.context.device,
