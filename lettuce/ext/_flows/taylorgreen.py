@@ -94,6 +94,8 @@ class TaylorGreenVortex(ExtFlow):
 
                 extended_split = torch.cat([left_neighbor, splits[i], right_neighbor])
                 extended_splits.append(extended_split)
+            
+            print(extended_splits)
 
             xyz = tuple((splits[dist.get_rank()],
                         torch.linspace(0, endpoints[n],
