@@ -69,6 +69,11 @@ class TaylorGreenVortex(ExtFlow):
                                         dtype=self.context.dtype)
             # Split the linspace 
             split_size = self.resolution[0] // dist.get_world_size()
+            if split_size < 16:
+                warnings.warn("Chunk Size too small,"
+                              "size must be at least 16", UserWarning)
+            if split_size mod 16 != 0:
+                warnings.warn("Chunk must be multiple of 16", UserWarning)
             print("-----split_size-----")
             print(split_size)
             splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
