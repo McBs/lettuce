@@ -89,8 +89,8 @@ class TaylorGreenVortex(ExtFlow):
 
             extended_splits = []
             for i in range(dist.get_world_size()):
-                left_neighbor = splits[i-1][-1:] if i > 0 else splits[-1][-1:]  
-                right_neighbor = splits[i+1][:1] if i < dist.get_world_size() - 1 else splits[0][:1] 
+                left_neighbor = splits[i-1][-8:] if i > 0 else splits[-1][-8:]  
+                right_neighbor = splits[i+1][:8] if i < dist.get_world_size() - 1 else splits[0][:8] 
 
                 extended_split = torch.cat([left_neighbor, splits[i], right_neighbor])
                 extended_splits.append(extended_split)
