@@ -72,7 +72,7 @@ class TaylorGreenVortex(ExtFlow):
             if split_size < 16:
                 warnings.warn("Chunk Size too small,"
                               "size must be at least 16", UserWarning)
-            if split_size mod 16 != 0:
+            if split_size % 16 != 0:
                 warnings.warn("Chunk must be multiple of 16", UserWarning)
             print("-----split_size-----")
             print(split_size)
