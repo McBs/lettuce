@@ -69,45 +69,51 @@ class TaylorGreenVortex(ExtFlow):
                                         dtype=self.context.dtype)
             # Split the linspace 
             split_size = self.resolution[0] // dist.get_world_size()
+            remainder = self.resolution[0] % dist.get_world_size()
+
             if split_size < 16:
                 warnings.warn("Chunk Size too small,"
                               "size must be at least 16", UserWarning)
-            if split_size % 16 != 0:
-                warnings.warn("Chunk must be multiple of 16", UserWarning)
-            print("-----split_size-----")
-            print(split_size)
-            splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
-            # handle remainder
-            print("-----Worldsize------")
-            print(dist.get_world_size())
-            print("-----Rank------")
-            print(dist.get_rank())
-            print("-----split-----")
-            print(splits[dist.get_rank()])
-            remainder = self.resolution[0] % dist.get_world_size()
             if remainder > 0:
-                splits[-1] = torch.cat([splits[-1], x_axis[-remainder:]])
-            print("-----splits-----")
-            print(splits[0])
-            print("-----splits-----")
-            print(splits[1])
+                bigsplits = [x_axis[i*(split_size + 1) : (i+1)*(split_size + 1)] for i in range(remainder)]
 
-            extended_splits = []
-            for i in range(dist.get_world_size()):
-                left_neighbor = splits[i-1][-8:] if i > 0 else splits[-1][-8:]  
-                right_neighbor = splits[i+1][:8] if i < dist.get_world_size() - 1 else splits[0][:8] 
+                smallsplits = [x_axis[i*split_size : (i+1)*split_size] for i in range(remainder, num_splits)]
 
-                extended_split = torch.cat([left_neighbor, splits[i], right_neighbor])
-                extended_splits.append(extended_split)
             
-            print(extended_splits)
-            print("----" + str(dist.get_rank()) + "----")
-            print(self.stencil.d)
-            print(self.stencil.d-1)
-            #xyz = (extended_splits[dist.get_rank()],) + (torch.linspace(0, endpoints[n],
-            #                        steps=self.resolution[n],
-            #                        device=self.context.device,
-            #                        dtype=self.context.dtype),) * (self.stencil.d - 1)
+                upperfill_big = int((16 - (split_size + 1) % 16)/2)
+                lowerfill_big = 8 - int(((split_size + 1) % 16)/2)
+                upperfill_small = int((16 - split_size % 16)/2)
+                lowerfill_small = 8 - int((split_size % 16)/2)
+
+        
+                extended_splits = []
+                # Todo Überlappungen anpassen nach rest und fall unterscheidung
+                for i in range(remainder):
+                    left_neighbor = bigsplits[i-1][-lowerfill_big:] if i > 0 else smallsplits[-1][-lowerfill_big:]  # Get last value of previous (or last split for first one)
+                    right_neighbor = bigsplits[i+1][:upperfill_big] if i < remainder - 1 else smallsplits[0][:upperfill_big]  # Get first value of next (or first split for last one)
+
+                    extended_split = torch.cat([left_neighbor, bigsplits[i], right_neighbor])
+                    extended_splits.append(extended_split)
+
+                for i in range(len(range(remainder, num_splits))):
+                    left_neighbor = smallsplits[i-1][-lowerfill_small:] if i > 0 else bigsplits[-1][-lowerfill_small:]  # Get last value of previous (or last split for first one)
+                    right_neighbor = smallsplits[i+1][:upperfill_small] if i < len(range(remainder, num_splits)) - 1 else bigsplits[0][:upperfill_small]  # Get first value of next (or first split for last one)
+
+                    extended_split = torch.cat([left_neighbor, smallsplits[i], right_neighbor])
+                    extended_splits.append(extended_split)
+
+                return extended_splits
+            else:
+                splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(num_splits)]
+                extended_splits = []
+                for i in range(num_splits):
+                    left_neighbor = splits[i-1][-8:] if i > 0 else splits[-1][-8:]  # Get last value of previous (or last split for first one)
+                    right_neighbor = splits[i+1][:8] if i < num_splits - 1 else splits[0][:8]  # Get first value of next (or first split for last one)
+
+                    extended_split = torch.cat([left_neighbor, splits[i], right_neighbor])
+                    extended_splits.append(extended_split)
+
+            
             yz =  tuple(torch.linspace(0, endpoints[n],
                                 steps=self.resolution[n],
                                 device=self.context.device,
