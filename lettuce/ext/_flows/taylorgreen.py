@@ -77,7 +77,7 @@ class TaylorGreenVortex(ExtFlow):
             if remainder > 0:
                 bigsplits = [x_axis[i*(split_size + 1) : (i+1)*(split_size + 1)] for i in range(remainder)]
 
-                smallsplits = [x_axis[i*split_size : (i+1)*split_size] for i in range(remainder, num_splits)]
+                smallsplits = [x_axis[i*split_size : (i+1)*split_size] for i in range(remainder, dist.get_world_size())]
 
             
                 upperfill_big = int((16 - (split_size + 1) % 16)/2)
@@ -95,20 +95,20 @@ class TaylorGreenVortex(ExtFlow):
                     extended_split = torch.cat([left_neighbor, bigsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
 
-                for i in range(len(range(remainder, num_splits))):
+                for i in range(len(range(remainder, dist.get_world_size()))):
                     left_neighbor = smallsplits[i-1][-lowerfill_small:] if i > 0 else bigsplits[-1][-lowerfill_small:]  # Get last value of previous (or last split for first one)
-                    right_neighbor = smallsplits[i+1][:upperfill_small] if i < len(range(remainder, num_splits)) - 1 else bigsplits[0][:upperfill_small]  # Get first value of next (or first split for last one)
+                    right_neighbor = smallsplits[i+1][:upperfill_small] if i < len(range(remainder, dist.get_world_size())) - 1 else bigsplits[0][:upperfill_small]  # Get first value of next (or first split for last one)
 
                     extended_split = torch.cat([left_neighbor, smallsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
 
                 return extended_splits
             else:
-                splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(num_splits)]
+                splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
                 extended_splits = []
-                for i in range(num_splits):
+                for i in range(dist.get_world_size()):
                     left_neighbor = splits[i-1][-8:] if i > 0 else splits[-1][-8:]  # Get last value of previous (or last split for first one)
-                    right_neighbor = splits[i+1][:8] if i < num_splits - 1 else splits[0][:8]  # Get first value of next (or first split for last one)
+                    right_neighbor = splits[i+1][:8] if i < dist.get_world_size() - 1 else splits[0][:8]  # Get first value of next (or first split for last one)
 
                     extended_split = torch.cat([left_neighbor, splits[i], right_neighbor])
                     extended_splits.append(extended_split)
