@@ -276,7 +276,7 @@ if __name__ == "__main__":
     parser.add_argument("--load_dataset_idx", type=int, default=4)
     parser.add_argument("--save_dataset", type=bool, default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
-    parser.add_argument("--K", type=str, default="neurall")
+    parser.add_argument("--K", type=str, default="constant")
     parser.add_argument("--train", type=bool, default=False)
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--train_mach_numbers", type=list, default=[0.15, 0.2, 0.25, 0.3])
@@ -308,6 +308,8 @@ if __name__ == "__main__":
         running_loss = 0.0
         for i, (idx, ma) in enumerate(pairs):
             dataset_name = f"./dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}.h5"
+            print(args["train"])
+            print(args["load_dataset"])
             dataset_train = (LettuceDataset(context=context, filebase=dataset_name, target=False)
                              if args["load_dataset"] or args["train"] else None)
             if args["train"]: optimizer.zero_grad()
