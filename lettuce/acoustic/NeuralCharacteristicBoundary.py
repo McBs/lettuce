@@ -268,27 +268,26 @@ if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--nx", type=int, default=500)
     parser.add_argument("--ny", type=int, default=900)
-    parser.add_argument("--extension", type=int, default=400)
+    parser.add_argument("--extension", type=int, default=00)
     parser.add_argument("--Re", type=int, default=750, help="")
-    parser.add_argument("--Ma", type=float, default=0.15, help="")
-    parser.add_argument("--t_pu", type=float, default=5)
-    parser.add_argument("--load_dataset", type=bool, default=False)
+    parser.add_argument("--Ma", type=float, default=0.3, help="")
+    parser.add_argument("--t_pu", type=float, default=3.75)
+    parser.add_argument("--load_dataset", action="store_true", default=True)
     parser.add_argument("--load_dataset_idx", type=int, default=4)
-    parser.add_argument("--save_dataset", type=bool, default=False)
+    parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
-    parser.add_argument("--K", type=str, default="constant")
-    parser.add_argument("--train", type=bool, default=False)
+    parser.add_argument("--K", type=str, default="neurall")
+    parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=15)
-    parser.add_argument("--train_mach_numbers", type=list, default=[0.15, 0.2, 0.25, 0.3])
-    parser.add_argument("--train_t_pu_intervals", type=list, default=[4])
+    parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
+    parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
     args, unknown = parser.parse_known_args()
     args = vars(args)
-
 
     shift = 7
     torch.manual_seed(0)
 
-    K_tuned = NeuralTuning() if args["K"] == "neural" else 0.6
+    K_tuned = NeuralTuning() if args["K"] == "neural" else 1
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices = [slice(args["nx"] - 200, args["nx"]), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices = [slice(None, None), slice(None, None)]
@@ -307,12 +306,12 @@ if __name__ == "__main__":
         print(f"Epoch: {_}" if args["train"] else "Running ...")
         running_loss = 0.0
         for i, (idx, ma) in enumerate(pairs):
+            print(idx, ma, args["save_iteration"])
             dataset_name = f"./dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}.h5"
-            print(args["train"])
-            print(args["load_dataset"])
             dataset_train = (LettuceDataset(context=context, filebase=dataset_name, target=False)
                              if args["load_dataset"] or args["train"] else None)
             if args["train"]: optimizer.zero_grad()
+
             t_pu = idx * args["save_iteration"] if args["train"] else args["t_pu"]
             flow = run(context=context,
                        config=args,
