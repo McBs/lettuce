@@ -84,6 +84,7 @@ class Simulation:
                     [it for it in self.flow.f.shape], context=self.context)
                 if nsm is not None:
                     self.no_streaming_mask |= nsm
+                self.collision_ids = torch.tensor([0]).to(device=self.no_collision_mask.device)
 
         # ============================== #
         # generate cuda_native implementation #
@@ -175,17 +176,13 @@ class Simulation:
         return self.flow.f
 
     def _collide(self):
-        if self.no_collision_mask is None:
-            self.flow.f = self.collision(self.flow)
-            for i, boundary in enumerate(self.boundaries[1:], start=1):
-                self.flow.f = boundary(self.flow)
-        else:
-            torch.where(torch.eq(self.no_collision_mask, 0),
-                        self.collision(self.flow), self.flow.f,
-                        out=self.flow.f)
-            for i, boundary in enumerate(self.boundaries[1:], start=1):
-                torch.where(torch.eq(self.no_collision_mask, i),
-                            boundary(self.flow), self.flow.f, out=self.flow.f)
+        # for i, boundary in enumerate(self.boundaries[1:], start=1):
+        #     torch.where(torch.eq(self.no_collision_mask, i),
+        #                 boundary(self.flow), self.flow.f, out=self.flow.f)
+
+        for boundary in self.boundaries[1:]:
+            self.flow.f = boundary(self.flow)
+        self.flow.f = self.collision(self.flow)
         return self.flow.f
 
     def _report(self):
