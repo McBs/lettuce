@@ -264,7 +264,7 @@ class NeuralTuning(torch.nn.Module):
             dtype=f.dtype,
             device=f.device
         )
-        return (self.net( torch.cat([mach_tensor,f.transpose(0,1)], dim=1))-0.5)*2
+        return (self.net( torch.cat([mach_tensor,f.transpose(0,1)], dim=1)))
 
 
 if __name__ == "__main__":
@@ -334,12 +334,13 @@ if __name__ == "__main__":
                 rho_train = flow.rho()[:,slices[0],slices[1]]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
                 loss = criterion(rho_ref, rho_train)
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-                # loss.backward()
-                # optimizer.step()
+                # scaler.scale(loss).backward()
+                # scaler.step(optimizer)
+                # scaler.update()
+                loss.backward()
+                optimizer.step()
                 running_loss += loss.item()
+                print("running_loss:", running_loss)
                 # if i == len(pairs)-1:
                 #     rho = flow.rho_pu.cpu()[0]
                 #     plt.imshow(rho[slices[0],slices[1]].detach().numpy().transpose(), vmin=-4e-5 + 1, vmax=4e-5 + 1,
