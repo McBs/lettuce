@@ -12,7 +12,7 @@ from itertools import product
 from plot import *
 from torch.cuda.amp import GradScaler
 from torch.amp import autocast
-
+import torch.optim as optim
 
 class Acoustic(ExtFlow):
     def __init__(self, context: 'Context', resolution: Union[int, List[int]],
@@ -242,7 +242,7 @@ def run(context, config, K, dataset, dataset_nr, t_pu):
     return flow
 
 class NeuralTuning(torch.nn.Module):
-    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None):
+    def __init__(self, dtype=torch.float64, device='cuda', nodes=40, index=None):
         """Initialize a neural network boundary model."""
         super(NeuralTuning, self).__init__()
         self.moment = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
@@ -250,7 +250,6 @@ class NeuralTuning(torch.nn.Module):
             torch.nn.Linear(10, nodes, bias=True),
             torch.nn.ReLU(),
             torch.nn.Linear(nodes, nodes, bias=True),
-            torch.nn.ReLU(),
             torch.nn.Linear(nodes, 1, bias=True),
             torch.nn.Sigmoid(),
         ).to(dtype=dtype, device=device)
@@ -278,16 +277,18 @@ if __name__ == "__main__":
     parser.add_argument("--Ma", type=float, default=0.3, help="")
     parser.add_argument("--t_pu", type=float, default=5)
     parser.add_argument("--load_dataset", action="store_true", default=False)
-    parser.add_argument("--load_dataset_idx", type=int, default=1)
+    parser.add_argument("--load_dataset_idx", type=int, default=0)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
     parser.add_argument("--K", type=str, default="neural")
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=True)
     parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--scheduler_step", type=int, default=10)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
     parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
-    parser.add_argument("--expand_intervals", action="store_true", default=True)
+    parser.add_argument("--expand_intervals", action="store_true", default=False)
+    parser.add_argument("--lr", type=float, default=1e-3)
     args, unknown = parser.parse_known_args()
     args = vars(args)
     [print(arg, args[arg]) for arg in args]
@@ -299,7 +300,7 @@ if __name__ == "__main__":
         K_tunes = torch.load("model_training_v1.pt", weights_only=False)
         print("YES")
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
-    slices = [slice(args["nx"] - 200, args["nx"]), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
+    slices = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices = [slice(None, None), slice(None, None)]
 
     machNumbers = args["train_mach_numbers"]
@@ -311,7 +312,8 @@ if __name__ == "__main__":
     print("Configurations: ", len(pairs))
     if callable(K_tuned) and args["train"]:
         criterion = torch.nn.MSELoss(reduction='sum')
-        optimizer = torch.optim.Adam(K_tuned.parameters(), lr=1e-2)
+        optimizer = torch.optim.Adam(K_tuned.parameters(), lr=args["lr"])
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=0.1)
         epoch_training_loss = []
         scaler = GradScaler()
         optimizer.zero_grad()
@@ -360,6 +362,8 @@ if __name__ == "__main__":
                 #     plt.colorbar()
                 #     plt.tight_layout()
                 #     plt.show()
+
+        scheduler.step()
         if args["train"]: epoch_training_loss.append(running_loss)
         if args["train"]: print(epoch_training_loss)
 
@@ -403,4 +407,3 @@ if __name__ == "__main__":
     if args["train"]:
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0])
-
