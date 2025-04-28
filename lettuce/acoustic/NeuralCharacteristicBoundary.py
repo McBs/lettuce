@@ -9,6 +9,7 @@ from matplotlib.patches import Rectangle
 from utility import *
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from itertools import product
+from plot import *
 
 
 class Acoustic(ExtFlow):
@@ -268,17 +269,17 @@ if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--nx", type=int, default=500)
     parser.add_argument("--ny", type=int, default=900)
-    parser.add_argument("--extension", type=int, default=00)
+    parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
-    parser.add_argument("--Ma", type=float, default=0.3, help="")
-    parser.add_argument("--t_pu", type=float, default=3.75)
-    parser.add_argument("--load_dataset", action="store_true", default=True)
+    parser.add_argument("--Ma", type=float, default=0.15, help="")
+    parser.add_argument("--t_pu", type=float, default=5)
+    parser.add_argument("--load_dataset", action="store_true", default=False)
     parser.add_argument("--load_dataset_idx", type=int, default=4)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
-    parser.add_argument("--K", type=str, default="neurall")
-    parser.add_argument("--train", action="store_true", default=False)
-    parser.add_argument("--epochs", type=int, default=15)
+    parser.add_argument("--K", type=str, default="neural")
+    parser.add_argument("--train", action="store_true", default=True)
+    parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
     parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
     args, unknown = parser.parse_known_args()
@@ -287,7 +288,7 @@ if __name__ == "__main__":
     shift = 7
     torch.manual_seed(0)
 
-    K_tuned = NeuralTuning() if args["K"] == "neural" else 1
+    K_tuned = NeuralTuning() if args["K"] == "neural" else 0.6
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices = [slice(args["nx"] - 200, args["nx"]), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices = [slice(None, None), slice(None, None)]
@@ -306,13 +307,14 @@ if __name__ == "__main__":
         print(f"Epoch: {_}" if args["train"] else "Running ...")
         running_loss = 0.0
         for i, (idx, ma) in enumerate(pairs):
-            print(idx, ma, args["save_iteration"])
+
             dataset_name = f"./dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}.h5"
             dataset_train = (LettuceDataset(context=context, filebase=dataset_name, target=False)
                              if args["load_dataset"] or args["train"] else None)
             if args["train"]: optimizer.zero_grad()
 
             t_pu = idx * args["save_iteration"] if args["train"] else args["t_pu"]
+            print(i, ma, t_pu, idx)
             flow = run(context=context,
                        config=args,
                        K=K_tuned,
@@ -329,17 +331,17 @@ if __name__ == "__main__":
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-                if i == len(pairs)-1:
-                    rho = flow.rho_pu.cpu()[0]
-                    plt.imshow(rho[slices[0],slices[1]].detach().numpy().transpose(), vmin=-4e-5 + 1, vmax=4e-5 + 1,
-                               origin='lower')
-                    currentAxis = plt.gca()
-                    currentAxis.add_patch(
-                        Rectangle((args["nx"] - 200, args["ny"] // 2 - 100), 200, 200, fill=None, alpha=1))
-                    plt.title('Density after simulation')
-                    plt.colorbar()
-                    plt.tight_layout()
-                    plt.show()
+                # if i == len(pairs)-1:
+                #     rho = flow.rho_pu.cpu()[0]
+                #     plt.imshow(rho[slices[0],slices[1]].detach().numpy().transpose(), vmin=-4e-5 + 1, vmax=4e-5 + 1,
+                #                origin='lower')
+                #     currentAxis = plt.gca()
+                #     currentAxis.add_patch(
+                #         Rectangle((args["nx"] - 200, args["ny"] // 2 - 100), 200, 200, fill=None, alpha=1))
+                #     plt.title('Density after simulation')
+                #     plt.colorbar()
+                #     plt.tight_layout()
+                #     plt.show()
         if args["train"]: epoch_training_loss.append(running_loss)
     # else:
     #     flow = run(context=context,
@@ -366,34 +368,35 @@ if __name__ == "__main__":
 
     rectangle_x_slice = slice(-200, None)
     rectangle_y_slice = slice(y_start, y_end)
-    plt.imshow(u_norm[x_slice,y_slice].transpose(), vmin=.985, vmax=1.015, origin='lower')
-    currentAxis = plt.gca()
-    currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
+    # plt.imshow(u_norm[x_slice,y_slice].transpose(), vmin=.985, vmax=1.015, origin='lower')
+    # currentAxis = plt.gca()
+    # currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
 
-    plt.title('Velocity after simulation')
-    plt.colorbar()
-    plt.tight_layout()
-    plt.show()
+    # plt.title('Velocity after simulation')
+    # plt.colorbar()
+    # plt.tight_layout()
+    # plt.show()
+    #
+    # rho = flow.rho_pu.cpu()[0]
+    # plt.imshow(rho[x_slice,y_slice].detach().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin='lower')
+    # currentAxis = plt.gca()
+    # currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
+    # plt.title('Velocity after simulation')
+    # plt.colorbar()
+    # plt.tight_layout()
+    # plt.show()
 
-    rho = flow.rho_pu.cpu()[0]
-    plt.imshow(rho[x_slice,y_slice].detach().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin='lower')
-    currentAxis = plt.gca()
-    currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
-    plt.title('Velocity after simulation')
-    plt.colorbar()
-    plt.tight_layout()
-    plt.show()
     if args["train"]:
-        plt.imshow(flow.units.convert_density_to_pu(flow.rho(reference)).detach().cpu().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin="lower")
-        plt.show()
+        # plt.imshow(flow.units.convert_density_to_pu(flow.rho(reference)).detach().cpu().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin="lower")
+        # plt.show()
+        #
+        # u_norm = np.linalg.norm(flow.units.convert_velocity_to_pu(flow.u(reference)).detach().cpu().numpy(), axis=0)
+        # plt.imshow(u_norm.transpose(), vmin=.985, vmax=1.015, origin="lower")
+        # plt.title('Velocity after simulation')
+        # plt.colorbar()
+        # plt.tight_layout()
+        # plt.show()
 
-        u_norm = np.linalg.norm(flow.units.convert_velocity_to_pu(flow.u(reference)).detach().cpu().numpy(), axis=0)
-        plt.imshow(u_norm.transpose(), vmin=.985, vmax=1.015, origin="lower")
-        plt.title('Velocity after simulation')
-        plt.colorbar()
-        plt.tight_layout()
-        plt.show()
+        plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
+        plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0])
 
-
-        plt.plot(np.array(epoch_training_loss)/epoch_training_loss[0])
-        plt.show()
