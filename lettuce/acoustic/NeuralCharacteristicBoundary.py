@@ -276,9 +276,9 @@ if __name__ == "__main__":
     parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
-    parser.add_argument("--t_pu", type=float, default=5)
-    parser.add_argument("--load_dataset", action="store_true", default=False)
-    parser.add_argument("--load_dataset_idx", type=int, default=1)
+    parser.add_argument("--t_pu", type=float, default=3.75)
+    parser.add_argument("--load_dataset", action="store_true", default=True)
+    parser.add_argument("--load_dataset_idx", type=int, default=4)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
     parser.add_argument("--K", type=str, default="neural")
@@ -299,7 +299,7 @@ if __name__ == "__main__":
         K_tunes = torch.load("model_training_v1.pt", weights_only=False)
         print("YES")
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
-    slices = [slice(args["nx"] - 200, args["nx"]), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
+    slices = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices = [slice(None, None), slice(None, None)]
 
     machNumbers = args["train_mach_numbers"]
@@ -368,38 +368,44 @@ if __name__ == "__main__":
     u_norm = np.linalg.norm(u.detach().numpy(), axis=0)
     half_ny = args["ny"] // 2
     y_start, y_end = half_ny - 100, half_ny + 100
-    slices = [slice(None, None), slice(None, None)]
+    # slices = [slice(None, None), slice(None, None)]
     x_slice = slices[0]
     y_slice = slices[1]
 
-    rectangle_x_slice = slice(-200, None)
-    rectangle_y_slice = slice(y_start, y_end)
+    # rectangle_x_slice = slice(-200, None)
+    # rectangle_y_slice = slice(y_start, y_end)
     # plt.imshow(u_norm[x_slice,y_slice].transpose(), vmin=.985, vmax=1.015, origin='lower')
     # currentAxis = plt.gca()
     # currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
-    # plt.title('Velocity after simulation')
+    # plt.title('Velocity Simulation')
     # plt.colorbar()
     # plt.tight_layout()
     # plt.show()
+    #
     # rho = flow.rho_pu.cpu()[0]
     # plt.imshow(rho[x_slice,y_slice].detach().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin='lower')
     # currentAxis = plt.gca()
     # currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
-    # plt.title('Velocity after simulation')
+    # plt.title('Density Simulation')
     # plt.colorbar()
     # plt.tight_layout()
     # plt.show()
     #
-    # if args["train"]:
-    #     plt.imshow(flow.units.convert_density_to_pu(flow.rho(reference)).detach().cpu().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin="lower")
-    #     plt.show()
+    # # if args["train"]:
+    # reference = dataset_train(20)[:, slices[0], slices[1]]
+    # u_norm = np.linalg.norm(flow.units.convert_velocity_to_pu(flow.u(reference)).detach().cpu().numpy(), axis=0)
+    # plt.imshow(u_norm.transpose(), vmin=.985, vmax=1.015, origin="lower")
+    # plt.title('Velocity Reference')
+    # plt.colorbar()
+    # plt.tight_layout()
+    # plt.show()
     #
-    #     u_norm = np.linalg.norm(flow.units.convert_velocity_to_pu(flow.u(reference)).detach().cpu().numpy(), axis=0)
-    #     plt.imshow(u_norm.transpose(), vmin=.985, vmax=1.015, origin="lower")
-    #     plt.title('Velocity after simulation')
-    #     plt.colorbar()
-    #     plt.tight_layout()
-    #     plt.show()
+    # plt.imshow(flow.units.convert_density_to_pu(flow.rho(reference)).detach().cpu().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin="lower")
+    # plt.title('Density Reference')
+    # plt.tight_layout()
+    # plt.colorbar()
+    # plt.show()
+
     if args["train"]:
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0])
