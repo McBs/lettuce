@@ -218,26 +218,27 @@ class CharacteristicBoundary(lt.Boundary):
         return None
 
 def run(context, config, K, dataset, dataset_nr, t_pu):
-    with torch.no_grad():
-        flow = Acoustic(context, [config["nx"]+config["extension"], config["ny"]],
-                        reynolds_number=config["Re"],
-                        mach_number=config["Ma"],
-                        velocity_init=1,
-                        K=K,
-                        distanceFromRight=200+config["extension"])
-        collision = lt.BGKCollision(tau=flow.units.relaxation_parameter_lu)
-        simulation = lt.Simulation(flow=flow, collision=collision, reporter=[])
-        if config["save_dataset"]:
-            print(f"Saving dataset for Mach {config["Ma"]:03.2f} every {config["save_iteration"]:2.2f} seconds")
-            hdf5_reporter = HDF5Reporter(
-                         flow=flow,
-                         context=context,
-                         interval= int(flow.units.convert_time_to_lu(config["save_iteration"])),
-                         filebase=f"./dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}")
-            simulation.reporter.append(hdf5_reporter)
-        if config["load_dataset"] and dataset_nr is not None and callable(dataset_train):
-            simulation.flow.f = dataset(dataset_nr)[:,:config["nx"]+config["extension"],:config["ny"]]
-    simulation(num_steps=int(flow.units.convert_time_to_lu(t_pu)))
+    # with torch.no_grad():
+    flow = Acoustic(context, [config["nx"]+config["extension"], config["ny"]],
+                    reynolds_number=config["Re"],
+                    mach_number=config["Ma"],
+                    velocity_init=1,
+                    K=K,
+                    distanceFromRight=200+config["extension"])
+    collision = lt.BGKCollision(tau=flow.units.relaxation_parameter_lu)
+    simulation = lt.Simulation(flow=flow, collision=collision, reporter=[])
+    if config["save_dataset"]:
+        print(f"Saving dataset for Mach {config["Ma"]:03.2f} every {config["save_iteration"]:2.2f} seconds")
+        hdf5_reporter = HDF5Reporter(
+                     flow=flow,
+                     context=context,
+                     interval= int(flow.units.convert_time_to_lu(config["save_iteration"])),
+                     filebase=f"./dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}")
+        simulation.reporter.append(hdf5_reporter)
+    if config["load_dataset"] and dataset_nr is not None and callable(dataset_train):
+        simulation.flow.f = dataset(dataset_nr)[:,:config["nx"]+config["extension"],:config["ny"]]
+    with torch.set_grad_enabled(config["train"]):
+        simulation(num_steps=int(flow.units.convert_time_to_lu(t_pu)))
     return flow
 
 class NeuralTuning(torch.nn.Module):
@@ -274,30 +275,37 @@ if __name__ == "__main__":
     parser.add_argument("--ny", type=int, default=900)
     parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
-    parser.add_argument("--Ma", type=float, default=0.15, help="")
+    parser.add_argument("--Ma", type=float, default=0.3, help="")
     parser.add_argument("--t_pu", type=float, default=5)
     parser.add_argument("--load_dataset", action="store_true", default=False)
-    parser.add_argument("--load_dataset_idx", type=int, default=4)
+    parser.add_argument("--load_dataset_idx", type=int, default=1)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
-    parser.add_argument("--K", type=str, default="constant")
+    parser.add_argument("--K", type=str, default="neural")
     parser.add_argument("--train", action="store_true", default=False)
+    parser.add_argument("--load_model", action="store_true", default=True)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
     parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
+    parser.add_argument("--expand_intervals", action="store_true", default=True)
     args, unknown = parser.parse_known_args()
     args = vars(args)
     [print(arg, args[arg]) for arg in args]
     shift = 7
     torch.manual_seed(0)
 
-    K_tuned = NeuralTuning() if args["K"] == "neural" else 0.6
+    K_tuned = NeuralTuning() if args["K"] == "neural" else 1
+    if args["load_model"]:
+        K_tunes = torch.load("model_training_v1.pt", weights_only=False)
+        print("YES")
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices = [slice(args["nx"] - 200, args["nx"]), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices = [slice(None, None), slice(None, None)]
 
     machNumbers = args["train_mach_numbers"]
     intervals = args["train_t_pu_intervals"]
+    if args["expand_intervals"]:
+        intervals = [x for x in intervals for _ in range(x)]
 
     pairs = list(product(intervals, machNumbers)) if args["train"] else [(1,args["Ma"])]
     print("Configurations: ", len(pairs))
@@ -354,19 +362,6 @@ if __name__ == "__main__":
                 #     plt.show()
         if args["train"]: epoch_training_loss.append(running_loss)
         if args["train"]: print(epoch_training_loss)
-    # else:
-    #     flow = run(context=context,
-    #                config=args,
-    #                K=K_tuned,
-    #                dataset=dataset_train,
-    #                dataset_nr=0,
-    #                slices=slices,
-    #                )
-
-
-
-
-
 
 
     u = flow.units.convert_velocity_to_pu(flow.u()).cpu()
@@ -382,12 +377,10 @@ if __name__ == "__main__":
     # plt.imshow(u_norm[x_slice,y_slice].transpose(), vmin=.985, vmax=1.015, origin='lower')
     # currentAxis = plt.gca()
     # currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
-
     # plt.title('Velocity after simulation')
     # plt.colorbar()
     # plt.tight_layout()
     # plt.show()
-    #
     # rho = flow.rho_pu.cpu()[0]
     # plt.imshow(rho[x_slice,y_slice].detach().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin='lower')
     # currentAxis = plt.gca()
@@ -396,18 +389,18 @@ if __name__ == "__main__":
     # plt.colorbar()
     # plt.tight_layout()
     # plt.show()
-
+    #
+    # if args["train"]:
+    #     plt.imshow(flow.units.convert_density_to_pu(flow.rho(reference)).detach().cpu().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin="lower")
+    #     plt.show()
+    #
+    #     u_norm = np.linalg.norm(flow.units.convert_velocity_to_pu(flow.u(reference)).detach().cpu().numpy(), axis=0)
+    #     plt.imshow(u_norm.transpose(), vmin=.985, vmax=1.015, origin="lower")
+    #     plt.title('Velocity after simulation')
+    #     plt.colorbar()
+    #     plt.tight_layout()
+    #     plt.show()
     if args["train"]:
-        # plt.imshow(flow.units.convert_density_to_pu(flow.rho(reference)).detach().cpu().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin="lower")
-        # plt.show()
-        #
-        # u_norm = np.linalg.norm(flow.units.convert_velocity_to_pu(flow.u(reference)).detach().cpu().numpy(), axis=0)
-        # plt.imshow(u_norm.transpose(), vmin=.985, vmax=1.015, origin="lower")
-        # plt.title('Velocity after simulation')
-        # plt.colorbar()
-        # plt.tight_layout()
-        # plt.show()
-
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0])
 
