@@ -10,6 +10,8 @@ from utility import *
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from itertools import product
 from plot import *
+from torch.cuda.amp import GradScaler
+from torch.amp import autocast
 
 
 class Acoustic(ExtFlow):
@@ -196,9 +198,10 @@ class CharacteristicBoundary(lt.Boundary):
         self.rho_dt_old = rho_dt
         self.u_dt_old = u_dt
         self.v_dt_old = v_dt
-        f_out = flow.f.clone()
-        f_out[:, -1, :] = f_local
-        return f_out
+        flow.f[:, -1, :] = f_local
+        # f_out = flow.f.clone()
+        # f_out[:, -1, :] = f_local
+        return flow.f
 
     def make_no_collision_mask(self, shape: List[int], context: 'Context'
                                ) -> Optional[torch.Tensor]:
@@ -277,7 +280,7 @@ if __name__ == "__main__":
     parser.add_argument("--load_dataset_idx", type=int, default=4)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
-    parser.add_argument("--K", type=str, default="neural")
+    parser.add_argument("--K", type=str, default="constant")
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
@@ -302,6 +305,8 @@ if __name__ == "__main__":
         criterion = torch.nn.MSELoss(reduction='sum')
         optimizer = torch.optim.Adam(K_tuned.parameters(), lr=1e-2)
         epoch_training_loss = []
+        scaler = GradScaler()
+        optimizer.zero_grad()
 
     for _ in range(args["epochs"] if args["train"] else 1):
         print(f"Epoch: {_}" if args["train"] else "Running ...")
@@ -315,21 +320,25 @@ if __name__ == "__main__":
 
             t_pu = idx * args["save_iteration"] if args["train"] else args["t_pu"]
             print(i, ma, t_pu, idx)
-            flow = run(context=context,
-                       config=args,
-                       K=K_tuned,
-                       dataset = dataset_train,
-                       dataset_nr = args["load_dataset_idx"],
-                       t_pu = t_pu
-                       )
+            with autocast(context.device.type):
+                flow = run(context=context,
+                           config=args,
+                           K=K_tuned,
+                           dataset = dataset_train,
+                           dataset_nr = args["load_dataset_idx"],
+                           t_pu = t_pu
+                           )
             if callable(K_tuned) and args["train"]:
                 reference = dataset_train(idx+args["load_dataset_idx"])[:,slices[0],slices[1]]
                 rho_ref = flow.rho(reference)
                 rho_train = flow.rho()[:,slices[0],slices[1]]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
                 loss = criterion(rho_ref, rho_train)
-                loss.backward()
-                optimizer.step()
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                # loss.backward()
+                # optimizer.step()
                 running_loss += loss.item()
                 # if i == len(pairs)-1:
                 #     rho = flow.rho_pu.cpu()[0]
