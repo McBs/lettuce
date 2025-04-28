@@ -278,13 +278,13 @@ if __name__ == "__main__":
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
     parser.add_argument("--K", type=str, default="neural")
-    parser.add_argument("--train", action="store_true", default=True)
+    parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
     parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
     args, unknown = parser.parse_known_args()
     args = vars(args)
-
+    [print(arg, args[arg]) for arg in args]
     shift = 7
     torch.manual_seed(0)
 
