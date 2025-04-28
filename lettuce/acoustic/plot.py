@@ -15,11 +15,13 @@ class PlotNeuralNetwork(plopy.Plot):
         ax1.tick_params(axis="y", direction="in", pad=0)
         ax1.set_title(r"\noindent\footnotesize{$L$}", ha='right')
         ax1.set_title(r"\noindent\textbf{Loss} \textendash{} \footnotesize{TGV3D}", loc='left', )
-        ax1.set_xlabel(r"\textit{Epochs}", style='italic', color='#525254')
+        ax1.set_title("L", ha='right')
+        ax1.set_title("Loss", loc='left', )
+        ax1.set_xlabel("Epochs", style='italic', color='#525254')
 
         DarkGray = "#222222"
         epochs = np.arange(1,len(loss)+1) if epochs is None else epochs
-        plt.plot(epochs, loss, linewidth=1.5, color=DarkGray, label=r'\footnotesize{\textsc{ref}}')
+        plt.plot(epochs, loss, linewidth=1.5, color=DarkGray, label=r'Loss')
 
         self.standard_export(name="loss_function",
                              png=False,
@@ -34,7 +36,7 @@ if __name__ == "__main__":
     x = torch.arange(10)
     y = torch.exp(x)
 
-    plot = NeuralNetwork(
+    plot = PlotNeuralNetwork(
         base="./",
         style="/home/mbedru3s/science/plopy/plopy/styles/ecostyle.mplstyle")
     plot.loss_function(y)
