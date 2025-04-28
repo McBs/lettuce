@@ -352,6 +352,7 @@ if __name__ == "__main__":
                 #     plt.tight_layout()
                 #     plt.show()
         if args["train"]: epoch_training_loss.append(running_loss)
+        if args["train"]: print(epoch_training_loss)
     # else:
     #     flow = run(context=context,
     #                config=args,
