@@ -183,7 +183,7 @@ class CharacteristicBoundary(lt.Boundary):
         v_dx = -(v_left-v_local)
 
         L5 = (u_local + self.cs) * (p_dx + rho_local * self.cs * u_dx)
-        K0 = self.K(f_left, self.mach)[:, 0] if callable(self.K)  else self.K
+        K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
         L1 = -K0*(self.cs2*rho_local-self.cs2*1)
         L3 = u_local * v_dx
 
@@ -247,7 +247,7 @@ class NeuralTuning(torch.nn.Module):
         super(NeuralTuning, self).__init__()
         self.moment = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
         self.net = torch.nn.Sequential(
-            torch.nn.Linear(10, nodes, bias=True),
+            torch.nn.Linear(9, nodes, bias=True),
             torch.nn.ReLU(),
             torch.nn.Linear(nodes, nodes, bias=True),
             torch.nn.ReLU(),
@@ -257,31 +257,26 @@ class NeuralTuning(torch.nn.Module):
         self.index = index
         print("Initialized NeuralTuning")
 
-    def forward(self, f, mach):
+    def forward(self, f):
         """Forward pass through the network with residual connection."""
-        mach_tensor = torch.full(
-            (f.size(1), 1),
-            mach,
-            dtype=f.dtype,
-            device=f.device
-        )
-        return (self.net( torch.cat([mach_tensor,f.transpose(0,1)], dim=1)))
+
+        return self.net(f.transpose(0,1))
 
 
 if __name__ == "__main__":
 
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--nx", type=int, default=500)
-    parser.add_argument("--ny", type=int, default=900)
+    parser.add_argument("--nx", type=int, default=320)
+    parser.add_argument("--ny", type=int, default=500)
     parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
-    parser.add_argument("--t_pu", type=float, default=3.75)
-    parser.add_argument("--load_dataset", action="store_true", default=True)
-    parser.add_argument("--load_dataset_idx", type=int, default=4)
+    parser.add_argument("--t_pu", type=float, default=3)
+    parser.add_argument("--load_dataset", action="store_true", default=False)
+    parser.add_argument("--load_dataset_idx", type=int, default=0)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
-    parser.add_argument("--K", type=str, default="neural")
+    parser.add_argument("--K_neural", action="store_true", default=True)
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=True)
     parser.add_argument("--epochs", type=int, default=2)
@@ -294,10 +289,11 @@ if __name__ == "__main__":
     shift = 7
     torch.manual_seed(0)
 
-    K_tuned = NeuralTuning() if args["K"] == "neural" else 1
+    K_tuned = NeuralTuning() if args["K_neural"] else 0
     if args["load_model"]:
-        K_tunes = torch.load("model_training_v1.pt", weights_only=False)
-        print("YES")
+        K_tuned = torch.load("model_training_v1.pt", weights_only=False)
+        K_tuned.eval()
+        print("Model loaded")
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices = [slice(None, None), slice(None, None)]
@@ -363,7 +359,7 @@ if __name__ == "__main__":
         if args["train"]: epoch_training_loss.append(running_loss)
         if args["train"]: print(epoch_training_loss)
 
-
+    if args["train"]: torch.save(K_tuned, "model_training_v1.pt")
     u = flow.units.convert_velocity_to_pu(flow.u()).cpu()
     u_norm = np.linalg.norm(u.detach().numpy(), axis=0)
     half_ny = args["ny"] // 2
