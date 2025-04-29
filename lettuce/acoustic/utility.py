@@ -7,7 +7,7 @@ import io
 from typing import Union, List, Optional
 
 __all__ = [
-    "Transform", "D2Q9Dellar", "ShiftedSigmoid", "HDF5Reporter", "LettuceDataset", "WVelocity"
+    "Transform", "D2Q9Dellar", "ShiftedSigmoid", "HDF5Reporter", "LettuceDataset", "WVelocity", "TotalPressure"
 ]
 
 class Transform:
@@ -129,17 +129,42 @@ class ShiftedSigmoid(torch.nn.Module):
         """Apply sigmoid transformation with a shift."""
         return torch.sigmoid(x)
 
-class HDF5Reporter:
+class TotalPressure:
 
-    def __init__(self, context, flow, interval, filebase='./output', metadata=None):
+    def __init__(self, context, interval, slices=[slice(None, None), slice(None, None)]):
         self.context = context
         self.interval = interval
+        self.out_total = []
+        self.t = []
+        self.slices = slices
+
+    def __call__(self, simulation: 'Simulation'):
+        i = simulation.flow.i
+        if i % self.interval == 0:
+            out = simulation.flow.incompressible_energy()[self.slices[0],self.slices[1]].mean()
+            out = simulation.flow.rho()[0,self.slices[0],self.slices[1]].mean()
+            out = simulation.flow.units.convert_density_to_lu(simulation.flow.rho()[0,self.slices[0],self.slices[1]]).mean()
+            # out = simulation.flow.incompressible_energy().sum()
+            # self.rho_total.append(out)
+            # self.rho_total.append((simulation.flow.rho()[0,self.slices[0],self.slices[1]]).sum())
+            self.out_total.append(out)
+            self.t.append(simulation.flow.units.convert_time_to_pu(i))
+
+class HDF5Reporter:
+
+    def __init__(self, context, flow, interval, filebase='./output', metadata=None, slices=None):
+        self.context = context
+        self.interval = interval
+        self.slices = slices
         self.filebase = filebase
         fs = h5py.File(self.filebase + '.h5', 'w')
         if metadata:
             for attr in metadata:
                 fs.attrs[attr] = metadata[attr]
-        self.shape = (flow.stencil.q, *flow.grid[0].shape)
+        if slices is not None:
+            self.shape = (flow.stencil.q, *[slices[0].stop - slices[0].start, slices[1].stop - slices[1].start])
+        else:
+            self.shape = (flow.stencil.q, *flow.grid[0].shape)
         fs.create_dataset(name="f",
                           shape=(0, *self.shape),
                           maxshape=(None, *self.shape))
@@ -151,7 +176,10 @@ class HDF5Reporter:
         if i % self.interval == 0:
             with h5py.File(self.filebase + '.h5', 'r+') as fs:
                 fs["f"].resize(fs["f"].shape[0]+1, axis=0)
-                fs["f"][-1, ...] = self.context.convert_to_ndarray(f)
+                if self.slices is not None:
+                    fs["f"][-1, ...] = self.context.convert_to_ndarray(f[:,*self.slices])
+                else:
+                    fs["f"][-1, ...] = self.context.convert_to_ndarray(f)
                 fs.attrs['data'] = str(fs["f"].shape[0])
                 fs.attrs['steps'] = str(i)
 

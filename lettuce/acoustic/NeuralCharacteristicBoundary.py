@@ -231,6 +231,7 @@ def run(context, config, K, dataset, dataset_nr, t_pu):
         print(f"Saving dataset for Mach {config["Ma"]:03.2f} every {config["save_iteration"]:2.2f} seconds")
         hdf5_reporter = HDF5Reporter(
                      flow=flow,
+                     slices=slices,
                      context=context,
                      interval= int(flow.units.convert_time_to_lu(config["save_iteration"])),
                      filebase=f"./dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}")
@@ -279,6 +280,7 @@ if __name__ == "__main__":
     parser.add_argument("--K_neural", action="store_true", default=True)
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=True)
+    parser.add_argument("--reporter", action="store_true", default=True)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
     parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
@@ -296,6 +298,7 @@ if __name__ == "__main__":
         print("Model loaded")
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
+    slices_2 = [slice(args["nx"] - 200, args["nx"]-150), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices = [slice(None, None), slice(None, None)]
 
     machNumbers = args["train_mach_numbers"]
