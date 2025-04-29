@@ -349,7 +349,7 @@ if __name__ == "__main__":
                                      t_pu = t_pu
                                      )
             if callable(K_tuned) and args["train"]:
-                reference = dataset_train(idx+args["load_dataset_idx"])[:,slices[0],slices[1]]
+                reference = dataset_train(idx+args["load_dataset_idx"])#[:,slices[0],slices[1]]
                 rho_ref = flow.rho(reference)
                 rho_train = flow.rho()[:,slices[0],slices[1]]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
