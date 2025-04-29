@@ -437,3 +437,4 @@ if __name__ == "__main__":
         plt.plot(t,out/out[0])
         plt.ylim(1-1e-5,1+1.3e-5)
         plt.show()
+        print(K_tuned(flow.f[:,slices[0].stop,:]))
