@@ -325,7 +325,7 @@ if __name__ == "__main__":
     pairs = list(product(intervals, machNumbers)) if args["train"] else [(1,args["Ma"])]
     print("Configurations: ", len(pairs))
     if callable(K_tuned) and args["train"]:
-        criterion = torch.nn.MSELoss(reduction='sum')
+        criterion = torch.nn.MSELoss(reduction='mean')
         optimizer = torch.optim.Adam(K_tuned.parameters(), lr=args["lr"])
         if args["scheduler"]:
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=args["scheduler_gamma"])
@@ -358,7 +358,8 @@ if __name__ == "__main__":
                 rho_ref = flow.rho(reference)
                 rho_train = flow.rho()[:,slices[0],slices[1]]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
-                loss = criterion(rho_ref, rho_train)
+                k = K_tuned(flow.f[:,slices[0].stop-1,:])
+                loss = criterion(rho_ref, rho_train) #+ criterion(k, torch.zeros_like(k))
                 # scaler.scale(loss).backward()
                 # scaler.step(optimizer)
                 # scaler.update()
