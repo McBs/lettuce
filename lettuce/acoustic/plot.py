@@ -9,7 +9,7 @@ __all__ = [
 
 class PlotNeuralNetwork(plopy.Plot):
 
-    def loss_function(self, loss=None, epochs=None):
+    def loss_function(self, loss=None, epochs=None, name=name):
         fig, ax1 = plt.subplots()
         ax1.grid(visible=True, which='major', axis='y')
         ax1.tick_params(axis="y", direction="in", pad=0)
@@ -23,7 +23,7 @@ class PlotNeuralNetwork(plopy.Plot):
         epochs = np.arange(1,len(loss)+1) if epochs is None else epochs
         plt.plot(epochs, loss, linewidth=1.5, color=DarkGray, label=r'Loss')
 
-        self.standard_export(name="loss_function",
+        self.standard_export(name=name,
                              png=False,
                              pdf=True)
         export = False
