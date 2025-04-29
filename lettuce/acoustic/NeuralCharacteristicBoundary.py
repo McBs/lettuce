@@ -287,15 +287,20 @@ if __name__ == "__main__":
     parser.add_argument("--K_neural", action="store_true", default=False)
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=False)
-    parser.add_argument("--model_name", type=str, default="model_trained.pt")
+    parser.add_argument("--model_name_saved", type=str, default="model_trained.pt")
+    parser.add_argument("--model_name_loaded", type=str, default="model_trained_init.pt")
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=10)
+    parser.add_argument("--scheduler_gamma", type=float, default=0.1)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
     parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
     parser.add_argument("--expand_intervals", action="store_true", default=False)
     parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--loss_plot_name", type=str, default="model_trained.pt")
+
+
     args, unknown = parser.parse_known_args()
     args = vars(args)
     [print(arg, args[arg]) for arg in args]
@@ -304,7 +309,7 @@ if __name__ == "__main__":
 
     K_tuned = NeuralTuning() if args["K_neural"] else 0
     if args["load_model"]:
-        K_tuned = torch.load("model_training_init.pt", weights_only=False)
+        K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
         print("Model loaded")
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
@@ -323,7 +328,7 @@ if __name__ == "__main__":
         criterion = torch.nn.MSELoss(reduction='sum')
         optimizer = torch.optim.Adam(K_tuned.parameters(), lr=args["lr"])
         if args["scheduler"]:
-            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=0.1)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=args["scheduler_gamma"])
         epoch_training_loss = []
         scaler = GradScaler()
         optimizer.zero_grad()
@@ -379,7 +384,7 @@ if __name__ == "__main__":
             epoch_training_loss.append(running_loss)
             print(epoch_training_loss)
 
-    if args["train"]: torch.save(K_tuned, args["model_name"])
+    if args["train"]: torch.save(K_tuned, args["model_name_saved"])
     u = flow.units.convert_velocity_to_pu(flow.u()).cpu()
     u_norm = np.linalg.norm(u.detach().numpy(), axis=0)
     half_ny = args["ny"] // 2
@@ -424,7 +429,7 @@ if __name__ == "__main__":
 
     if args["train"]:
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
-        plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0])
+        plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
 
     if reporter is not None:
         out = torch.tensor(reporter.out_total).cpu().detach()
