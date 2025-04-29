@@ -24,7 +24,6 @@ class NeuralTuning(torch.nn.Module):
             torch.nn.Linear(9, nodes, bias=True),
             torch.nn.ReLU(),
             torch.nn.Linear(nodes, nodes, bias=True),
-            torch.nn.ReLU(),
             torch.nn.Linear(nodes, 1, bias=True),
             torch.nn.Sigmoid(),
         ).to(dtype=dtype, device=device)
@@ -34,7 +33,7 @@ class NeuralTuning(torch.nn.Module):
     def forward(self, f):
         """Forward pass through the network with residual connection."""
 
-        return self.net(f[:,25,:].transpose(0,1))
+        return self.net(f.transpose(0,1))
 
 
 if __name__ == "__main__":
@@ -42,7 +41,7 @@ if __name__ == "__main__":
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     flow = lt.TaylorGreenVortex(context, resolution=[100,100], reynolds_number=300, mach_number=0.3)
     # print(flow.f)
-    K = K_tuned(flow.f)
+    # K = K_tuned(flow.f)
     criterion = torch.nn.MSELoss(reduction='sum')
     optimizer = torch.optim.Adam(K_tuned.parameters(), lr=1e-1)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=500, gamma=0.1)
@@ -53,14 +52,14 @@ if __name__ == "__main__":
     running_loss = []
     for i in range(2000):
         optimizer.zero_grad()
-        k = K_tuned(flow.f)
-        loss = criterion(k, torch.zeros_like(k))
+        k = K_tuned(flow.f[:,25,:])
+        loss = criterion(k, torch.zeros_like(k)+0.4)
         loss.backward()
         optimizer.step()
         running_loss.append(loss.item())
         # print("running_loss:", running_loss)
     plt.plot(running_loss)
     plt.show()
-    print(K_tuned(flow.f))
+    print(K_tuned(flow.f[:,25,:]))
     print(running_loss[-1])
-    torch.save(K_tuned, "model_training_v1.pt")
+    torch.save(K_tuned, "model_training_init_04.pt")
