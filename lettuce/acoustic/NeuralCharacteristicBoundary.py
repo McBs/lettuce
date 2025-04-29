@@ -198,10 +198,11 @@ class CharacteristicBoundary(lt.Boundary):
         self.rho_dt_old = rho_dt
         self.u_dt_old = u_dt
         self.v_dt_old = v_dt
-        flow.f[:, -1, :] = f_local
-        # f_out = flow.f.clone()
-        # f_out[:, -1, :] = f_local
-        return flow.f
+        # flow.f[:, -1, :] = f_local
+        # return flow.f
+        f_out = flow.f.clone()
+        f_out[:, -1, :] = f_local
+        return f_out
 
     def make_no_collision_mask(self, shape: List[int], context: 'Context'
                                ) -> Optional[torch.Tensor]:
@@ -277,7 +278,8 @@ if __name__ == "__main__":
     parser.add_argument("--save_iteration", type=float, default=0.25)
     parser.add_argument("--K_neural", action="store_true", default=True)
     parser.add_argument("--train", action="store_true", default=False)
-    parser.add_argument("--load_model", action="store_true", default=True)
+    parser.add_argument("--load_model", action="store_true", default=False)
+    parser.add_argument("--model_name", type=str, default="model_trained.pt")
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--scheduler_step", type=int, default=10)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
@@ -292,7 +294,7 @@ if __name__ == "__main__":
 
     K_tuned = NeuralTuning() if args["K_neural"] else 0
     if args["load_model"]:
-        K_tuned = torch.load("model_training_v1.pt", weights_only=False)
+        K_tuned = torch.load("model_training_init.pt", weights_only=False)
         K_tuned.eval()
         print("Model loaded")
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
@@ -363,7 +365,7 @@ if __name__ == "__main__":
         if args["train"]: epoch_training_loss.append(running_loss)
         if args["train"]: print(epoch_training_loss)
 
-    if args["train"]: torch.save(K_tuned, "model_training_v1.pt")
+    if args["train"]: torch.save(K_tuned, args["model_name"])
     u = flow.units.convert_velocity_to_pu(flow.u()).cpu()
     u_norm = np.linalg.norm(u.detach().numpy(), axis=0)
     half_ny = args["ny"] // 2
