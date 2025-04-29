@@ -251,7 +251,7 @@ def run(context, config, K, dataset, dataset_nr, t_pu):
     return flow, reporter
 
 class NeuralTuning(torch.nn.Module):
-    def __init__(self, dtype=torch.float64, device='cuda', nodes=40, index=None):
+    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None):
         """Initialize a neural network boundary model."""
         super(NeuralTuning, self).__init__()
         self.moment = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
@@ -425,3 +425,10 @@ if __name__ == "__main__":
     if args["train"]:
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0])
+
+    if reporter is not None:
+        out = torch.tensor(reporter.out_total).cpu().detach()
+        t = torch.tensor(reporter.t).cpu().detach()
+        plt.plot(t,out/out[0])
+        plt.ylim(1-1e-5,1+1.3e-5)
+        plt.show()
