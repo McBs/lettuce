@@ -86,7 +86,7 @@ class Acoustic(ExtFlow):
 
     def convectedVortex(self) -> (torch.Tensor, torch.Tensor):
         xc, yc = [r * 0.5 for r in self.resolution]
-        xc = 100
+        xc = 150
         # yc = 100
         x, y = self.grid  # beide Shape: (nx, ny)
         x = self.units.convert_length_to_lu(x)
@@ -228,6 +228,10 @@ def run(context, config, K, dataset, dataset_nr, t_pu):
                     distanceFromRight=200+config["extension"])
     collision = lt.BGKCollision(tau=flow.units.relaxation_parameter_lu)
     simulation = lt.Simulation(flow=flow, collision=collision, reporter=[])
+    if config["reporter"]:
+        TotalPressureReporter = TotalPressure(context=context, interval=int(flow.units.convert_time_to_lu(0.05)), slices=slices_2)
+        simulation.reporter.append(TotalPressureReporter)
+        # simulation.reporter.append(lt.VTKReporter(context, flow, interval=int(flow.units.convert_time_to_lu(0.05)), filename_base="vtkoutput/out"))
     if config["save_dataset"]:
         print(f"Saving dataset for Mach {config["Ma"]:03.2f} every {config["save_iteration"]:2.2f} seconds")
         hdf5_reporter = HDF5Reporter(
@@ -241,7 +245,10 @@ def run(context, config, K, dataset, dataset_nr, t_pu):
         simulation.flow.f = dataset(dataset_nr)[:,:config["nx"]+config["extension"],:config["ny"]]
     with torch.set_grad_enabled(config["train"]):
         simulation(num_steps=int(flow.units.convert_time_to_lu(t_pu)))
-    return flow
+        # simulation.boundaries[1].K = 0.4
+        # simulation(num_steps=int(flow.units.convert_time_to_lu(1)))
+    reporter = simulation.reporter[0] if config["reporter"] else None
+    return flow, reporter
 
 class NeuralTuning(torch.nn.Module):
     def __init__(self, dtype=torch.float64, device='cuda', nodes=40, index=None):
@@ -283,6 +290,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", type=str, default="model_trained.pt")
     parser.add_argument("--reporter", action="store_true", default=True)
     parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=10)
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
     parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
@@ -314,7 +322,8 @@ if __name__ == "__main__":
     if callable(K_tuned) and args["train"]:
         criterion = torch.nn.MSELoss(reduction='sum')
         optimizer = torch.optim.Adam(K_tuned.parameters(), lr=args["lr"])
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=0.1)
+        if args["scheduler"]:
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=0.1)
         epoch_training_loss = []
         scaler = GradScaler()
         optimizer.zero_grad()
@@ -332,13 +341,13 @@ if __name__ == "__main__":
             t_pu = idx * args["save_iteration"] if args["train"] else args["t_pu"]
             print(i, ma, t_pu, idx)
             with autocast(context.device.type):
-                flow = run(context=context,
-                           config=args,
-                           K=K_tuned,
-                           dataset = dataset_train,
-                           dataset_nr = args["load_dataset_idx"],
-                           t_pu = t_pu
-                           )
+                flow, reporter = run(context=context,
+                                     config=args,
+                                     K=K_tuned,
+                                     dataset = dataset_train,
+                                     dataset_nr = args["load_dataset_idx"],
+                                     t_pu = t_pu
+                                     )
             if callable(K_tuned) and args["train"]:
                 reference = dataset_train(idx+args["load_dataset_idx"])[:,slices[0],slices[1]]
                 rho_ref = flow.rho(reference)
@@ -364,9 +373,11 @@ if __name__ == "__main__":
                 #     plt.tight_layout()
                 #     plt.show()
 
-        scheduler.step()
-        if args["train"]: epoch_training_loss.append(running_loss)
-        if args["train"]: print(epoch_training_loss)
+        if args["train"]:
+            if args["scheduler"]:
+                scheduler.step()
+            epoch_training_loss.append(running_loss)
+            print(epoch_training_loss)
 
     if args["train"]: torch.save(K_tuned, args["model_name"])
     u = flow.units.convert_velocity_to_pu(flow.u()).cpu()
