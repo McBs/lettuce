@@ -77,7 +77,7 @@ class ChannelFlow2D(object):
         kx = 2 * np.pi / Lx
 
         # Störung mit 0.05 * Hauptgeschwindigkeit, moduliert über Höhe
-        perturb = 0.05 * np.sin(kx * x[0]) * (x[1] / Ly) * (1 - x[1] / Ly)
+        perturb = 0.1 * np.sin(kx * x[0]) * (x[1] / Ly) * (1 - x[1] / Ly)
 
         # Nur im Fluidbereich stören
         u[1] += perturb * (1 - self.mask.astype(float))
