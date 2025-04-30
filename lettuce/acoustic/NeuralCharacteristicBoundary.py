@@ -308,7 +308,7 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     K_tuned = NeuralTuning() if args["K_neural"] else 0
-    if args["load_model"]:
+    if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
         print("Model loaded")
