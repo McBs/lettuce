@@ -118,10 +118,28 @@ class ChannelFlow3D(object):
         assert isinstance(m, np.ndarray) and m.shape == (self.resolution_x, self.resolution_y, self.resolution_z)
         self._mask = m.astype(bool)
 
-    def initial_solution(self, x):
-        p = np.zeros_like(x[0], dtype=float)[None, ...]
-        u_char = np.array([self.units.characteristic_velocity_pu, 0.0, 0.0])[..., None, None, None]
-        u = (1 - self.mask.astype(float)) * u_char
+    def initial_solution(self, grid):
+        xg, yg, zg = grid  # [res_x, res_y, res_z]
+
+        # Druck: konstant null
+        p = np.zeros_like(xg)[None, ...]
+
+        # Basisströmung: gleichförmig in x
+        u = np.zeros((3, *xg.shape), dtype=float)
+        u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
+
+        # 🌀 Sinus-Störung in uy (Richtung senkrecht zur Wand)
+        amp = 0.05 * self.units.characteristic_velocity_pu  # Stärke der Störung
+        Lx = xg.max() - xg.min()
+        Lz = zg.max() - zg.min()
+
+        # Normierte Koordinaten (optional)
+        xnorm = xg / Lx
+        znorm = zg / Lz
+
+        uy_perturb = amp * np.sin(2 * np.pi * xnorm) * np.sin(np.pi * znorm)
+        u[1] += uy_perturb * (1 - self.mask.astype(float))  # nur im Fluidbereich
+
         return p, u
 
     @property
