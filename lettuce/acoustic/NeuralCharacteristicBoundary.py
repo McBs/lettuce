@@ -14,209 +14,7 @@ from torch.cuda.amp import GradScaler
 from torch.amp import autocast
 import torch.optim as optim
 
-class Acoustic(ExtFlow):
-    def __init__(self, context: 'Context', resolution: Union[int, List[int]],
-                 reynolds_number, mach_number,
-                 stencil: Optional['Stencil'] = None,
-                 equilibrium: Optional['Equilibrium'] = None,
-                 initialize_fneq: bool = True,
-                 velocity_init = 1,
-                 K=None,
-                 distanceFromRight=200):
-        self.initialize_fneq = initialize_fneq
-        self.velocity_init = velocity_init
-        self.distanceFromRight = distanceFromRight
-        self.K = 0 if K is None else K
-        if stencil is None and not isinstance(resolution, list):
-            warnings.warn("Requiring information about dimensionality!"
-                          " Either via stencil or resolution. Setting "
-                          "dimension to 2.", UserWarning)
-            self.stencil = D2Q9()
-        else:
-            self.stencil = stencil() if callable(stencil) else stencil
-        ExtFlow.__init__(self, context, resolution, reynolds_number,
-                         mach_number, stencil, equilibrium)
 
-    def make_resolution(self, resolution: Union[int, List[int]],
-                        stencil: Optional['Stencil'] = None) -> List[int]:
-        if isinstance(resolution, int):
-            return [resolution] * self.stencil.d
-        else:
-            assert len(resolution) in [2, 3], ('the resolution of a '
-                                               'taylor-green-vortex '
-                                               'must be 2- or 3-dimensional!')
-            return resolution
-
-    def make_units(self, reynolds_number, mach_number,
-                   resolution) -> 'UnitConversion':
-        return UnitConversion(
-            reynolds_number=reynolds_number,
-            mach_number=mach_number,
-            characteristic_length_lu=200,
-            characteristic_length_pu=10,
-            characteristic_velocity_pu=1)
-
-    @property
-    def grid(self):
-        endpoints = self.resolution
-        endpoints = [self.distanceFromRight,  self.resolution[1]]
-        startpoints = [self.distanceFromRight - self.resolution[0], 0]
-
-        xyz = tuple(self.units.convert_length_to_pu(torch.linspace(startpoints[n], endpoints[n],
-                                   steps=self.resolution[n],
-                                   device=self.context.device,
-                                   dtype=self.context.dtype))
-                    for n in range(self.stencil.d))
-        return torch.meshgrid(*xyz, indexing='ij')
-
-    def initial_pu(self) -> (torch.Tensor, torch.Tensor):
-        p = torch.zeros((1, *self.resolution),
-                        device=self.context.device,
-                        dtype=self.context.dtype)
-        u = torch.full(self.resolution,
-                       fill_value=self.velocity_init,
-                       device=self.context.device,
-                       dtype=self.context.dtype)
-        v = torch.zeros(self.resolution,
-                        device=self.context.device,
-                        dtype=self.context.dtype)
-        U = torch.stack([u, v], dim=0)
-        p, U = self.convectedVortex()
-        return p, U
-
-    def convectedVortex(self) -> (torch.Tensor, torch.Tensor):
-        xc, yc = [r * 0.5 for r in self.resolution]
-        xc = 150
-        # yc = 100
-        x, y = self.grid  # beide Shape: (nx, ny)
-        x = self.units.convert_length_to_lu(x)
-        y = self.units.convert_length_to_lu(y)
-        ux0 = self.units.convert_velocity_to_lu(self.velocity_init)
-        beta = 0.5
-        Rc = 20.0
-        gamma = 0.5
-        Cv = 1.0 / 3.0
-
-        r2 = (x - xc) ** 2 + (y - yc) ** 2
-        r = torch.sqrt(r2)
-
-        d = torch.pow(
-            1.0 - (beta * ux0) ** 2 / (2.0 * Cv)
-            * torch.exp(1.0 - r2),
-            1.0 / (gamma - 1.0)
-        )
-
-        exp_term = torch.exp(-r2 / (2.0 * Rc))
-        u_x = (ux0
-            - beta * ux0 * (y - yc) / Rc * exp_term)
-        u_y = beta * ux0 * (x - xc) / Rc * exp_term
-
-        p = self.units.convert_density_lu_to_pressure_pu(d)
-        u_x = self.units.convert_velocity_to_pu(u_x)
-        u_y = self.units.convert_velocity_to_pu(u_y)
-        U = torch.stack([u_x, u_y], dim=0)
-        return p, U
-
-    @property
-    def boundaries(self) -> List['Boundary']:
-        x = self.grid[0]
-        Inlet = WVelocity(context=self.context,
-                                  mask=torch.abs(x) < 1e-6,
-                                  velocity=[1, 0]
-                                  )
-        Outlet = CharacteristicBoundary(context=self.context,
-                                  mask=torch.abs(x) >= 10,
-                                  velocity=[self.units.convert_velocity_to_lu(self.velocity_init), 0],
-                                  K=self.K,
-                                  mach=self.units.mach_number)
-        return [Inlet, Outlet]
-
-class CharacteristicBoundary(lt.Boundary):
-    """Sets distributions on this boundary to equilibrium with predefined
-    velocity and pressure.
-    Note that this behavior is generally not compatible with the Navier-Stokes
-    equations. This boundary condition should only be used if no better
-    options are available.
-    """
-
-    def __init__(self, context: 'Context', mask, velocity, pressure=0, K=0, mach=None):
-        velocity = [velocity] if not hasattr(velocity, '__len__') else velocity
-        self.velocity = context.convert_to_tensor(velocity)
-        self.pressure = context.convert_to_tensor(pressure)
-        self._mask = mask
-        self.rho_dt_old = context.convert_to_tensor(0)
-        self.u_dt_old = context.convert_to_tensor(0)
-        self.v_dt_old = context.convert_to_tensor(0)
-        self.rho_t1 = context.convert_to_tensor(1)
-        self.u_t1 = context.convert_to_tensor(self.velocity[0])
-        self.v_t1 = context.convert_to_tensor(0)
-        self.K = K
-        self.mach = mach
-        self.cs = context.convert_to_tensor(np.sqrt(1 / 3))
-        self.cs2 = context.convert_to_tensor(1 / 3)
-        self._inv_two_cs2 = context.convert_to_tensor(1 / (2 * self.cs2))
-        self._three_half = context.convert_to_tensor(1.5)
-
-    def __call__(self, flow: 'Flow'):
-        f_local = flow.f[:,-1,:]
-        f_left = flow.f[:,-2,:]
-        rho_t1 = self.rho_t1
-        u_t1 = self.u_t1
-        v_t1 = self.v_t1
-        feq = flow.equilibrium(flow, rho_t1, torch.stack([u_t1,v_t1])) #To be adjusted
-
-        f_local[0] = f_local[0] + rho_t1 - 1/(1+u_t1) * (f_local[0] + f_local[2] + f_local[4]
-                                                  + 2 * (f_local[1] + f_local[5] + f_local[8]))
-        f_local[6] = feq[6] + (f_local[8]-feq[8])+0.5*((f_local[4]-feq[4])-(f_local[2]-feq[2]))
-        f_local[3] = feq[3] + (f_local[1]-feq[1])
-        f_local[7] = feq[7] + (f_local[5]-feq[5])-0.5*((f_local[4]-feq[4])-(f_local[2]-feq[2]))
-
-        rho_left = f_left.sum(0)
-        rho_local = f_local.sum(0)
-        u_left = (f_left[1]-f_left[3]+f_left[5]-f_left[6]-f_left[7]+f_left[8])/rho_left
-        u_local = (f_local[1]-f_local[3]+f_local[5]-f_local[6]-f_local[7]+f_local[8])/rho_local
-        v_left = (f_left[2]-f_left[4]+f_left[5]+f_left[6]-f_left[7]-f_left[8])/rho_left
-        v_local = (f_local[2]-f_local[4]+f_local[5]+f_local[6]-f_local[7]-f_local[8])/rho_local
-
-        p_dx = -(1/3 * (rho_left - rho_local))
-        u_dx = -(u_left-u_local)
-        v_dx = -(v_left-v_local)
-
-        L5 = (u_local + self.cs) * (p_dx + rho_local * self.cs * u_dx)
-        K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
-        L1 = -K0*(self.cs2*rho_local-self.cs2*1)
-        L3 = u_local * v_dx
-
-        rho_dt = -self._inv_two_cs2 * (L5 + L1)
-        u_dt = -1/(2 * rho_local * self.cs) * (L5 + L1)
-        v_dt = -L3
-
-        self.rho_t1 = rho_local + 1.5 * rho_dt - 0.5 * self.rho_dt_old
-        self.u_t1 = u_local + 1.5 * u_dt - 0.5 * self.u_dt_old
-        self.v_t1 = v_local + 1.5 * v_dt - 0.5 * self.v_dt_old
-
-        self.rho_dt_old = rho_dt
-        self.u_dt_old = u_dt
-        self.v_dt_old = v_dt
-        # flow.f[:, -1, :] = f_local
-        # return flow.f
-        f_out = flow.f.clone()
-        f_out[:, -1, :] = f_local
-        return f_out
-
-    def make_no_collision_mask(self, shape: List[int], context: 'Context'
-                               ) -> Optional[torch.Tensor]:
-        pass
-
-    def make_no_streaming_mask(self, shape: List[int], context: 'Context'
-                               ) -> Optional[torch.Tensor]:
-        pass
-
-    def native_available(self) -> bool:
-        return False
-
-    def native_generator(self, index: int) -> 'NativeBoundary':
-        return None
 
 def run(context, config, K, dataset, dataset_nr, t_pu):
     # with torch.no_grad():
@@ -234,17 +32,31 @@ def run(context, config, K, dataset, dataset_nr, t_pu):
         # simulation.reporter.append(lt.VTKReporter(context, flow, interval=int(flow.units.convert_time_to_lu(0.05)), filename_base="vtkoutput/out"))
     if config["save_dataset"]:
         print(f"Saving dataset for Mach {config["Ma"]:03.2f} every {config["save_iteration"]:2.2f} seconds")
-        hdf5_reporter = HDF5Reporter(
-                     flow=flow,
-                     slices=slices,
-                     context=context,
-                     interval= int(flow.units.convert_time_to_lu(config["save_iteration"])),
-                     filebase=f"./dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}")
-        simulation.reporter.append(hdf5_reporter)
+        # hdf5_reporter = HDF5Reporter(
+        #              flow=flow,
+        #              slices=None,
+        #              context=context,
+        #              interval= config["save_iteration"],
+        #              t_pu = t_pu,
+        #              filebase=f"./dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}",
+        #              trainingsdomain=slices,
+        #              )
+        tensor_reporter = TensorReporter(
+            flow=flow,
+            interval = config["save_iteration"],
+            t_pu = t_pu,
+            filebase=f"./dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}",
+            trainingsdomain=slices
+        )
+        # simulation.reporter.append(hdf5_reporter)
+        simulation.reporter.append(tensor_reporter)
     if config["load_dataset"] and dataset_nr is not None and callable(dataset_train):
         simulation.flow.f = dataset(dataset_nr)[:,:config["nx"]+config["extension"],:config["ny"]]
     with torch.set_grad_enabled(config["train"]):
-        simulation(num_steps=int(flow.units.convert_time_to_lu(t_pu)))
+        # simulation(num_steps=1)
+        t_lu = round(flow.units.convert_time_to_lu(t_pu))
+        print(f"t_lu = {t_lu}")
+        simulation(num_steps=t_lu)
         # simulation.boundaries[1].K = 0.4
         # simulation(num_steps=int(flow.units.convert_time_to_lu(1)))
     reporter = simulation.reporter[0] if config["reporter"] else None
@@ -254,60 +66,66 @@ class NeuralTuning(torch.nn.Module):
     def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None):
         """Initialize a neural network boundary model."""
         super(NeuralTuning, self).__init__()
-        self.moment = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
+        self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
         self.net = torch.nn.Sequential(
             torch.nn.Linear(9, nodes, bias=True),
+            torch.nn.ReLU(),
+            torch.nn.Linear(nodes, nodes, bias=True),
             torch.nn.ReLU(),
             torch.nn.Linear(nodes, nodes, bias=True),
             torch.nn.Linear(nodes, 1, bias=True),
             torch.nn.Sigmoid(),
         ).to(dtype=dtype, device=device)
         self.index = index
+        self.max = 0
+        self.min = 1
+
         print("Initialized NeuralTuning")
 
     def forward(self, f):
         """Forward pass through the network with residual connection."""
-
-        return self.net(f.transpose(0,1))
-
+        local_moments = self.moments.transform(f.unsqueeze(1))
+        K = self.net(local_moments[:,0,:].transpose(0,1))
+        self.max = K.max() if K.max() > self.max else self.max
+        self.min = K.min() if K.min() < self.min else self.min
+        return K
 
 if __name__ == "__main__":
-
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--nx", type=int, default=320)
-    parser.add_argument("--ny", type=int, default=500)
+    parser.add_argument("--nx", type=int, default=250)
+    parser.add_argument("--ny", type=int, default=350)
     parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
-    parser.add_argument("--t_pu", type=float, default=6.5)
-    parser.add_argument("--load_dataset", action="store_true", default=False)
-    parser.add_argument("--load_dataset_idx", type=int, default=0)
+    parser.add_argument("--t_pu", type=float, default=6)
+    parser.add_argument("--load_dataset", action="store_true", default=True)
+    parser.add_argument("--load_dataset_idx", type=int, default=None)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
-    parser.add_argument("--K_neural", action="store_true", default=False)
-    parser.add_argument("--train", action="store_true", default=False)
-    parser.add_argument("--load_model", action="store_true", default=False)
-    parser.add_argument("--model_name_saved", type=str, default="model_trained.pt")
-    parser.add_argument("--model_name_loaded", type=str, default="model_trained_init.pt")
+    parser.add_argument("--K_neural", action="store_true", default=True)
+    parser.add_argument("--train", action="store_true", default=True)
+    parser.add_argument("--load_model", action="store_true", default=True)
+    parser.add_argument("--model_name_saved", type=str, default="model_trained_v1.pt")
+    parser.add_argument("--model_name_loaded", type=str, default="model_trained.pt")
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=10)
     parser.add_argument("--scheduler_gamma", type=float, default=0.1)
-    parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.15])
-    parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[4])
+    parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.3])
+    parser.add_argument("--train_t_pu_intervals", type=int,  nargs="+", default=[12, 24])
     parser.add_argument("--expand_intervals", action="store_true", default=False)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--slices", action="store_true", default=False)
+    parser.add_argument("--verbose", action="store_true", default=False)
+    parser.add_argument("--lr", type=float, default=1)
     parser.add_argument("--loss_plot_name", type=str, default="model_trained.pt")
-
-
     args, unknown = parser.parse_known_args()
     args = vars(args)
     [print(arg, args[arg]) for arg in args]
     shift = 7
     torch.manual_seed(0)
 
-    K_tuned = NeuralTuning() if args["K_neural"] else 0
+    K_tuned = NeuralTuning() if args["K_neural"] else 0.4
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
@@ -315,6 +133,7 @@ if __name__ == "__main__":
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     slices_2 = [slice(args["nx"] - 200, args["nx"]-150), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
+    slices_all = [slice(None, None), slice(None, None)]
     # slices = [slice(None, None), slice(None, None)]
 
     machNumbers = args["train_mach_numbers"]
@@ -339,10 +158,19 @@ if __name__ == "__main__":
         for i, (idx, ma) in enumerate(pairs):
 
             dataset_name = f"./dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}.h5"
-            dataset_train = (LettuceDataset(context=context, filebase=dataset_name, target=False)
-                             if args["load_dataset"] or args["train"] else None)
-            if args["train"]: optimizer.zero_grad()
+            if args["load_dataset"] or args["train"]:
+                # dataset_train = LettuceDataset(context=context, filebase=dataset_name, target=False)
+                dataset_train = TensorDataset(
+                                 file_pattern= f"./dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*",
+                                 transform = None
+                )
 
+
+                slices_ref = dataset_train.get_trainingsdomain()
+                slices_ref = [slice(slices_ref[0], slices_ref[1]), slice(slices_ref[2], slices_ref[3])]
+            else:
+                dataset_train = None
+            if args["train"]: optimizer.zero_grad()
             t_pu = idx * args["save_iteration"] if args["train"] else args["t_pu"]
             print(i, ma, t_pu, idx)
             with autocast(context.device.type):
@@ -354,88 +182,66 @@ if __name__ == "__main__":
                                      t_pu = t_pu
                                      )
             if callable(K_tuned) and args["train"]:
-                reference = dataset_train(idx+args["load_dataset_idx"])#[:,slices[0],slices[1]]
+                offset = 0 if args["load_dataset_idx"] is None else args["load_dataset_idx"]
+                reference = dataset_train(idx+offset)[0].to(device="cuda")[:,slices_ref[0],slices_ref[1]]
                 rho_ref = flow.rho(reference)
                 rho_train = flow.rho()[:,slices[0],slices[1]]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
                 k = K_tuned(flow.f[:,slices[0].stop-1,:])
                 loss = criterion(rho_ref, rho_train) #+ criterion(k, torch.zeros_like(k))
-                # scaler.scale(loss).backward()
-                # scaler.step(optimizer)
-                # scaler.update()
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
-                print("running_loss:", running_loss)
-                # if i == len(pairs)-1:
-                #     rho = flow.rho_pu.cpu()[0]
-                #     plt.imshow(rho[slices[0],slices[1]].detach().numpy().transpose(), vmin=-4e-5 + 1, vmax=4e-5 + 1,
-                #                origin='lower')
-                #     currentAxis = plt.gca()
-                #     currentAxis.add_patch(
-                #         Rectangle((args["nx"] - 200, args["ny"] // 2 - 100), 200, 200, fill=None, alpha=1))
-                #     plt.title('Density after simulation')
-                #     plt.colorbar()
-                #     plt.tight_layout()
-                #     plt.show()
+                optimizer.zero_grad()
+                if args["verbose"]: print("running_loss:", running_loss)
+
 
         if args["train"]:
+            # plot_velocity_density(flow.f, flow=flow, config=args, slices=slices, rectangle=False)
             if args["scheduler"]:
                 scheduler.step()
             epoch_training_loss.append(running_loss)
-            print(epoch_training_loss)
+            if args["verbose"]: print(epoch_training_loss)
 
     if args["train"]: torch.save(K_tuned, args["model_name_saved"])
-    u = flow.units.convert_velocity_to_pu(flow.u()).cpu()
-    u_norm = np.linalg.norm(u.detach().numpy(), axis=0)
-    half_ny = args["ny"] // 2
-    y_start, y_end = half_ny - 100, half_ny + 100
-    # slices = [slice(None, None), slice(None, None)]
-    x_slice = slices[0]
-    y_slice = slices[1]
 
-    # rectangle_x_slice = slice(-200, None)
-    # rectangle_y_slice = slice(y_start, y_end)
-    # plt.imshow(u_norm[x_slice,y_slice].transpose(), vmin=.985, vmax=1.015, origin='lower')
-    # currentAxis = plt.gca()
-    # currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
-    # plt.title('Velocity Simulation')
-    # plt.colorbar()
-    # plt.tight_layout()
-    # plt.show()
-    #
-    # rho = flow.rho_pu.cpu()[0]
-    # plt.imshow(rho[x_slice,y_slice].detach().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin='lower')
-    # currentAxis = plt.gca()
-    # currentAxis.add_patch(Rectangle((args["nx"]-200,args["ny"]//2-100), 200, 200, fill=None, alpha=1))
-    # plt.title('Density Simulation')
-    # plt.colorbar()
-    # plt.tight_layout()
-    # plt.show()
-    #
-    # # if args["train"]:
-    # reference = dataset_train(20)[:, slices[0], slices[1]]
-    # u_norm = np.linalg.norm(flow.units.convert_velocity_to_pu(flow.u(reference)).detach().cpu().numpy(), axis=0)
-    # plt.imshow(u_norm.transpose(), vmin=.985, vmax=1.015, origin="lower")
-    # plt.title('Velocity Reference')
-    # plt.colorbar()
-    # plt.tight_layout()
-    # plt.show()
-    #
-    # plt.imshow(flow.units.convert_density_to_pu(flow.rho(reference)).detach().cpu().numpy().transpose(), vmin=-1.5e-5+1, vmax=1.5e-5+1, origin="lower")
-    # plt.title('Density Reference')
-    # plt.tight_layout()
-    # plt.colorbar()
-    # plt.show()
 
+
+    slices_plot = slices if args["slices"] else slices_all
+    rectangle = False if args["slices"] else True
+
+
+
+
+    plot_velocity_density(flow.f, flow=flow, config=args, slices=slices, rectangle=False)
+    # plotRho(flow.f, flow=flow, config=args, slices=slices_plot, rectangle=rectangle)
+
+    if args["load_dataset"]:
+        if args["train"] is False:
+            ref = dataset_train(int(args["t_pu"]/args["save_iteration"]))[0].to(device="cuda")
+        else:
+            ref = reference
+            rectangle = False
+            plot_velocity_density(ref, flow=flow, config=args, slices=slices_all, rectangle=False)
+        slices_ref = dataset_train.get_trainingsdomain()
+        slices_ref = [slice(slices_ref[0], slices_ref[1]), slice(slices_ref[2], slices_ref[3])]
+
+        # plot_velocity_density(ref, flow=flow, config=args, slices=slices_ref, rectangle=False)
+        # plotRho(ref, flow=flow, config=args, slices=slices_plot , rectangle=rectangle)
+
+
+    if args["K_neural"]:
+        print(K_tuned(flow.f[:,slices[0].stop,:]))
     if args["train"]:
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
+        print("K tuned max: ", K_tuned.max)
+        print("K tuned min: ", K_tuned.min)
 
     if reporter is not None:
         out = torch.tensor(reporter.out_total).cpu().detach()
         t = torch.tensor(reporter.t).cpu().detach()
-        plt.plot(t,out/out[0])
+        plt.plot(t,out)
         plt.ylim(1-1e-5,1+1.3e-5)
         plt.show()
-        print(K_tuned(flow.f[:,slices[0].stop,:]))
+    print((ref-flow.f[:,slices[0],slices[1]]).sum())
