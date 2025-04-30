@@ -50,7 +50,7 @@ if __name__ == "__main__":
     optimizer.zero_grad()
 
     running_loss = []
-    for i in range(2000):
+    for i in range(2):
         optimizer.zero_grad()
         k = K_tuned(flow.f[:,25,:])
         loss = criterion(k, torch.zeros_like(k)+0.4)
@@ -63,3 +63,7 @@ if __name__ == "__main__":
     print(K_tuned(flow.f[:,25,:]))
     print(running_loss[-1])
     torch.save(K_tuned, "model_training_init_04.pt")
+
+    moments = D2Q9Dellar(stencil=D2Q9(), context=context)
+    local_moments = moments.transform(f)
+    print("finish")
