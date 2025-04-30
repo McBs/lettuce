@@ -66,8 +66,22 @@ class ChannelFlow2D(object):
 
     def initial_solution(self, x):
         p = np.zeros_like(x[0], dtype=float)[None, ...]
+
+        # Grundströmung in x-Richtung (PU)
         u_char = np.array([self.units.characteristic_velocity_pu, 0.0])[..., None, None]
         u = (1 - self.mask.astype(float)) * u_char
+
+        # 🌀 Sinusförmige Anfangsstörung in Querkomponente (y-Richtung)
+        Lx = x[0].max()
+        Ly = x[1].max()
+        kx = 2 * np.pi / Lx
+
+        # Störung mit 0.05 * Hauptgeschwindigkeit, moduliert über Höhe
+        perturb = 0.05 * np.sin(kx * x[0]) * (x[1] / Ly) * (1 - x[1] / Ly)
+
+        # Nur im Fluidbereich stören
+        u[1] += perturb * (1 - self.mask.astype(float))
+
         return p, u
 
     @property
@@ -137,8 +151,11 @@ class ChannelFlow3D(object):
         xnorm = xg / Lx
         znorm = zg / Lz
 
-        uy_perturb = amp * np.sin(2 * np.pi * xnorm) * np.sin(np.pi * znorm)
-        u[1] += uy_perturb * (1 - self.mask.astype(float))  # nur im Fluidbereich
+        # in initial_solution()
+        perturb = 0.1 * np.sin(2 * np.pi * xg / Lx) * np.sin(np.pi * zg / Lz)
+        u[1] += perturb * (1 - self.mask.astype(float))
+
+        u[2] += 0.1 * (np.sin(4 * np.pi * xg / Lx) + np.sin(8 * np.pi * xg / Lx)) * np.sin(np.pi * yg / Lz)
 
         return p, u
 
