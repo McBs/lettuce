@@ -330,11 +330,13 @@ class Acoustic(ExtFlow):
                  initialize_fneq: bool = True,
                  velocity_init = 1,
                  K=None,
-                 distanceFromRight=200):
+                 distanceFromRight=200,
+                 xc = 150):
         self.initialize_fneq = initialize_fneq
         self.velocity_init = velocity_init
         self.distanceFromRight = distanceFromRight
         self.K = 0 if K is None else K
+        self.xc = xc
         if stencil is None and not isinstance(resolution, list):
             warnings.warn("Requiring information about dimensionality!"
                           " Either via stencil or resolution. Setting "
@@ -398,7 +400,7 @@ class Acoustic(ExtFlow):
 
     def convectedVortex(self) -> (torch.Tensor, torch.Tensor):
         xc, yc = [r * 0.5 for r in self.resolution]
-        xc = 150
+        xc = self.xc
         # yc = 100
         x, y = self.grid  # beide Shape: (nx, ny)
         x = self.units.convert_length_to_lu(x)
@@ -436,8 +438,10 @@ class Acoustic(ExtFlow):
                                   mask=torch.abs(x) < 1e-6,
                                   velocity=[1, 0]
                                   )
+        mask_outlet = torch.zeros_like(x, dtype=torch.bool);
+        mask_outlet[-1, :] = True
         Outlet = CharacteristicBoundary(context=self.context,
-                                  mask=torch.abs(x) >= 10,
+                                  mask=mask_outlet,
                                   velocity=[self.units.convert_velocity_to_lu(self.velocity_init), 0],
                                   K=self.K,
                                   mach=self.units.mach_number)
@@ -456,9 +460,9 @@ class CharacteristicBoundary(lt.Boundary):
         self.velocity = context.convert_to_tensor(velocity)
         self.pressure = context.convert_to_tensor(pressure)
         self._mask = mask
-        self.rho_dt_old = context.convert_to_tensor(0)
-        self.u_dt_old = context.convert_to_tensor(0)
-        self.v_dt_old = context.convert_to_tensor(0)
+        self.rho_dt_old = context.convert_to_tensor(torch.zeros_like(mask[-1,:]),dtype=float)
+        self.u_dt_old = context.convert_to_tensor(torch.zeros_like(mask[-1,:]),dtype=float)
+        self.v_dt_old = context.convert_to_tensor(torch.zeros_like(mask[-1,:]),dtype=float)
         self.rho_t1 = context.convert_to_tensor(1)
         self.u_t1 = context.convert_to_tensor(self.velocity[0])
         self.v_t1 = context.convert_to_tensor(0)
@@ -495,7 +499,8 @@ class CharacteristicBoundary(lt.Boundary):
         v_dx = -(v_left-v_local)
 
         L5 = (u_local + self.cs) * (p_dx + rho_local * self.cs * u_dx)
-        K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
+        # K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
+        K0 = self.K(f_left,self.rho_dt_old,self.u_dt_old,self.v_dt_old)[:, 0] if callable(self.K)  else self.K
         L1 = -K0*(self.cs2*rho_local-self.cs2*1)
         L3 = u_local * v_dx
 
@@ -503,9 +508,12 @@ class CharacteristicBoundary(lt.Boundary):
         u_dt = -1/(2 * rho_local * self.cs) * (L5 + L1)
         v_dt = -L3
 
-        self.rho_t1 = rho_local + 1.5 * rho_dt - 0.5 * self.rho_dt_old
-        self.u_t1 = u_local + 1.5 * u_dt - 0.5 * self.u_dt_old
-        self.v_t1 = v_local + 1.5 * v_dt - 0.5 * self.v_dt_old
+        # self.rho_t1 = rho_local + 1.5 * rho_dt - 0.5 * self.rho_dt_old
+        # self.u_t1 = u_local + 1.5 * u_dt - 0.5 * self.u_dt_old
+        # self.v_t1 = v_local + 1.5 * v_dt - 0.5 * self.v_dt_old
+        self.rho_t1 = rho_local + rho_dt
+        self.u_t1 = u_local + u_dt
+        self.v_t1 = v_local + v_dt
 
         self.rho_dt_old = rho_dt
         self.u_dt_old = u_dt
@@ -566,7 +574,7 @@ class TensorReporter:
     def __init__(self,
                  flow: 'Flow',                       # Added flow object
                  interval: float,                   # Added interval frequency (physical units)
-                 t_pu: float,                       # Added total physical time
+                 t_lu: float,                       # Added total physical time
                  filebase: str = './output',
                  trainingsdomain = None):
         """
@@ -593,13 +601,15 @@ class TensorReporter:
         # --- Calculate saving interval steps ---
         try:
             # Generate time points in physical units
-            time_points_pu = torch.arange(0, t_pu + 1e-5, interval)
+            # time_points_pu = torch.arange(0, t_pu + 1e-5, interval)
+            time_points_lu = torch.arange(0, t_lu, interval)
             # Convert physical time points to simulation steps (lattice units time)
-            interval_steps_tensor = torch.round(flow.units.convert_time_to_lu(time_points_pu))
+            # interval_steps_tensor = torch.round(flow.units.convert_time_to_lu(time_points_pu))
+            interval_steps_tensor = time_points_lu
             # Convert tensor to a list of unique integers
             self.interval = sorted(list(set(map(int, interval_steps_tensor.tolist()))))
             # Ensure step 0 is included if the range starts at 0
-            if 0 not in self.interval and t_pu >= 0 and interval > 0:
+            if 0 not in self.interval and t_lu >= 0 and interval > 0:
                  # This logic might need adjustment based on how convert_time_to_lu(0) behaves
                  # If convert_time_to_lu(0) is exactly 0, torch.round might keep it.
                  # If it's slightly off, rounding might miss it. Let's explicitly add if needed.

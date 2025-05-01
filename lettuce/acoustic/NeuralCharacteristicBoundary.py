@@ -32,15 +32,6 @@ def run(context, config, K, dataset, dataset_nr, t_pu):
         # simulation.reporter.append(lt.VTKReporter(context, flow, interval=int(flow.units.convert_time_to_lu(0.05)), filename_base="vtkoutput/out"))
     if config["save_dataset"]:
         print(f"Saving dataset for Mach {config["Ma"]:03.2f} every {config["save_iteration"]:2.2f} seconds")
-        # hdf5_reporter = HDF5Reporter(
-        #              flow=flow,
-        #              slices=None,
-        #              context=context,
-        #              interval= config["save_iteration"],
-        #              t_pu = t_pu,
-        #              filebase=f"./dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}",
-        #              trainingsdomain=slices,
-        #              )
         tensor_reporter = TensorReporter(
             flow=flow,
             interval = config["save_iteration"],
@@ -68,13 +59,12 @@ class NeuralTuning(torch.nn.Module):
         super(NeuralTuning, self).__init__()
         self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
         self.net = torch.nn.Sequential(
-            torch.nn.Linear(9, nodes, bias=True),
-            torch.nn.ReLU(),
+            torch.nn.Linear(3, nodes, bias=True),
             torch.nn.Linear(nodes, nodes, bias=True),
-            torch.nn.ReLU(),
-            torch.nn.Linear(nodes, nodes, bias=True),
+            torch.nn.BatchNorm1d(nodes),
+            torch.nn.LeakyReLU(negative_slope=0.01),
             torch.nn.Linear(nodes, 1, bias=True),
-            torch.nn.Sigmoid(),
+            torch.nn.Softplus(),
         ).to(dtype=dtype, device=device)
         self.index = index
         self.max = 0
@@ -82,10 +72,23 @@ class NeuralTuning(torch.nn.Module):
 
         print("Initialized NeuralTuning")
 
-    def forward(self, f):
+    def forward(self, f, rho_dt, u_dt, v_dt):
         """Forward pass through the network with residual connection."""
         local_moments = self.moments.transform(f.unsqueeze(1))
-        K = self.net(local_moments[:,0,:].transpose(0,1))
+        # K = self.net(local_moments[:,0,:].transpose(0,1))
+        # K = self.net(
+        #     torch.cat([
+        #         local_moments[:,0,:].transpose(0,1),
+        #         rho_dt.unsqueeze(1),
+        #         u_dt.unsqueeze(1),
+        #         v_dt.unsqueeze(1)], dim=1)
+        # )
+        K = self.net(
+            torch.cat([
+                rho_dt.unsqueeze(1),
+                u_dt.unsqueeze(1),
+                v_dt.unsqueeze(1)], dim=1)
+        )
         self.max = K.max() if K.max() > self.max else self.max
         self.min = K.min() if K.min() < self.min else self.min
         return K
@@ -97,14 +100,14 @@ if __name__ == "__main__":
     parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
-    parser.add_argument("--t_pu", type=float, default=6)
-    parser.add_argument("--load_dataset", action="store_true", default=True)
+    parser.add_argument("--t_pu", type=float, default=1)
+    parser.add_argument("--load_dataset", action="store_true", default=False)
     parser.add_argument("--load_dataset_idx", type=int, default=None)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=float, default=0.25)
     parser.add_argument("--K_neural", action="store_true", default=True)
-    parser.add_argument("--train", action="store_true", default=True)
-    parser.add_argument("--load_model", action="store_true", default=True)
+    parser.add_argument("--train", action="store_true", default=False)
+    parser.add_argument("--load_model", action="store_true", default=False)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v1.pt")
     parser.add_argument("--model_name_loaded", type=str, default="model_trained.pt")
     parser.add_argument("--reporter", action="store_true", default=False)
@@ -125,11 +128,15 @@ if __name__ == "__main__":
     shift = 7
     torch.manual_seed(0)
 
-    K_tuned = NeuralTuning() if args["K_neural"] else 0.4
+    K_tuned = NeuralTuning() if args["K_neural"] else 1
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
+        K_tuned.max = 0
+        K_tuned.min = 1
         print("Model loaded")
+    if args["train"] and callable(K_tuned):
+        K_tuned.train()
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     slices_2 = [slice(args["nx"] - 200, args["nx"]-150), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
@@ -161,9 +168,10 @@ if __name__ == "__main__":
             if args["load_dataset"] or args["train"]:
                 # dataset_train = LettuceDataset(context=context, filebase=dataset_name, target=False)
                 dataset_train = TensorDataset(
-                                 file_pattern= f"./dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*",
-                                 transform = None
-                )
+                                 file_pattern= f"./datasets/dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*",
+                                 transform = None,
+                                 verbose=args["verbose"]
+                                )
 
 
                 slices_ref = dataset_train.get_trainingsdomain()
@@ -187,10 +195,13 @@ if __name__ == "__main__":
                 rho_ref = flow.rho(reference)
                 rho_train = flow.rho()[:,slices[0],slices[1]]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
-                k = K_tuned(flow.f[:,slices[0].stop-1,:])
+                # k = K_tuned(flow.f[:,slices[0].stop-1,:],3*[torch.zeros_like(flow.f[0,-1,:])])
                 loss = criterion(rho_ref, rho_train) #+ criterion(k, torch.zeros_like(k))
-                loss.backward()
-                optimizer.step()
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                # loss.backward()
+                # optimizer.step()
                 running_loss += loss.item()
                 optimizer.zero_grad()
                 if args["verbose"]: print("running_loss:", running_loss)
@@ -231,10 +242,15 @@ if __name__ == "__main__":
 
 
     if args["K_neural"]:
-        print(K_tuned(flow.f[:,slices[0].stop,:]))
+        print(K_tuned(
+                      flow.f[:,slices[0].stop,:],
+                      flow.boundaries[1].rho_dt_old,
+                      flow.boundaries[1].u_dt_old,
+                      flow.boundaries[1].v_dt_old))
     if args["train"]:
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
+    if args["K_neural"]:
         print("K tuned max: ", K_tuned.max)
         print("K tuned min: ", K_tuned.min)
 
@@ -244,4 +260,4 @@ if __name__ == "__main__":
         plt.plot(t,out)
         plt.ylim(1-1e-5,1+1.3e-5)
         plt.show()
-    print((ref-flow.f[:,slices[0],slices[1]]).sum())
+    print((ref[slices_ref[0],slices_ref[1]]-flow.f).sum())
