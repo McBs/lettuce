@@ -207,7 +207,7 @@ if __name__ == "__main__":
             if callable(K_tuned) and args["train"]:
                 offset = 0 if args["load_dataset_idx"] is None else args["load_dataset_idx"]
                 reference = dataset_train.get_f(int(idx+t_lu/args["save_iteration"]), True)
-                print("args["training_iteration"]")
+                print(args["training_iteration"])
                 rho_ref = flow.rho(reference)[:,-args["training_iteration"]:,75:125]
                 rho_train = flow.rho()[:,*slices_training][:,-args["training_iteration"]:,75:125]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
