@@ -36,7 +36,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
             flow=flow,
             interval = config["save_iteration"],
             t_lu = t_lu,
-            filebase=f"./datasets/dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}",
+            filebase=f"./{config["output_directory"]}/dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}",
             trainingsdomain=slices_training,
             start_idx=config["save_start_idx"],
         )
@@ -100,12 +100,12 @@ class NeuralTuning(torch.nn.Module):
 
 if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--nx", type=int, default=350)
-    parser.add_argument("--ny", type=int, default=450)
+    parser.add_argument("--nx", type=int, default=300)
+    parser.add_argument("--ny", type=int, default=500)
     parser.add_argument("--extension", type=int, default=200)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
-    parser.add_argument("--t_lu", type=int, default=500)
+    parser.add_argument("--t_lu", type=int, default=600)
     parser.add_argument("--load_dataset", action="store_true", default=False)
     parser.add_argument("--load_dataset_idx", type=int, default=0)
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-55.00_000055.pt")
@@ -114,20 +114,21 @@ if __name__ == "__main__":
     parser.add_argument("--show_dataset_idx", type=int, default=None)
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=int, default=5)
-    parser.add_argument("--training_iteration", type=int, default=10)
     parser.add_argument("--save_start_idx", type=float, default=0)
     parser.add_argument("--K_neural", action="store_true", default=False)
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=False)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
-    parser.add_argument("--model_name_loaded", type=str, default="model_trained_v5.pt")
+    parser.add_argument("--model_name_loaded", type=str, default="model_training_v5_1.pt")
+    parser.add_argument("--output_directory", type=str, default="datasets")
     parser.add_argument("--reporter", action="store_true", default=False)
-    parser.add_argument("--epochs", type=int, default=150)
-    parser.add_argument("--scheduler", action="store_true", default=True)
+    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=130)
     parser.add_argument("--scheduler_gamma", type=float, default=0.1)
+    parser.add_argument("--training_iteration", type=int, nargs="+", default = [5, 10, 15])
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.3])
-    parser.add_argument("--train_t_lu_intervals", type=int,  nargs="+", default=[*np.arange(35)])
+    parser.add_argument("--train_t_lu_intervals", type=int, nargs="+", default=[*np.arange(5)])
     parser.add_argument("--expand_intervals", action="store_true", default=False)
     parser.add_argument("--slices", action="store_true", default=False)
     parser.add_argument("--verbose", action="store_true", default=False)
@@ -141,7 +142,7 @@ if __name__ == "__main__":
     torch.manual_seed(0)
     np.random.seed(0)
 
-    K_tuned = NeuralTuning() if args["K_neural"] else 1
+    K_tuned = NeuralTuning() if args["K_neural"] else 0
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
@@ -157,9 +158,10 @@ if __name__ == "__main__":
 
     machNumbers = args["train_mach_numbers"]
     intervals = args["train_t_lu_intervals"]
+    training_iterations = args["training_iteration"]
     if args["shuffle"]: intervals = np.random.permutation(intervals)
     load_dataset_idx = args["load_dataset_idx"] if args["load_dataset"] else 0
-    pairs = list(product(intervals, machNumbers)) if args["train"] else [(load_dataset_idx, args["Ma"])]
+    pairs = list(product(intervals, machNumbers, training_iterations)) if args["train"] else [(load_dataset_idx, args["Ma"], 0)]
     print("Configurations: ", len(pairs))
     if callable(K_tuned) and args["train"]:
         criterion = torch.nn.MSELoss(reduction='mean')
@@ -173,9 +175,9 @@ if __name__ == "__main__":
     for _ in range(args["epochs"] if args["train"] else 1):
         print(f"Epoch: {_}" if args["train"] else "Running ...")
         running_loss = 0.0
-        for i, (idx, ma) in enumerate(pairs):
+        for i, (idx, ma, training_iteration) in enumerate(pairs):
 
-            dataset_name = f"./datasets/dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*"
+            dataset_name = f"./{args["output_directory"]}/dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*"
             if args["load_dataset"] and args["load_dataset_path"] is not None:
                 dataset_name = (args["load_dataset_path"])
             if args["K_neural"]:
@@ -192,7 +194,7 @@ if __name__ == "__main__":
             else:
                 dataset_train = None
             if args["train"]: optimizer.zero_grad()
-            t_lu = args["training_iteration"] if args["train"] else args["t_lu"]
+            t_lu = training_iteration if args["train"] else args["t_lu"]
             # idx=0
             print(f"pair idx {i}, mach: {ma}, t_lu: {t_lu}, loaded dataset idx: {idx}, loaded reference idx: {int(idx+t_lu/args["save_iteration"])}",)
             with autocast(context.device.type):
@@ -206,11 +208,13 @@ if __name__ == "__main__":
             if callable(K_tuned) and args["train"]:
                 offset = 0 if args["load_dataset_idx"] is None else args["load_dataset_idx"]
                 reference = dataset_train.get_f(int(idx+t_lu/args["save_iteration"]), True)
-                rho_ref = flow.rho(reference)[:,-args["training_iteration"]:,75:125]
-                rho_train = flow.rho()[:,*slices_training][:,-args["training_iteration"]:,75:125]
+                rho_ref = flow.rho(reference)[:,-training_iteration:,75:125]
+                rho_train = flow.rho()[:,*slices_training][:,-training_iteration:,75:125]
+                u_ref = flow.u(reference)[:,-training_iteration:,75:125]
+                u_train = flow.u()[:,*slices_training][:,-training_iteration:,75:125]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
                 # k = K_tuned(flow.f[:,slices[0].stop-1,:],3*[torch.zeros_like(flow.f[0,-1,:])])
-                loss = criterion(rho_ref, rho_train) #+ criterion(k, torch.zeros_like(k))
+                loss = criterion(rho_ref, rho_train)# + criterion(u_ref, u_train) #+ criterion(k, torch.zeros_like(k))
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
