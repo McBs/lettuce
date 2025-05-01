@@ -52,6 +52,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     with torch.set_grad_enabled(config["train"]):
         # simulation(num_steps=1)
         # print(f"t_lu = {t_lu}")
+        print(t_lu)
         simulation(num_steps=t_lu)
         # simulation.boundaries[1].K = 0.4
         # simulation(num_steps=int(flow.units.convert_time_to_lu(1)))
@@ -105,7 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--extension", type=int, default=200)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
-    parser.add_argument("--t_lu", type=float, default=500)
+    parser.add_argument("--t_lu", type=int, default=500)
     parser.add_argument("--load_dataset", action="store_true", default=False)
     parser.add_argument("--load_dataset_idx", type=int, default=0)
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-55.00_000055.pt")
