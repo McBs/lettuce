@@ -114,8 +114,8 @@ if __name__ == "__main__":
     parser.add_argument("--load_dataset_path", type=str, default=None)
     parser.add_argument("--show_dataset_idx", type=int, default=None)
     parser.add_argument("--save_dataset", action="store_true", default=False)
-    parser.add_argument("--save_iteration", type=float, default=5)
-    parser.add_argument("--training_iteration", type=float, default=10)
+    parser.add_argument("--save_iteration", type=int, default=5)
+    parser.add_argument("--training_iteration", type=int, default=10)
     parser.add_argument("--save_start_idx", type=float, default=0)
     parser.add_argument("--K_neural", action="store_true", default=False)
     parser.add_argument("--train", action="store_true", default=False)
@@ -207,6 +207,7 @@ if __name__ == "__main__":
             if callable(K_tuned) and args["train"]:
                 offset = 0 if args["load_dataset_idx"] is None else args["load_dataset_idx"]
                 reference = dataset_train.get_f(int(idx+t_lu/args["save_iteration"]), True)
+                print("args["training_iteration"]")
                 rho_ref = flow.rho(reference)[:,-args["training_iteration"]:,75:125]
                 rho_train = flow.rho()[:,*slices_training][:,-args["training_iteration"]:,75:125]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
