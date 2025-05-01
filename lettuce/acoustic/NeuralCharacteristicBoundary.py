@@ -53,7 +53,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
         # simulation(num_steps=1)
         # print(f"t_lu = {t_lu}")
         print(t_lu)
-        simulation(num_steps=t_lu)
+        simulation(num_steps=int(t_lu))
         # simulation.boundaries[1].K = 0.4
         # simulation(num_steps=int(flow.units.convert_time_to_lu(1)))
     reporter = simulation.reporter[0] if config["reporter"] else None
