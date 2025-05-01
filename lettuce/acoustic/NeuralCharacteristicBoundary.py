@@ -52,7 +52,6 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     with torch.set_grad_enabled(config["train"]):
         # simulation(num_steps=1)
         # print(f"t_lu = {t_lu}")
-        print(t_lu)
         simulation(num_steps=int(t_lu))
         # simulation.boundaries[1].K = 0.4
         # simulation(num_steps=int(flow.units.convert_time_to_lu(1)))
@@ -207,7 +206,6 @@ if __name__ == "__main__":
             if callable(K_tuned) and args["train"]:
                 offset = 0 if args["load_dataset_idx"] is None else args["load_dataset_idx"]
                 reference = dataset_train.get_f(int(idx+t_lu/args["save_iteration"]), True)
-                print(args["training_iteration"])
                 rho_ref = flow.rho(reference)[:,-args["training_iteration"]:,75:125]
                 rho_train = flow.rho()[:,*slices_training][:,-args["training_iteration"]:,75:125]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
