@@ -472,13 +472,16 @@ class CharacteristicBoundary(lt.Boundary):
         self.cs2 = context.convert_to_tensor(1 / 3)
         self._inv_two_cs2 = context.convert_to_tensor(1 / (2 * self.cs2))
         self._three_half = context.convert_to_tensor(1.5)
+        self.init = True
 
     def __call__(self, flow: 'Flow'):
         f_local = flow.f[:,-1,:]
         f_left = flow.f[:,-2,:]
+
         rho_t1 = self.rho_t1
         u_t1 = self.u_t1
         v_t1 = self.v_t1
+
         feq = flow.equilibrium(flow, rho_t1, torch.stack([u_t1,v_t1])) #To be adjusted
 
         f_local[0] = f_local[0] + rho_t1 - 1/(1+u_t1) * (f_local[0] + f_local[2] + f_local[4]
@@ -500,7 +503,7 @@ class CharacteristicBoundary(lt.Boundary):
 
         L5 = (u_local + self.cs) * (p_dx + rho_local * self.cs * u_dx)
         # K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
-        K0 = self.K(f_left,self.rho_dt_old,self.u_dt_old,self.v_dt_old)[:, 0] if callable(self.K)  else self.K
+        K0 = self.K(f_local,self.rho_dt_old,self.u_dt_old,self.v_dt_old)[:, 0] if callable(self.K)  else self.K
         L1 = -K0*(self.cs2*rho_local-self.cs2*1)
         L3 = u_local * v_dx
 
@@ -576,7 +579,8 @@ class TensorReporter:
                  interval: float,                   # Added interval frequency (physical units)
                  t_lu: float,                       # Added total physical time
                  filebase: str = './output',
-                 trainingsdomain = None):
+                 trainingsdomain = None,
+                 start_idx = 0):
         """
         Initializes the TensorReporter.
 
@@ -597,17 +601,16 @@ class TensorReporter:
                                              If None, it won't be saved. Defaults to None.
         """
         self.filebase = filebase
-
+        self.start_idx = start_idx
         # --- Calculate saving interval steps ---
         try:
             # Generate time points in physical units
             # time_points_pu = torch.arange(0, t_pu + 1e-5, interval)
-            time_points_lu = torch.arange(0, t_lu, interval)
-            # Convert physical time points to simulation steps (lattice units time)
-            # interval_steps_tensor = torch.round(flow.units.convert_time_to_lu(time_points_pu))
-            interval_steps_tensor = time_points_lu
+            time_points_lu = torch.arange(0, t_lu+1e-5, interval)
+
             # Convert tensor to a list of unique integers
-            self.interval = sorted(list(set(map(int, interval_steps_tensor.tolist()))))
+            self.interval = sorted(list(set(map(int, time_points_lu.tolist()))))
+
             # Ensure step 0 is included if the range starts at 0
             if 0 not in self.interval and t_lu >= 0 and interval > 0:
                  # This logic might need adjustment based on how convert_time_to_lu(0) behaves
@@ -670,7 +673,7 @@ class TensorReporter:
         # Check if the current step 'i' is one of the steps we want to save at
         if i in self.interval:
             # Construct the full filename including the step number and .pt extension
-            filename = f"{self.filebase}_{i:06d}.pt"
+            filename = f"{self.filebase}_{(i+self.start_idx):06d}.pt"
             print(f"Saving data for step {i} to {filename}")
 
             # Prepare data to be saved in a dictionary
@@ -695,6 +698,7 @@ class TensorDataset(torch.utils.data.Dataset):
     """
     A PyTorch Dataset for loading simulation data saved by TensorReporter.
     Loads individual .pt files containing dictionaries {'f': tensor, 'step': int, ...}.
+    Can apply a fixed slice to all loaded tensors.
     """
 
     def __init__(self,
@@ -704,19 +708,20 @@ class TensorDataset(torch.utils.data.Dataset):
                  skip_idx_to_target: int = 1,
                  device: Optional[Union[str, torch.device]] = None,
                  sort_key_func: Optional[Callable[[str], int]] = None,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 slices_domain: Optional[List[slice]] = None): # Added slices_domain
         """
         Initializes the TensorDataset.
 
         Args:
             file_pattern (str): A pattern (glob compatible) to find the .pt files.
                                 Example: './output_data/sim_data_*.pt'
-            transform (Optional[Callable]): A function/transform to apply to the loaded 'f' tensors.
-                                            Defaults to None.
+            transform (Optional[Callable]): A function/transform to apply to the loaded 'f' tensors
+                                            *after* potential slicing. Defaults to None.
             target (bool): If True, __getitem__ returns (f, target_f, step).
                            If False, __getitem__ returns (f, step). Defaults to False.
             skip_idx_to_target (int): The number of *indices* (in the sorted file list)
-                                      to skip ahead to find the target 'f'. Defaults to 1.
+                                      to skip ahead to find the target 'f' for __getitem__. Defaults to 1.
             device (Optional[Union[str, torch.device]]): The device to load tensors onto
                                                          ('cpu', 'cuda', etc.). If None,
                                                          tensors are loaded onto the device
@@ -727,6 +732,12 @@ class TensorDataset(torch.utils.data.Dataset):
                                                             for sorting. If None, it attempts
                                                             to extract the last number before '.pt'.
                                                             Defaults to None.
+            verbose (bool): Print verbose output during initialization. Defaults to False.
+            slices_domain (Optional[List[slice]]): A list of slice objects (e.g.,
+                                                   [slice(0, 100), slice(50, 150)]) to apply
+                                                   to the spatial dimensions of the loaded 'f'
+                                                   tensors. If None, the full tensor is returned.
+                                                   Defaults to None.
         """
         super().__init__()
         self.file_pattern = file_pattern
@@ -734,24 +745,30 @@ class TensorDataset(torch.utils.data.Dataset):
         self.target = target
         self.skip_idx_to_target = skip_idx_to_target
         self.device = device
-        self.trainingsdomain = None # Will be loaded from the first file
+        # Store the provided slices_domain
+        self.slices_domain = slices_domain
+        self.trainingsdomain = None # Metadata loaded from file (not used for internal slicing)
         self.verbose = verbose
+
+        # --- Validation for slices_domain ---
+        if self.slices_domain is not None:
+            if not isinstance(self.slices_domain, list) or not all(isinstance(s, slice) for s in self.slices_domain):
+                 raise TypeError("slices_domain must be a list of slice objects or None.")
+            if verbose: print(f"Dataset will apply slice: {self.slices_domain}")
+
 
         if sort_key_func is None:
             # Default function to extract step number (assumes format like *_123.pt)
             def default_sort_key(filepath):
                 try:
-                    # Find numbers just before the '.pt' extension
                     match = re.search(r'_(\d+)\.pt$', os.path.basename(filepath))
-                    if match:
-                        return int(match.group(1))
+                    if match: return int(match.group(1))
                     else:
-                        # Fallback or raise error if pattern doesn't match
-                        print(f"Warning: Could not extract step number from {filepath}")
-                        return -1 # Or raise ValueError
+                        if self.verbose: print(f"Warning: Could not extract step number from {filepath}")
+                        return -1
                 except Exception as e:
-                    print(f"Error extracting step from {filepath}: {e}")
-                    return -1 # Or raise
+                    if self.verbose: print(f"Error extracting step from {filepath}: {e}")
+                    return -1
             sort_key_func = default_sort_key
 
         # 1. Find and sort files
@@ -759,39 +776,48 @@ class TensorDataset(torch.utils.data.Dataset):
         if not all_files:
             raise FileNotFoundError(f"No files found matching pattern: {self.file_pattern}")
 
-        # Create a list of (step_number, filepath) tuples and sort by step_number
         try:
             self.data_files = sorted(
                 [(sort_key_func(f), f) for f in all_files],
-                key=lambda x: x[0] # Sort by the extracted step number (first element)
+                key=lambda x: x[0]
             )
-            # Filter out files where step extraction failed (returned -1 or similar)
             self.data_files = [item for item in self.data_files if item[0] >= 0]
             if not self.data_files:
                  raise ValueError(f"No valid step numbers could be extracted from files matching {self.file_pattern}")
         except Exception as e:
              raise ValueError(f"Error processing or sorting files matching {self.file_pattern}: {e}")
 
-
         if self.verbose: print(f"Found {len(self.data_files)} data files.")
 
-        # 2. Load metadata (like trainingsdomain) from the first file
+        # 2. Load metadata (like trainingsdomain) from the first file for info purposes
         try:
             first_step, first_filepath = self.data_files[0]
             if self.verbose: print(f"Loading metadata from first file: {first_filepath} (Step {first_step})")
-            # Load to CPU first to avoid potential GPU memory issues during init
             initial_data = torch.load(first_filepath, map_location='cpu')
             if 'trainingsdomain' in initial_data:
                 self.trainingsdomain = initial_data['trainingsdomain']
-                if self.verbose: print(f"  Loaded trainingsdomain: {self.trainingsdomain}")
+                if self.verbose: print(f"  Loaded trainingsdomain metadata: {self.trainingsdomain}")
             else:
-                print("  'trainingsdomain' key not found in the first file.")
-            # Can load other metadata here if needed
+                 if self.verbose: print("  'trainingsdomain' key not found in the first file's metadata.")
 
-            # Check tensor shape from first file if useful (optional)
             if 'f' in initial_data:
-                 self.tensor_shape = initial_data['f'].shape
-                 if self.verbose: print(f"  Tensor 'f' shape from first file: {self.tensor_shape}")
+                 # Check shape *before* potential slicing if slices_domain is provided
+                 full_shape = initial_data['f'].shape
+                 if self.verbose: print(f"  Tensor 'f' full shape from first file: {full_shape}")
+                 # Store the shape *after* potential slicing
+                 temp_f = initial_data['f']
+                 if self.slices_domain is not None:
+                     try:
+                         # Construct the full slice including the first dimension (usually Q)
+                         full_slice = tuple([slice(None)] + self.slices_domain)
+                         self.tensor_shape = temp_f[full_slice].shape
+                         if self.verbose: print(f"  Tensor 'f' shape AFTER applying slices_domain: {self.tensor_shape}")
+                     except (IndexError, TypeError) as e:
+                         print(f"Warning: Could not apply initial slices_domain {self.slices_domain} to tensor shape {full_shape}. Error: {e}")
+                         self.tensor_shape = full_shape # Fallback to full shape
+                 else:
+                     self.tensor_shape = full_shape
+
             else:
                  print(f"Warning: 'f' key not found in the first file: {first_filepath}")
                  self.tensor_shape = None
@@ -802,25 +828,57 @@ class TensorDataset(torch.utils.data.Dataset):
              print(f"Warning: Key {e} not found while loading metadata from {first_filepath}.")
         except Exception as e:
             print(f"Error loading metadata from {first_filepath}: {e}")
-            # Decide if this is critical - maybe raise the error depending on requirements
-            # raise e
 
+
+    def _load_and_process_f(self, filepath: str) -> torch.Tensor:
+        """Internal helper to load, optionally slice, and transform 'f'."""
+        try:
+            # Load to CPU first if device is not specified
+            load_device = self.device if self.device is not None else 'cpu'
+            data = torch.load(filepath, map_location=load_device)
+            f = data['f']
+            # Move to specified device if needed
+            if self.device is not None:
+                 f = f.to(self.device)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Data file not found: {filepath}")
+        except KeyError:
+            raise KeyError(f"Key 'f' not found in {filepath}")
+        except Exception as e:
+            raise RuntimeError(f"Error loading {filepath}: {e}")
+
+        # Apply the fixed slice if specified during init
+        if self.slices_domain is not None:
+            try:
+                # Assume f is [Q, Dim0, Dim1, ...]
+                full_slice = tuple([slice(None)] + self.slices_domain)
+                f = f[full_slice]
+            except (IndexError, TypeError) as e:
+                # Provide more context in error message
+                raise ValueError(f"Error applying slices_domain {self.slices_domain} to tensor loaded from {filepath} (shape {data['f'].shape if 'f' in data else 'N/A'}): {e}")
+
+        # Apply transform if it exists
+        if self.transform:
+            f = self.transform(f)
+
+        return f
 
     def __len__(self) -> int:
-        """Returns the number of available starting points."""
+        """Returns the number of available starting points for __getitem__."""
         num_files = len(self.data_files)
         if self.target:
-            # We need enough files for both the input and the target
             return max(0, num_files - self.skip_idx_to_target)
         else:
             return num_files
 
     def __call__(self, idx: int) -> Union[Tuple[torch.Tensor, int], Tuple[torch.Tensor, torch.Tensor, int]]:
-        """Allows calling the dataset instance like a function to get an item by index."""
+        """Allows calling the dataset instance like a function to get an item by index using __getitem__ behavior."""
         return self.__getitem__(idx)
+
     def __getitem__(self, idx: int) -> Union[Tuple[torch.Tensor, int], Tuple[torch.Tensor, torch.Tensor, int]]:
         """
-        Loads and returns data for a given index.
+        Loads and returns data for a given index, applying the fixed slice
+        (if specified) and transform. Handles target logic.
 
         Args:
             idx (int): The index in the sorted list of found files.
@@ -828,80 +886,90 @@ class TensorDataset(torch.utils.data.Dataset):
         Returns:
             If self.target is False: (f_tensor, step_number)
             If self.target is True: (f_tensor, target_f_tensor, step_number)
-
-        Raises:
-            IndexError: If idx or the calculated target index is out of bounds.
-            FileNotFoundError: If a specific .pt file is missing unexpectedly.
-            KeyError: If a loaded dictionary is missing the 'f' key.
         """
         if not 0 <= idx < len(self):
-             # This check considers the reduced length when self.target is True
              raise IndexError(f"Index {idx} out of bounds for dataset length {len(self)}")
 
         # --- Get data for the current index ---
         current_step, current_filepath = self.data_files[idx]
-        try:
-            current_data = torch.load(current_filepath, map_location=self.device)
-            f = current_data['f']
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Data file not found: {current_filepath} (for index {idx})")
-        except KeyError:
-            raise KeyError(f"Key 'f' not found in {current_filepath}")
-        except Exception as e:
-             raise RuntimeError(f"Error loading {current_filepath}: {e}")
-
-        # --- Apply transform to current data ---
-        if self.transform:
-            f = self.transform(f)
+        f = self._load_and_process_f(current_filepath) # Use helper method
 
         # --- Handle target if requested ---
         if self.target:
             target_idx = idx + self.skip_idx_to_target
-            # We already checked bounds in __len__ and the initial idx check,
-            # so target_idx should be valid if idx is valid for the target case.
-            # However, an extra assertion can be helpful for debugging.
             assert 0 <= target_idx < len(self.data_files), f"Target index {target_idx} calculation error."
 
             target_step, target_filepath = self.data_files[target_idx]
-            try:
-                target_data = torch.load(target_filepath, map_location=self.device)
-                target_f = target_data['f']
-            except FileNotFoundError:
-                raise FileNotFoundError(f"Target data file not found: {target_filepath} (for target index {target_idx})")
-            except KeyError:
-                raise KeyError(f"Key 'f' not found in target file {target_filepath}")
-            except Exception as e:
-                 raise RuntimeError(f"Error loading target file {target_filepath}: {e}")
-
-            # --- Apply transform to target data ---
-            if self.transform:
-                target_f = self.transform(target_f)
+            target_f = self._load_and_process_f(target_filepath) # Use helper method for target too
 
             return f, target_f, current_step # Return current step number
         else:
             return f, current_step # Return current step number
 
+    # Updated get_f: Removed apply_trainingsdomain_slice, uses helper method
+    def get_f(self, idx: int, apply_metadata_trainingsdomain_slice: bool = False) -> torch.Tensor:
+        """
+        Loads the 'f' tensor, applies the fixed slices_domain (if any),
+        and optionally applies a slice based on the loaded trainingsdomain metadata.
+        """
+        # Check index
+        if not 0 <= idx < len(self.data_files):
+            raise IndexError(f"Index {idx} out of bounds for number of data files {len(self.data_files)}")
+
+        # Get filepath
+        step_number, filepath = self.data_files[idx]
+
+        # Use the internal helper to load, apply device, apply fixed slices_domain, and transform
+        f = self._load_and_process_f(filepath) # This already applied slices_domain
+
+        # --- Apply metadata slice if requested ---
+        if apply_metadata_trainingsdomain_slice:
+            # Get metadata coordinates
+            domain_coords = self.get_trainingsdomain() # Metadata getter
+            if domain_coords is None:
+                raise ValueError("Cannot apply metadata trainingsdomain slice because 'trainingsdomain' metadata was not found or loaded.")
+            if not isinstance(domain_coords, (list, tuple)) or len(domain_coords) != 4:
+                 raise ValueError(f"Invalid metadata 'trainingsdomain' format: {domain_coords}. Expected list/tuple of 4 elements.")
+
+            # NOTE: This slices the tensor *again* if slices_domai  n was already applied.
+            # This might be incorrect if the metadata coordinates refer to the *original* tensor.
+            # A safer approach might be to load the *full* tensor here if this flag is true.
+            # Let's load full tensor if this specific slice is requested:
+            if self.slices_domain is not None:
+                 if self.verbose: print("Warning: Reloading full tensor to apply metadata slice, ignoring slices_domain for this call.")
+                 # Reload without automatic slicing (skip helper)
+                 try:
+                     load_device = self.device if self.device is not None else 'cpu'
+                     data = torch.load(filepath, map_location=load_device)
+                     f_full = data['f']
+                     if self.device is not None: f_full = f_full.to(self.device)
+                     # Apply transform here if needed
+                     if self.transform: f_full = self.transform(f_full)
+                 except Exception as e: raise RuntimeError(f"Error reloading {filepath}: {e}")
+            else:
+                 f_full = f # Already loaded full tensor
+
+            try:
+                # Apply the metadata slicing to the full tensor
+                start0, stop0, start1, stop1 = map(int, domain_coords)
+                f_sliced = f_full[:, start0:stop0, start1:stop1]
+                return f_sliced
+            except (TypeError, IndexError) as e:
+                raise ValueError(f"Error applying metadata trainingsdomain slice with coords {domain_coords}: {e}")
+        else:
+            # Return the tensor as processed by _load_and_process_f (potentially sliced by slices_domain)
+            return f
+
     def get_trainingsdomain(self) -> Optional[List[Union[int, float]]]:
-        """Returns the trainingsdomain loaded from the first data file."""
+        """Returns the trainingsdomain metadata loaded from the first data file."""
         return self.trainingsdomain
 
-    # __del__ is generally not needed as file handles aren't kept open.
-    # def __del__(self):
-    #     pass
-
-    # __call__ could mimic __getitem__ if desired, but often not needed for Datasets
-    # def __call__(self, idx):
-    #     return self.__getitem__(idx)
-
-    # get_attr is less relevant as attributes are per-file. Use get_trainingsdomain() instead.
-    # def get_attr(self, attr):
-    #    if attr == 'trainingsdomain':
-    #        return self.get_trainingsdomain()
-    #    # Handle other potential attributes if needed, perhaps loading from first file?
-    #    raise AttributeError(f"Attribute '{attr}' not directly available.")
+    def get_slices_domain(self) -> Optional[List[slice]]:
+        """Returns the slices_domain specified during initialization."""
+        return self.slices_domain
 
 
-def plot_velocity_density(f, flow, slices, config, rectangle=False, figsize=(12, 5)):
+def plot_velocity_density(f, flow, config, slices=[slice(None, None), slice(None, None)], rectangle=False, title="Chart", figsize=(12, 5)):
     """
     Plots velocity magnitude and density side-by-side.
 
@@ -915,7 +983,7 @@ def plot_velocity_density(f, flow, slices, config, rectangle=False, figsize=(12,
     """
     # Create a figure and a set of subplots (1 row, 2 columns)
     fig, axes = plt.subplots(1, 2, figsize=figsize)
-
+    fig.suptitle(title)
     # --- Plot 1: Velocity ---
     ax_u = axes[0] # Left subplot
     u = flow.units.convert_velocity_to_pu(flow.u(f)).cpu()
@@ -957,6 +1025,7 @@ def plot_velocity_density(f, flow, slices, config, rectangle=False, figsize=(12,
 
     # --- Final Adjustments ---
     plt.tight_layout() # Adjust layout to prevent overlapping titles/labels
+
     plt.show()       # Show the entire figure with both plots
 
 # Example Usage (replace with your actual objects):
