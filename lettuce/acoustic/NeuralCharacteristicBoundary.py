@@ -23,6 +23,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
                     mach_number=config["Ma"],
                     velocity_init=1,
                     K=K,
+                    xc=config["xc"],
                     distanceFromRight=200+config["extension"])
     collision = lt.BGKCollision(tau=flow.units.relaxation_parameter_lu)
     simulation = lt.Simulation(flow=flow, collision=collision, reporter=[])
@@ -69,7 +70,7 @@ class NeuralTuning(torch.nn.Module):
         super(NeuralTuning, self).__init__()
         self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
         self.net = torch.nn.Sequential(
-            torch.nn.Linear(12, nodes, bias=True),
+            torch.nn.Linear(6, nodes, bias=True),
             torch.nn.Linear(nodes, nodes, bias=True),
             torch.nn.BatchNorm1d(nodes),
             torch.nn.LeakyReLU(negative_slope=0.01),
@@ -81,13 +82,16 @@ class NeuralTuning(torch.nn.Module):
 
         print("Initialized NeuralTuning")
 
-    def forward(self, f, rho_dt, u_dt, v_dt):
+    def forward(self, f, rho_dt, u_dt, v_dt, velocity_init=0):
         """Forward pass through the network with residual connection."""
         local_moments = self.moments.transform(f.unsqueeze(1))
         # K = self.net(local_moments[:,0,:].transpose(0,1))
+        local_moments = local_moments
+        local_moments[1, 0, :] = (local_moments[1, 0, :] - velocity_init[0])**2
+        local_moments[2, 0, :] = local_moments[2, 0, :]**2
         K = self.net(
             torch.cat([
-                local_moments[:,0,:].transpose(0,1),
+                local_moments[:3,0,:].transpose(0,1),
                 rho_dt.unsqueeze(1),
                 u_dt.unsqueeze(1),
                 v_dt.unsqueeze(1)], dim=1)
@@ -111,6 +115,7 @@ if __name__ == "__main__":
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
     parser.add_argument("--t_lu", type=int, default=600)
+    parser.add_argument("--xc", type=int, default=150)
     parser.add_argument("--load_dataset", action="store_true", default=False)
     parser.add_argument("--load_dataset_idx", type=int, default=0)
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-55.00_000055.pt")

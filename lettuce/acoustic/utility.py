@@ -503,8 +503,8 @@ class CharacteristicBoundary(lt.Boundary):
 
         L5 = (u_local + self.cs) * (p_dx + rho_local * self.cs * u_dx)
         # K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
-        K0 = self.K(f_local,self.rho_dt_old,self.u_dt_old,self.v_dt_old)[:, 0] if callable(self.K)  else self.K
-        L1 = -K0*(self.cs2*rho_local-self.cs2*1)
+        K0 = self.K(f_local,self.rho_dt_old,self.u_dt_old,self.v_dt_old,self.velocity)[:, 0] if callable(self.K)  else self.K
+        L1 = -K0*self.cs2*(rho_local-1.0)
         L3 = u_local * v_dx
 
         rho_dt = -self._inv_two_cs2 * (L5 + L1)
