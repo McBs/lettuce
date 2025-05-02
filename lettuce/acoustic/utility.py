@@ -508,9 +508,13 @@ class CharacteristicBoundary(lt.Boundary):
         L1 = -K0*(1-self.mach**2)*self.cs*self.Rc_inv*self.cs2*(rho_local-1.0)
         L3 = u_local * v_dx
 
-        rho_dt = -self._inv_two_cs2 * (L5 + L1)
-        u_dt = -1/(2 * rho_local * self.cs) * (L5 + L1)
-        v_dt = -L3
+        T1 = - ()
+        T3 = - ()
+        T5 = - ()
+
+        rho_dt = self._inv_two_cs2 * (-L5 - L1 + T5 + T1)
+        u_dt = 1/(2 * rho_local * self.cs) * (-L5 - L1 + T5 - T1)
+        v_dt = -L3 + T3
 
         # self.rho_t1 = rho_local + 1.5 * rho_dt - 0.5 * self.rho_dt_old
         # self.u_t1 = u_local + 1.5 * u_dt - 0.5 * self.u_dt_old
