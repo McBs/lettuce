@@ -1011,8 +1011,8 @@ def plot_velocity_density(f, flow, config, slices=[slice(None, None), slice(None
 
     # Display the density image on the right axes
     im_rho = ax_rho.imshow(rho[slices[0], slices[1]].detach().numpy().transpose(),
-                           vmin=-1e-4 + 1, # Use vmin/vmax from original plotRho
-                           vmax=1e-4 + 1,
+                           vmin=-3e-4 + 1, # Use vmin/vmax from original plotRho
+                           vmax=3e-4 + 1,
                            origin='lower',
                            aspect='auto') # Match aspect ratio if desired
     ax_rho.set_title('Density')

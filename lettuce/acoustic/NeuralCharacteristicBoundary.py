@@ -86,9 +86,6 @@ class NeuralTuning(torch.nn.Module):
         """Forward pass through the network with residual connection."""
         local_moments = self.moments.transform(f.unsqueeze(1))
         # K = self.net(local_moments[:,0,:].transpose(0,1))
-        rho = local_moments[0,:,:].transpose(0,1)
-        u = torch.abs(local_moments[1, :, :] - velocity_init[0]).transpose(0,1)
-        v = torch.abs(local_moments[2, :, :]).transpose(0,1)
         K = self.net(
             torch.cat([
                 rho,u,v,
@@ -140,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--training_iteration", type=int, nargs="+", default = [5, 10, 15])
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.3])
     parser.add_argument("--train_t_lu_intervals", type=int, nargs="+", default=[1, 100, 1])
+    parser.add_argument("--train_t_lu_intervals_2", type=int, nargs="+", default=None)
     parser.add_argument("--expand_intervals", action="store_true", default=False)
     parser.add_argument("--slices", action="store_true", default=False)
     parser.add_argument("--verbose", action="store_true", default=False)
@@ -169,6 +167,8 @@ if __name__ == "__main__":
 
     machNumbers = args["train_mach_numbers"]
     intervals = np.arange(*args["train_t_lu_intervals"])
+    intervals_2 = np.arange(*args["train_t_lu_intervals_2"]) if args["train_t_lu_intervals_2"] is not None else []
+    intervals = np.concatenate((intervals, intervals_2))
     training_iterations = args["training_iteration"]
     if args["shuffle"]: intervals = np.random.permutation(intervals)
     load_dataset_idx = args["load_dataset_idx"] if args["load_dataset"] else 0
@@ -208,7 +208,7 @@ if __name__ == "__main__":
             t_lu = training_iteration if args["train"] else args["t_lu"]
             # idx=0
             print(f"pair idx {i}, mach: {ma}, t_lu: {t_lu}, loaded dataset idx: {idx}, loaded reference idx: {int(idx+t_lu/args["save_iteration"])}",)
-            if int(idx+t_lu/args["save_iteration"])>600:
+            if args["train"] and int(idx+t_lu/args["save_iteration"])>600:
                 print("continue")
                 continue
             with autocast(context.device.type):
