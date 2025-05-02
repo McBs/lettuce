@@ -49,6 +49,11 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     simulation.boundaries[1].rho_t1 = flow.rho()[0, -1, :]
     simulation.boundaries[1].u_t1 = flow.u()[0, -1, :]
     simulation.boundaries[1].v_t1 = flow.u()[1, -1, :]
+    if config["train"]:
+        f_pre = dataset.get_f(dataset_nr - 1)
+        simulation.boundaries[1].rho_dt_old = flow.rho(f_pre)[0, -1, :] - simulation.boundaries[1].rho_t1
+        simulation.boundaries[1].u_dt_old = flow.u(f_pre)[0, -1, :] - simulation.boundaries[1].u_t1
+        simulation.boundaries[1].v_dt_old = flow.u(f_pre)[1, -1, :] - simulation.boundaries[1].v_t1
     with torch.set_grad_enabled(config["train"]):
         # simulation(num_steps=1)
         # print(f"t_lu = {t_lu}")
@@ -128,7 +133,7 @@ if __name__ == "__main__":
     parser.add_argument("--scheduler_gamma", type=float, default=0.1)
     parser.add_argument("--training_iteration", type=int, nargs="+", default = [5, 10, 15])
     parser.add_argument("--train_mach_numbers", type = float, nargs = "+", default = [0.3])
-    parser.add_argument("--train_t_lu_intervals", type=int, nargs="+", default=[*np.arange(5)])
+    parser.add_argument("--train_t_lu_intervals", type=int, nargs="+", default=[1, 100, 1])
     parser.add_argument("--expand_intervals", action="store_true", default=False)
     parser.add_argument("--slices", action="store_true", default=False)
     parser.add_argument("--verbose", action="store_true", default=False)
@@ -157,7 +162,7 @@ if __name__ == "__main__":
     # slices = [slice(None, None), slice(None, None)]
 
     machNumbers = args["train_mach_numbers"]
-    intervals = args["train_t_lu_intervals"]
+    intervals = np.arange(*args["train_t_lu_intervals"])
     training_iterations = args["training_iteration"]
     if args["shuffle"]: intervals = np.random.permutation(intervals)
     load_dataset_idx = args["load_dataset_idx"] if args["load_dataset"] else 0
