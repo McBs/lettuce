@@ -213,10 +213,10 @@ if __name__ == "__main__":
             if callable(K_tuned) and args["train"]:
                 offset = 0 if args["load_dataset_idx"] is None else args["load_dataset_idx"]
                 reference = dataset_train.get_f(int(idx+t_lu/args["save_iteration"]), True)
-                rho_ref = flow.rho(reference)[:,-training_iteration:,75:125]
-                rho_train = flow.rho()[:,*slices_training][:,-training_iteration:,75:125]
-                u_ref = flow.u(reference)[:,-training_iteration:,75:125]
-                u_train = flow.u()[:,*slices_training][:,-training_iteration:,75:125]
+                rho_ref = flow.rho(reference)[:,-training_iteration:,50:150]
+                rho_train = flow.rho()[:,*slices_training][:,-training_iteration:,50:150]
+                u_ref = flow.u(reference)[:,-training_iteration:,50:150]
+                u_train = flow.u()[:,*slices_training][:,-training_iteration:,50:150]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
                 # k = K_tuned(flow.f[:,slices[0].stop-1,:],3*[torch.zeros_like(flow.f[0,-1,:])])
                 loss = criterion(rho_ref, rho_train)# + criterion(u_ref, u_train) #+ criterion(k, torch.zeros_like(k))
