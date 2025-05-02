@@ -208,6 +208,7 @@ if __name__ == "__main__":
             t_lu = training_iteration if args["train"] else args["t_lu"]
             # idx=0
             print(f"pair idx {i}, mach: {ma}, t_lu: {t_lu}, loaded dataset idx: {idx}, loaded reference idx: {int(idx+t_lu/args["save_iteration"])}",)
+            if int(idx+t_lu/args["save_iteration"])>600: continue
             with autocast(context.device.type):
                 flow, reporter = run(context=context,
                                      config=args,
