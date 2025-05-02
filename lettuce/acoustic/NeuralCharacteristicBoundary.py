@@ -86,12 +86,12 @@ class NeuralTuning(torch.nn.Module):
         """Forward pass through the network with residual connection."""
         local_moments = self.moments.transform(f.unsqueeze(1))
         # K = self.net(local_moments[:,0,:].transpose(0,1))
-        local_moments = local_moments
-        local_moments[1, 0, :] = (local_moments[1, 0, :] - velocity_init[0])**2
-        local_moments[2, 0, :] = local_moments[2, 0, :]**2
+        rho = local_moments[0,:,:].transpose(0,1)
+        u = torch.abs(local_moments[1, :, :] - velocity_init[0]).transpose(0,1)
+        v = torch.abs(local_moments[2, :, :]).transpose(0,1)
         K = self.net(
             torch.cat([
-                local_moments[:3,0,:].transpose(0,1),
+                rho,u,v,
                 rho_dt.unsqueeze(1),
                 u_dt.unsqueeze(1),
                 v_dt.unsqueeze(1)], dim=1)
