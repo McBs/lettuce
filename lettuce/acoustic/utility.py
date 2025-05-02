@@ -470,6 +470,7 @@ class CharacteristicBoundary(lt.Boundary):
         self.mach = mach
         self.cs = context.convert_to_tensor(np.sqrt(1 / 3))
         self.cs2 = context.convert_to_tensor(1 / 3)
+        self.Rc_inv = 1/torch.sqrt(context.convert_to_tensor(10))
         self._inv_two_cs2 = context.convert_to_tensor(1 / (2 * self.cs2))
         self._three_half = context.convert_to_tensor(1.5)
         self.init = True
@@ -504,7 +505,7 @@ class CharacteristicBoundary(lt.Boundary):
         L5 = (u_local + self.cs) * (p_dx + rho_local * self.cs * u_dx)
         # K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
         K0 = self.K(f_local,self.rho_dt_old,self.u_dt_old,self.v_dt_old,self.velocity)[:, 0] if callable(self.K)  else self.K
-        L1 = -K0*self.cs2*(rho_local-1.0)
+        L1 = -K0*(1-self.mach**2)*self.cs*self.Rc_inv*self.cs2*(rho_local-1.0)
         L3 = u_local * v_dx
 
         rho_dt = -self._inv_two_cs2 * (L5 + L1)
