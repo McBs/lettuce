@@ -70,53 +70,62 @@ class NeuralTuning(torch.nn.Module):
         super(NeuralTuning, self).__init__()
         self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
         self.net = torch.nn.Sequential(
-            torch.nn.Linear(12, nodes, bias=True),
+            torch.nn.Linear(9, nodes, bias=True),
             torch.nn.Linear(nodes, nodes, bias=True),
             torch.nn.BatchNorm1d(nodes),
             torch.nn.LeakyReLU(negative_slope=0.01),
-            torch.nn.Linear(nodes, 1, bias=True),
+            torch.nn.Linear(nodes, 2, bias=True),
         ).to(dtype=dtype, device=device)
         self.index = index
-        self.max = 0
-        self.min = 1
+        self.K0max = 0
+        self.K0min = 1
+        self.K1max = 0
+        self.K1min = 1
 
         print("Initialized NeuralTuning")
 
-    def forward(self, f, rho_dt, u_dt, v_dt, velocity_init=0):
+    def forward(self, f, p_dx, u_dx, v_dx, p_dy, u_dy, v_dy, p_dt, u_dt, v_dt, velocity_init=0):
         """Forward pass through the network with residual connection."""
         local_moments = self.moments.transform(f.unsqueeze(1))
         # K = self.net(local_moments[:,0,:].transpose(0,1))
-        # rho = local_moments[0,:,:].transpose(0,1)
-        # u = torch.abs(local_moments[1, :, :] - velocity_init[0]).transpose(0,1)
-        # v = torch.abs(local_moments[2, :, :]).transpose(0,1)
+        rho = local_moments[0,:,:].transpose(0,1)
+        u = torch.abs(local_moments[1, :, :] - velocity_init[0]).transpose(0,1)
+        v = torch.abs(local_moments[2, :, :]).transpose(0,1)
         K = self.net(
             torch.cat([
-                rho,u,v,
-                local_moments[3:,0,:].transpose(0,1),
-                rho_dt.unsqueeze(1),
+                p_dx.unsqueeze(1),
+                u_dx.unsqueeze(1),
+                v_dx.unsqueeze(1),
+                p_dy.unsqueeze(1),
+                u_dy.unsqueeze(1),
+                v_dy.unsqueeze(1),
+                p_dt.unsqueeze(1),
                 u_dt.unsqueeze(1),
                 v_dt.unsqueeze(1)], dim=1)
         )
         # K = self.net(
         #     torch.cat([
+        #         local_moments[3:,0,:].transpose(0,1),
         #         rho_dt.unsqueeze(1),
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
         K = torch.nn.Sigmoid()(K)
-        self.max = K.max() if K.max() > self.max else self.max
-        self.min = K.min() if K.min() < self.min else self.min
+        self.K0max = K[0].max() if K[0].max() > self.K0max else self.K0max
+        self.K0min = K[0].min() if K[0].min() < self.K0min else self.K0min
+        self.K1max = K[1].max() if K[1].max() > self.K1max else self.K1max
+        self.K1min = K[1].min() if K[1].min() < self.K1min else self.K1min
         return K
 
 if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--nx", type=int, default=300)
     parser.add_argument("--ny", type=int, default=500)
-    parser.add_argument("--extension", type=int, default=200)
+    parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
     parser.add_argument("--xc", type=int, default=150)
-    parser.add_argument("--t_lu", type=int, default=400)
+    parser.add_argument("--t_lu", type=int, default=300)
     parser.add_argument("--load_dataset", action="store_true", default=False)
     parser.add_argument("--load_dataset_idx", type=int, default=0)
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-55.00_000055.pt")
@@ -154,7 +163,7 @@ if __name__ == "__main__":
     torch.manual_seed(0)
     np.random.seed(0)
 
-    K_tuned = NeuralTuning() if args["K_neural"] else 0
+    K_tuned = NeuralTuning() if args["K_neural"] else [1, 0]
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
@@ -219,7 +228,7 @@ if __name__ == "__main__":
                                      config=args,
                                      K=K_tuned,
                                      dataset = dataset_train,
-                                     dataset_nr = idx,
+                                     dataset_nr = int(idx),
                                      t_lu = t_lu,
                                      )
             if callable(K_tuned) and args["train"]:
@@ -257,6 +266,7 @@ if __name__ == "__main__":
     # rectangle = False if args["slices"] else True
 
     slices_plot = slices_domain
+    slices_plot = slices_training
     plot_velocity_density(flow.f, flow=flow, config=args, slices=slices_plot, title="simulation", rectangle=True)
     # plotRho(flow.f, flow=flow, config=args, slices=slices_plot, rectangle=rectangle)
 
@@ -279,8 +289,9 @@ if __name__ == "__main__":
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
     if args["K_neural"]:
-        print("K tuned max: ", K_tuned.max)
-        print("K tuned min: ", K_tuned.min)
+        print("K0 tuned max: ", K_tuned.K0max, "K0 tuned min: ", K_tuned.K0min)
+        print("K1 tuned max: ", K_tuned.K1max, "K1 tuned min: ", K_tuned.K1min)
+
 
     if reporter is not None:
         out = torch.tensor(reporter.out_total).cpu().detach()

@@ -498,19 +498,39 @@ class CharacteristicBoundary(lt.Boundary):
         v_left = (f_left[2]-f_left[4]+f_left[5]+f_left[6]-f_left[7]-f_left[8])/rho_left
         v_local = (f_local[2]-f_local[4]+f_local[5]+f_local[6]-f_local[7]-f_local[8])/rho_local
 
-        p_dx = -(1/3 * (rho_left - rho_local))
+        p_dx = -(self.cs2 * (rho_left - rho_local))
         u_dx = -(u_left-u_local)
         v_dx = -(v_left-v_local)
 
+        p_dy = -(self.cs2 * (torch.roll(rho_local,shifts=1) - torch.roll(rho_local,shifts=-1))) * 0.5
+        u_dy = -(torch.roll(u_local,shifts=1) - torch.roll(u_local,shifts=-1) ) * 0.5
+        v_dy = -(torch.roll(v_local,shifts=1) - torch.roll(v_local,shifts=-1) ) * 0.5
+
         L5 = (u_local + self.cs) * (p_dx + rho_local * self.cs * u_dx)
         # K0 = self.K(f_left)[:, 0] if callable(self.K)  else self.K
-        K0 = self.K(f_local,self.rho_dt_old,self.u_dt_old,self.v_dt_old,self.velocity)[:, 0] if callable(self.K)  else self.K
-        L1 = -K0*(1-self.mach**2)*self.cs*self.Rc_inv*self.cs2*(rho_local-1.0)
+        # K0 = self.K(f_local, self.rho_dt_old, self.u_dt_old, self.v_dt_old, self.velocity)[:, 0] if callable(self.K) else self.K
+        K = self.K(f_local,
+                   p_dx,
+                   u_dx,
+                   v_dx,
+                   p_dy,
+                   u_dy,
+                   v_dy,
+                   self.rho_dt_old,
+                   self.u_dt_old,
+                   self.v_dt_old,
+                   self.velocity)[:, 0] if callable(self.K) else self.K
+        # L1 = -K0*(1-self.mach**2)*self.cs*self.Rc_inv*self.cs2*(rho_local-1.0)
         L3 = u_local * v_dx
 
-        T1 = - ()
-        T3 = - ()
-        T5 = - ()
+        T1 = - (v_local * p_dy + self.cs2 * rho_local * v_dy - rho_local * self.cs * v_local * u_dy)
+        T3 = - (v_local * v_dy + 1/(rho_local)*p_dy)
+        T5 = - (v_local * p_dy + self.cs2 * rho_local * v_dy + rho_local * self.cs * v_local * u_dy)
+
+        L1 = -K[0] * (1 - self.mach ** 2) * self.cs * self.Rc_inv * self.cs2 * (rho_local - 1.0) - K[1] * (T1 - 0) + T1
+        # T1 = 0
+        # T3 = 0
+        # T5 = 0
 
         rho_dt = self._inv_two_cs2 * (-L5 - L1 + T5 + T1)
         u_dt = 1/(2 * rho_local * self.cs) * (-L5 - L1 + T5 - T1)
