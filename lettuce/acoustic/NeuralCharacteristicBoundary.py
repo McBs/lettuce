@@ -110,7 +110,7 @@ class NeuralTuning(torch.nn.Module):
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
-        K = torch.nn.Sigmoid()(K)*5
+        K = torch.nn.Sigmoid()(K)*10
         self.K0max = K[:,0].max() if K[:,0].max() > self.K0max else self.K0max
         self.K0min = K[:,0].min() if K[:,0].min() < self.K0min else self.K0min
         self.K1max = K[:,1].max() if K[:,1].max() > self.K1max else self.K1max
