@@ -519,7 +519,7 @@ class CharacteristicBoundary(lt.Boundary):
                    self.rho_dt_old,
                    self.u_dt_old,
                    self.v_dt_old,
-                   self.velocity)[:, 0] if callable(self.K) else self.K
+                   self.velocity) if callable(self.K) else self.K
         # L1 = -K0*(1-self.mach**2)*self.cs*self.Rc_inv*self.cs2*(rho_local-1.0)
         L3 = u_local * v_dx
 
@@ -527,7 +527,7 @@ class CharacteristicBoundary(lt.Boundary):
         T3 = - (v_local * v_dy + 1/(rho_local)*p_dy)
         T5 = - (v_local * p_dy + self.cs2 * rho_local * v_dy + rho_local * self.cs * v_local * u_dy)
 
-        L1 = -K[0] * (1 - self.mach ** 2) * self.cs * self.Rc_inv * self.cs2 * (rho_local - 1.0) - K[1] * (T1 - 0) + T1
+        L1 = -K[:, 0] * (1 - self.mach ** 2) * self.cs * self.Rc_inv * self.cs2 * (rho_local - 1.0) - K[:, 1] * (T1 - 0) + T1
         # T1 = 0
         # T3 = 0
         # T5 = 0

@@ -115,7 +115,7 @@ class NeuralTuning(torch.nn.Module):
         self.K0min = K[0].min() if K[0].min() < self.K0min else self.K0min
         self.K1max = K[1].max() if K[1].max() > self.K1max else self.K1max
         self.K1min = K[1].min() if K[1].min() < self.K1min else self.K1min
-        K[1] = K[1]*4
+        K[:,1] = K[:,1]*4
         return K
 
 if __name__ == "__main__":
