@@ -110,12 +110,12 @@ class NeuralTuning(torch.nn.Module):
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
-        K = torch.nn.Sigmoid()(K)
+        K = torch.nn.ReLU()(K)
         self.K0max = K[0].max() if K[0].max() > self.K0max else self.K0max
         self.K0min = K[0].min() if K[0].min() < self.K0min else self.K0min
         self.K1max = K[1].max() if K[1].max() > self.K1max else self.K1max
         self.K1min = K[1].min() if K[1].min() < self.K1min else self.K1min
-        K[:,1] = K[:,1]*4
+        # K[:,1] = K[:,1]*4
         return K
 
 if __name__ == "__main__":
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=int, default=5)
     parser.add_argument("--save_start_idx", type=float, default=0)
-    parser.add_argument("--K_neural", action="store_true", default=False)
+    parser.add_argument("--K_neural", action="store_true", default=True)
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=False)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
