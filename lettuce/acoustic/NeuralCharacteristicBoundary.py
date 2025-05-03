@@ -111,10 +111,10 @@ class NeuralTuning(torch.nn.Module):
         #         v_dt.unsqueeze(1)], dim=1)
         # )
         K = torch.nn.Sigmoid()(K)*5
-        self.K0max = K[0].max() if K[0].max() > self.K0max else self.K0max
-        self.K0min = K[0].min() if K[0].min() < self.K0min else self.K0min
-        self.K1max = K[1].max() if K[1].max() > self.K1max else self.K1max
-        self.K1min = K[1].min() if K[1].min() < self.K1min else self.K1min
+        self.K0max = K[:,0].max() if K[:,0].max() > self.K0max else self.K0max
+        self.K0min = K[:,0].min() if K[:,0].min() < self.K0min else self.K0min
+        self.K1max = K[:,1].max() if K[:,1].max() > self.K1max else self.K1max
+        self.K1min = K[:,1].min() if K[:,1].min() < self.K1min else self.K1min
         return K
 
 if __name__ == "__main__":
@@ -289,8 +289,8 @@ if __name__ == "__main__":
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
     if args["K_neural"]:
-        print("K0 tuned max: ", K_tuned.K0max, "K0 tuned min: ", K_tuned.K0min)
-        print("K1 tuned max: ", K_tuned.K1max, "K1 tuned min: ", K_tuned.K1min)
+        print("K0 tuned min: ", K_tuned.K0min, "K0 tuned max: ", K_tuned.K0max)
+        print("K1 tuned min: ", K_tuned.K1min, "K1 tuned max: ", K_tuned.K1max)
 
 
     if reporter is not None:
