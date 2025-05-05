@@ -206,7 +206,8 @@ if __name__ == "__main__":
         print(f"Epoch: {_}" if args["train"] else "Running ...")
         running_loss = 0.0
         for i, (idx, ma, training_iteration) in enumerate(pairs):
-
+            if idx is not None:
+                idx = int(idx)
             dataset_name = f"./{args["output_directory"]}/dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*"
             if args["load_dataset"] and args["load_dataset_path"] is not None:
                 dataset_name = (args["load_dataset_path"])
@@ -240,7 +241,7 @@ if __name__ == "__main__":
                                      config=args,
                                      K=K_tuned,
                                      dataset = dataset_train,
-                                     dataset_nr = int(idx),
+                                     dataset_nr = idx,
                                      t_lu = t_lu,
                                      )
             if callable(K_tuned) and args["train"]:
@@ -252,7 +253,7 @@ if __name__ == "__main__":
                 u_train = flow.u()[:,*slices_training][:,-training_iteration:,50:150]
                 # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
                 # k = K_tuned(flow.f[:,slices[0].stop-1,:],3*[torch.zeros_like(flow.f[0,-1,:])])
-                loss = criterion(rho_ref, rho_train)# + criterion(u_ref, u_train) #+ criterion(k, torch.zeros_like(k))
+                loss = criterion(rho_ref, rho_train) + criterion(u_ref, u_train) #+ criterion(k, torch.zeros_like(k))
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
