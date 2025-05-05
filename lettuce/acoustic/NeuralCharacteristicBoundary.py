@@ -65,7 +65,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     return flow, reporter
 
 class NeuralTuning(torch.nn.Module):
-    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None):
+    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None, K1max=5):
         """Initialize a neural network boundary model."""
         super(NeuralTuning, self).__init__()
         self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
@@ -77,10 +77,11 @@ class NeuralTuning(torch.nn.Module):
             torch.nn.Linear(nodes, 2, bias=True),
         ).to(dtype=dtype, device=device)
         self.index = index
-        self.K0max = 0
-        self.K0min = 1
-        self.K1max = 0
-        self.K1min = 1
+        self.K0max_t = 0
+        self.K0min_t = 1
+        self.K1max_t = 0
+        self.K1min_t = 5
+        self.K1max = K1max
 
         print("Initialized NeuralTuning")
 
@@ -110,13 +111,13 @@ class NeuralTuning(torch.nn.Module):
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
-        K1 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)
-        K2 = torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)*5
-        # self.K0max = K[:,0].max() if K[:,0].max() > self.K0max else self.K0max
-        # self.K0min = K[:,0].min() if K[:,0].min() < self.K0min else self.K0min
-        # self.K1max = K[:,1].max() if K[:,1].max() > self.K1max else self.K1max
-        # self.K1min = K[:,1].min() if K[:,1].min() < self.K1min else self.K1min
-        return torch.cat([K1,K2],dim=1)
+        K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)
+        K1 = torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)*self.K1max
+        self.K0max = K0.max() if K0.max() > self.K0max else self.K0max
+        self.K0min = K0.min() if K0.min() < self.K0min else self.K0min
+        self.K1max = K1.max() if K1.max() > self.K1max else self.K1max
+        self.K1min = K1.min() if K1.min() < self.K1min else self.K1min
+        return torch.cat([K0, K1],dim=1)
 
 if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
@@ -137,8 +138,9 @@ if __name__ == "__main__":
     parser.add_argument("--save_iteration", type=int, default=5)
     parser.add_argument("--save_start_idx", type=float, default=0)
     parser.add_argument("--K_neural", action="store_true", default=True)
+    parser.add_argument("--K1max", type=int, default=5)
     parser.add_argument("--train", action="store_true", default=False)
-    parser.add_argument("--load_model", action="store_true", default=False)
+    parser.add_argument("--load_model", action="store_true", default=True)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
     parser.add_argument("--model_name_loaded", type=str, default="model_training_v1_4.pt")
     parser.add_argument("--output_directory", type=str, default="datasets")
@@ -165,7 +167,7 @@ if __name__ == "__main__":
     np.random.seed(0)
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
 
-    K_tuned = NeuralTuning() if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 0]).unsqueeze(0))
+    K_tuned = NeuralTuning(K1max = args["K1max"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 0]).unsqueeze(0))
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
@@ -205,8 +207,10 @@ if __name__ == "__main__":
             if args["load_dataset"] and args["load_dataset_path"] is not None:
                 dataset_name = (args["load_dataset_path"])
             if args["K_neural"]:
-                K_tuned.max = 0
-                K_tuned.min = 1
+                K_tuned.K0max_t = 0
+                K_tuned.K0min_t = 1
+                K_tuned.K1max_t = 0
+                K_tuned.K1min_t = 5
             if args["load_dataset"] or args["train"]:
                 dataset_train = TensorDataset(
                                  file_pattern= dataset_name,
@@ -290,8 +294,8 @@ if __name__ == "__main__":
         plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
         plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
     if args["K_neural"]:
-        print("K0 tuned min: ", K_tuned.K0min, "K0 tuned max: ", K_tuned.K0max)
-        print("K1 tuned min: ", K_tuned.K1min, "K1 tuned max: ", K_tuned.K1max)
+        print("K0 tuned min: ", K_tuned.K0min_t, "K0 tuned max: ", K_tuned.K0max_t)
+        print("K1 tuned min: ", K_tuned.K1min_t, "K1 tuned max: ", K_tuned.K1max_t)
 
 
     if reporter is not None:
