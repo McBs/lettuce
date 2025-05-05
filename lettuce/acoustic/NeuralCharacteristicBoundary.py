@@ -215,7 +215,8 @@ if __name__ == "__main__":
                 K_tuned.K0min_t = 1
                 K_tuned.K1max_t = 0
                 K_tuned.K1min_t = 5
-                K_tuned.K1max = args["K1max"]
+                K_tuned.K1Mul = args["K1Mul"]
+                K_tuned.K1Add = args["K1Add"]
             if args["load_dataset"] or args["train"]:
                 dataset_train = TensorDataset(
                                  file_pattern= dataset_name,
