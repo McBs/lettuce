@@ -67,7 +67,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     return flow, reporter
 
 class NeuralTuning(torch.nn.Module):
-    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None, K1max=5):
+    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None, K1Mul=5, K1Add=0):
         """Initialize a neural network boundary model."""
         super(NeuralTuning, self).__init__()
         self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
@@ -83,7 +83,8 @@ class NeuralTuning(torch.nn.Module):
         self.K0min_t = 1
         self.K1max_t = 0
         self.K1min_t = 5
-        self.K1max = K1max
+        self.K1Mul = K1Mul
+        self.K1Add = K1Add
 
         print("Initialized NeuralTuning")
 
@@ -114,7 +115,7 @@ class NeuralTuning(torch.nn.Module):
         #         v_dt.unsqueeze(1)], dim=1)
         # )
         K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)
-        K1 = torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)*self.K1max
+        K1 = (torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)+self.K1Add)*self.K1Mul
         self.K0max_t = K0.max() if K0.max() > self.K0max_t else self.K0max_t
         self.K0min_t = K0.min() if K0.min() < self.K0min_t else self.K0min_t
         self.K1max_t = K1.max() if K1.max() > self.K1max_t else self.K1max_t
@@ -140,7 +141,8 @@ if __name__ == "__main__":
     parser.add_argument("--save_iteration", type=int, default=5)
     parser.add_argument("--save_start_idx", type=float, default=0)
     parser.add_argument("--K_neural", action="store_true", default=True)
-    parser.add_argument("--K1max", type=float, default=5)
+    parser.add_argument("--K1Mul", type=float, default=5)
+    parser.add_argument("--K1Add", type=float, default=0)
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=True)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
@@ -169,7 +171,7 @@ if __name__ == "__main__":
     np.random.seed(0)
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
 
-    K_tuned = NeuralTuning(K1max = args["K1max"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 0]).unsqueeze(0))
+    K_tuned = NeuralTuning(K1Mul = args["K1Mul"],K1Add = args["K1Add"],) if args["K_neural"] else context.convert_to_tensor(torch.tensor([0, 3.1]).unsqueeze(0))
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
