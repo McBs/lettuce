@@ -16,7 +16,8 @@ import re   # For parsing filenames (optional, can use string splitting too)
 
 __all__ = [
     "Transform", "D2Q9Dellar", "ShiftedSigmoid", "HDF5Reporter", "LettuceDataset", "WVelocity", "TotalPressure",
-    "Acoustic", "CharacteristicBoundary", "plotU", "plotRho", "TensorReporter", "TensorDataset", "plot_velocity_density"
+    "Acoustic", "CharacteristicBoundary", "plotU", "plotRho", "TensorReporter", "TensorDataset", "plot_velocity_density",
+    "Reflection"
 ]
 
 class Transform:
@@ -157,6 +158,25 @@ class TotalPressure:
             # self.rho_total.append(out)
             # self.rho_total.append((simulation.flow.rho()[0,self.slices[0],self.slices[1]]).sum())
             self.out_total.append(out)
+            self.t.append(simulation.flow.units.convert_time_to_pu(i))
+
+class Reflection:
+
+    def __init__(self, context, interval, reference):
+        self.context = context
+        self.interval = interval
+        self.out_total = []
+        self.t = []
+        self.reference = reference
+
+    def __call__(self, simulation: 'Simulation'):
+        i = simulation.flow.i
+        if i % self.interval == 0:
+            ref_f = self.reference.get_f(i)
+            ref = simulation.flow.rho(ref_f)
+            out = simulation.flow.rho()
+            diff = ((ref-out)**2).sum()
+            self.out_total.append(diff)
             self.t.append(simulation.flow.units.convert_time_to_pu(i))
 
 class HDF5Reporter:
