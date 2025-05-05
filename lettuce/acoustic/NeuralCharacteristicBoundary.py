@@ -28,8 +28,10 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     collision = lt.BGKCollision(tau=flow.units.relaxation_parameter_lu)
     simulation = lt.Simulation(flow=flow, collision=collision, reporter=[])
     if config["reporter"]:
-        TotalPressureReporter = TotalPressure(context=context, interval=int(flow.units.convert_time_to_lu(0.05)), slices=slices_2)
-        simulation.reporter.append(TotalPressureReporter)
+        # TotalPressureReporter = TotalPressure(context=context, interval=int(flow.units.convert_time_to_lu(0.05)), slices=slices_2)
+        # simulation.reporter.append(TotalPressureReporter)
+        ReflectionReporter = Reflection(context=context, interval=int(flow.units.convert_time_to_lu(0.05)), reference=dataset)
+        simulation.reporter.append(ReflectionReporter)
         # simulation.reporter.append(lt.VTKReporter(context, flow, interval=int(flow.units.convert_time_to_lu(0.05)), filename_base="vtkoutput/out"))
     if config["save_dataset"]:
         print(f"Saving dataset for Mach {config["Ma"]:03.2f} every {config["save_iteration"]:2.2f} seconds")
@@ -113,10 +115,10 @@ class NeuralTuning(torch.nn.Module):
         # )
         K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)
         K1 = torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)*self.K1max
-        self.K0max = K0.max() if K0.max() > self.K0max else self.K0max
-        self.K0min = K0.min() if K0.min() < self.K0min else self.K0min
-        self.K1max = K1.max() if K1.max() > self.K1max else self.K1max
-        self.K1min = K1.min() if K1.min() < self.K1min else self.K1min
+        self.K0max_t = K0.max() if K0.max() > self.K0max_t else self.K0max_t
+        self.K0min_t = K0.min() if K0.min() < self.K0min_t else self.K0min_t
+        self.K1max_t = K1.max() if K1.max() > self.K1max_t else self.K1max_t
+        self.K1min_t = K1.min() if K1.min() < self.K1min_t else self.K1min_t
         return torch.cat([K0, K1],dim=1)
 
 if __name__ == "__main__":
@@ -138,7 +140,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_iteration", type=int, default=5)
     parser.add_argument("--save_start_idx", type=float, default=0)
     parser.add_argument("--K_neural", action="store_true", default=True)
-    parser.add_argument("--K1max", type=int, default=5)
+    parser.add_argument("--K1max", type=float, default=5)
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=True)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
@@ -211,6 +213,7 @@ if __name__ == "__main__":
                 K_tuned.K0min_t = 1
                 K_tuned.K1max_t = 0
                 K_tuned.K1min_t = 5
+                K_tuned.K1max = args["K1max"]
             if args["load_dataset"] or args["train"]:
                 dataset_train = TensorDataset(
                                  file_pattern= dataset_name,
@@ -224,7 +227,8 @@ if __name__ == "__main__":
             if args["train"]: optimizer.zero_grad()
             t_lu = training_iteration if args["train"] else args["t_lu"]
             # idx=0
-            print(f"pair idx {i}, mach: {ma}, t_lu: {t_lu}, loaded dataset idx: {idx}, loaded reference idx: {int(idx+t_lu/args["save_iteration"])}",)
+            loaded_reference_idx = int(idx+t_lu/args["save_iteration"]) if args["train"] else idx
+            print(f"pair idx {i}, mach: {ma}, t_lu: {t_lu}, loaded dataset idx: {idx}, loaded reference idx: {loaded_reference_idx}",)
             if args["train"] and int(idx+t_lu/args["save_iteration"])>600:
                 print("continue")
                 continue
@@ -299,8 +303,31 @@ if __name__ == "__main__":
 
 
     if reporter is not None:
-        out = torch.tensor(reporter.out_total).cpu().detach()
-        t = torch.tensor(reporter.t).cpu().detach()
-        plt.plot(t,out)
-        plt.ylim(1-1e-5,1+1.3e-5)
+        result = torch.stack((
+                    torch.tensor(reporter.t).cpu().detach(),
+                    torch.tensor(reporter.out_total).cpu().detach()), dim=0).numpy()
+
+        # 3) Speichere den kombinierten Tensor
+        # np.save(f'result_k1{int(K_tuned[0,0].item())}_k2{int(K_tuned[0,1].item())}.npy',result)
+        result_k10_k20 = np.load('result_k10_k20.npy')
+        result_k10_k21 = np.load('result_k10_k21.npy')
+        result_k10_k25 = np.load('result_k10_k25.npy')
+        result_k11_k20 = np.load('result_k11_k20.npy')
+        result_k11_k21 = np.load('result_k11_k21.npy')
+        result_k11_k22 = np.load('result_k11_k22.npy')
+        result_k11_k23 = np.load('result_k11_k23.npy')
+        result_k10_k22 = np.load('result_k10_k22.npy')
+        result_k10_k23 = np.load('result_k10_k23.npy')
+        # plt.plot(result_k10_k20[0], result_k10_k20[1], marker='', linestyle='-',label="K1=0, K2=0")
+        # plt.plot(result_k10_k21[0], result_k10_k21[1], marker='', linestyle='-',label="K1=0, K2=1")
+        # plt.plot(result_k10_k25[0], result_k10_k25[1], marker='', linestyle='-',label="K1=0, K2=5")
+        # plt.plot(result_k11_k20[0], result_k11_k20[1], marker='', linestyle='-',label="K1=1, K2=0")
+        # plt.plot(result_k11_k21[0], result_k11_k21[1], marker='', linestyle='-',label="K1=1, K2=1")
+        # plt.plot(result_k11_k22[0], result_k11_k22[1], marker='', linestyle='-',label="K1=1, K2=2")
+        plt.plot(result_k11_k23[0], result_k11_k23[1], marker='', linestyle='-',label="K1=1, K2=3")
+        # plt.plot(result_k10_k22[0], result_k10_k22[1], marker='', linestyle='-',label="K1=0, K2=2")
+        plt.plot(result_k10_k23[0], result_k10_k23[1], marker='', linestyle='-',label="K1=0, K2=3")
+        plt.plot(result[0], result[1], marker='', linestyle='-',label="current",color="black")
+        plt.legend()
+        plt.ylim(0,0.0002)
         plt.show()
