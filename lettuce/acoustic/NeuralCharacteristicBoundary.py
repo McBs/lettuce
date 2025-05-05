@@ -110,12 +110,13 @@ class NeuralTuning(torch.nn.Module):
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
-        K = torch.nn.Sigmoid()(K)*10
-        self.K0max = K[:,0].max() if K[:,0].max() > self.K0max else self.K0max
-        self.K0min = K[:,0].min() if K[:,0].min() < self.K0min else self.K0min
-        self.K1max = K[:,1].max() if K[:,1].max() > self.K1max else self.K1max
-        self.K1min = K[:,1].min() if K[:,1].min() < self.K1min else self.K1min
-        return K
+        K1 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)
+        K2 = torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)*5
+        # self.K0max = K[:,0].max() if K[:,0].max() > self.K0max else self.K0max
+        # self.K0min = K[:,0].min() if K[:,0].min() < self.K0min else self.K0min
+        # self.K1max = K[:,1].max() if K[:,1].max() > self.K1max else self.K1max
+        # self.K1min = K[:,1].min() if K[:,1].min() < self.K1min else self.K1min
+        return torch.cat([K1,K2],dim=1)
 
 if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
@@ -139,7 +140,7 @@ if __name__ == "__main__":
     parser.add_argument("--train", action="store_true", default=False)
     parser.add_argument("--load_model", action="store_true", default=False)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
-    parser.add_argument("--model_name_loaded", type=str, default="model_training_v5_1.pt")
+    parser.add_argument("--model_name_loaded", type=str, default="model_training_v1_4.pt")
     parser.add_argument("--output_directory", type=str, default="datasets")
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=1)
@@ -162,15 +163,15 @@ if __name__ == "__main__":
     shift = 7
     torch.manual_seed(0)
     np.random.seed(0)
+    context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
 
-    K_tuned = NeuralTuning() if args["K_neural"] else [1, 0]
+    K_tuned = NeuralTuning() if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 0]).unsqueeze(0))
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
         print("Model loaded")
     if args["train"] and callable(K_tuned):
         K_tuned.train()
-    context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
     slices_training = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     slices_domain = [slice(0, args["nx"]+args["extension"]), slice(0, args["ny"])]
     slices_2 = [slice(args["nx"] - 200, args["nx"]-150), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
