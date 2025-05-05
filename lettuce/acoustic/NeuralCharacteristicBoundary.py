@@ -67,17 +67,26 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     return flow, reporter
 
 class NeuralTuning(torch.nn.Module):
-    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None, K1Mul=5, K1Add=0):
+    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None, K1Mul=5, K1Add=0, netversion=1):
         """Initialize a neural network boundary model."""
         super(NeuralTuning, self).__init__()
         self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
-        self.net = torch.nn.Sequential(
-            torch.nn.Linear(9, nodes, bias=True),
-            torch.nn.Linear(nodes, nodes, bias=True),
-            torch.nn.BatchNorm1d(nodes),
-            torch.nn.LeakyReLU(negative_slope=0.01),
-            torch.nn.Linear(nodes, 2, bias=True),
-        ).to(dtype=dtype, device=device)
+        if netversion==1:
+            self.net = torch.nn.Sequential(
+                torch.nn.Linear(9, nodes, bias=True),
+                torch.nn.Linear(nodes, nodes, bias=True),
+                torch.nn.BatchNorm1d(nodes),
+                torch.nn.LeakyReLU(negative_slope=0.01),
+                torch.nn.Linear(nodes, 2, bias=True),
+            ).to(dtype=dtype, device=device)
+        if netversion==2:
+            self.net = torch.nn.Sequential(
+                torch.nn.Linear(9, nodes, bias=True),
+                torch.nn.Linear(nodes, nodes, bias=True),
+                torch.nn.ReLU(),
+                torch.nn.Linear(nodes, 2, bias=True),
+            ).to(dtype=dtype, device=device)
+
         self.index = index
         self.K0max_t = 0
         self.K0min_t = 1
@@ -150,6 +159,8 @@ if __name__ == "__main__":
     parser.add_argument("--output_directory", type=str, default="datasets")
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--nodes", type=int, default=20)
+    parser.add_argument("--netversion", type=int, default=1)
     parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=130)
     parser.add_argument("--scheduler_gamma", type=float, default=0.1)
@@ -171,7 +182,7 @@ if __name__ == "__main__":
     np.random.seed(0)
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
 
-    K_tuned = NeuralTuning(K1Mul = args["K1Mul"],K1Add = args["K1Add"],) if args["K_neural"] else context.convert_to_tensor(torch.tensor([0, 3.1]).unsqueeze(0))
+    K_tuned = NeuralTuning(K1Mul = args["K1Mul"],K1Add = args["K1Add"],nodes= args["nodes"],netversion=args["netversion"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 2]).unsqueeze(0))
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
