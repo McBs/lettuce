@@ -39,7 +39,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
             flow=flow,
             interval = config["save_iteration"],
             t_lu = t_lu,
-            filebase=f"./{config["output_directory"]}/dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}",
+            filebase=f"{config["output_directory"]}/dataset_mach-{config["Ma"]:03.2f}_interv-{config["save_iteration"]:03.2f}",
             trainingsdomain=slices_training,
             start_idx=config["save_start_idx"],
         )
@@ -219,7 +219,7 @@ if __name__ == "__main__":
         for i, (idx, ma, training_iteration) in enumerate(pairs):
             if idx is not None:
                 idx = int(idx)
-            dataset_name = f"./{args["output_directory"]}/dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*"
+            dataset_name = f"{args["output_directory"]}/dataset_mach-{ma:03.2f}_interv-{args["save_iteration"]:03.2f}_*"
             if args["load_dataset"] and args["load_dataset_path"] is not None:
                 dataset_name = (args["load_dataset_path"])
             if args["K_neural"]:
