@@ -67,7 +67,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     return flow, reporter
 
 class NeuralTuning(torch.nn.Module):
-    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None, K1Mul=5, K1Add=0, netversion=1):
+    def __init__(self, dtype=torch.float64, device='cuda', nodes=20, index=None, K0Mul=1, K1Mul=5, K1Add=0, netversion=1):
         """Initialize a neural network boundary model."""
         super(NeuralTuning, self).__init__()
         self.moments = D2Q9Dellar(lt.D2Q9(), lt.Context(device="cuda", dtype=torch.float64, use_native=False))
@@ -86,15 +86,23 @@ class NeuralTuning(torch.nn.Module):
                 torch.nn.ReLU(),
                 torch.nn.Linear(nodes, 2, bias=True),
             ).to(dtype=dtype, device=device)
+        if netversion==3:
+            self.net = torch.nn.Sequential(
+                torch.nn.Linear(9, nodes, bias=True),
+                torch.nn.Linear(nodes, nodes, bias=True),
+                torch.nn.ReLU(),
+                torch.nn.Linear(nodes, 2, bias=True),
+            ).to(dtype=dtype, device=device)
 
         self.index = index
         self.K0max_t = 0
         self.K0min_t = 1
         self.K1max_t = 0
         self.K1min_t = 5
+        self.K0Mul = K0Mul
         self.K1Mul = K1Mul
         self.K1Add = K1Add
-
+        self.netversion = netversion
         print("Initialized NeuralTuning")
 
     def forward(self, f, p_dx, u_dx, v_dx, p_dy, u_dy, v_dy, p_dt, u_dt, v_dt, velocity_init=0):
@@ -104,18 +112,21 @@ class NeuralTuning(torch.nn.Module):
         rho = local_moments[0,:,:].transpose(0,1)
         u = torch.abs(local_moments[1, :, :] - velocity_init[0]).transpose(0,1)
         v = torch.abs(local_moments[2, :, :]).transpose(0,1)
-        K = self.net(
-            torch.cat([
-                p_dx.unsqueeze(1),
-                u_dx.unsqueeze(1),
-                v_dx.unsqueeze(1),
-                p_dy.unsqueeze(1),
-                u_dy.unsqueeze(1),
-                v_dy.unsqueeze(1),
-                p_dt.unsqueeze(1),
-                u_dt.unsqueeze(1),
-                v_dt.unsqueeze(1)], dim=1)
-        )
+        if self.netversion == 3:
+            K = self.net(local_moments)
+        else:
+            K = self.net(
+                torch.cat([
+                    p_dx.unsqueeze(1),
+                    u_dx.unsqueeze(1),
+                    v_dx.unsqueeze(1),
+                    p_dy.unsqueeze(1),
+                    u_dy.unsqueeze(1),
+                    v_dy.unsqueeze(1),
+                    p_dt.unsqueeze(1),
+                    u_dt.unsqueeze(1),
+                    v_dt.unsqueeze(1)], dim=1)
+            )
         # K = self.net(
         #     torch.cat([
         #         local_moments[3:,0,:].transpose(0,1),
@@ -123,7 +134,7 @@ class NeuralTuning(torch.nn.Module):
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
-        K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)
+        K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)*self.K0Mul
         K1 = (torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)+self.K1Add)*self.K1Mul
         self.K0max_t = K0.max() if K0.max() > self.K0max_t else self.K0max_t
         self.K0min_t = K0.min() if K0.min() < self.K0min_t else self.K0min_t
@@ -160,6 +171,9 @@ if __name__ == "__main__":
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--nodes", type=int, default=20)
+    parser.add_argument("--K0Mul", type=float, default=1)
+    parser.add_argument("--K1Mul", type=float, default=3.2)
+    parser.add_argument("--K1Add", type=float, default=0)
     parser.add_argument("--netversion", type=int, default=1)
     parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=130)
@@ -182,7 +196,11 @@ if __name__ == "__main__":
     np.random.seed(0)
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
 
-    K_tuned = NeuralTuning(K1Mul = args["K1Mul"],K1Add = args["K1Add"],nodes= args["nodes"],netversion=args["netversion"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 2]).unsqueeze(0))
+    K_tuned = NeuralTuning(K0Mul = args["K0Mul"],
+                           K1Mul=args["K1Mul"],
+                           K1Add = args["K1Add"],
+                           nodes= args["nodes"],
+                           netversion=args["netversion"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 3.2]).unsqueeze(0))
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
@@ -227,8 +245,10 @@ if __name__ == "__main__":
                 K_tuned.K0min_t = 1
                 K_tuned.K1max_t = 0
                 K_tuned.K1min_t = 5
+                K_tuned.K0Mul = args["K0Mul"]
                 K_tuned.K1Mul = args["K1Mul"]
                 K_tuned.K1Add = args["K1Add"]
+                K_tuned.netversion = args["netversion"]
             if args["load_dataset"] or args["train"]:
                 dataset_train = TensorDataset(
                                  file_pattern= dataset_name,
