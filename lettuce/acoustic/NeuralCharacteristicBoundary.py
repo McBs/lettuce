@@ -146,13 +146,13 @@ if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--nx", type=int, default=300)
     parser.add_argument("--ny", type=int, default=500)
-    parser.add_argument("--extension", type=int, default=0)
+    parser.add_argument("--extension", type=int, default=00)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
     parser.add_argument("--xc", type=int, default=150)
-    parser.add_argument("--t_lu", type=int, default=300)
+    parser.add_argument("--t_lu", type=int, default=600)
     parser.add_argument("--load_dataset", action="store_true", default=False)
-    parser.add_argument("--load_dataset_idx", type=int, default=0)
+    parser.add_argument("--load_dataset_idx", type=int, default=None)
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-55.00_000055.pt")
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-210.00_000210.pt")
     parser.add_argument("--load_dataset_path", type=str, default=None)
@@ -160,23 +160,19 @@ if __name__ == "__main__":
     parser.add_argument("--save_dataset", action="store_true", default=False)
     parser.add_argument("--save_iteration", type=int, default=1)
     parser.add_argument("--save_start_idx", type=float, default=0)
-    parser.add_argument("--K_neural", action="store_true", default=True)
-    parser.add_argument("--K1Mul", type=float, default=5)
-    parser.add_argument("--K1Add", type=float, default=0)
+    parser.add_argument("--K_neural", action="store_true", default=False)
     parser.add_argument("--train", action="store_true", default=False)
-    parser.add_argument("--load_model", action="store_true", default=True)
+    parser.add_argument("--load_model", action="store_true", default=False)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
-    parser.add_argument("--model_name_loaded", type=str, default="model_training_v1_4.pt")
-    parser.add_argument("--output_directory", type=str, default="datasets")
+    parser.add_argument("--model_name_loaded", type=str, default="model_training_v1_17_553809.pt")
+    parser.add_argument("--output_directory", type=str, default="/home/mbedru3s/Dokumente/lettuce/lettuce/acoustic/datasets_re750")
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--nodes", type=int, default=20)
     parser.add_argument("--K1Mul", type=float, default=3.3)
     parser.add_argument("--K0Mul", type=float, default=1.0)
-    parser.add_argument("--K1Mul", type=float, default=3.5)
     parser.add_argument("--K1Add", type=float, default=0)
     parser.add_argument("--netversion", type=int, default=1)
-    parser.add_argument("--K0Mul", type=float, default=1.0)
     parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=130)
     parser.add_argument("--scheduler_gamma", type=float, default=0.1)
@@ -198,7 +194,8 @@ if __name__ == "__main__":
     np.random.seed(0)
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
 
-    K_tuned = NeuralTuning(K1Mul = args["K1Mul"],
+    K_tuned = NeuralTuning(K0Mul = args["K0Mul"],
+                           K1Mul = args["K1Mul"],
                            K1Add = args["K1Add"],
                            nodes = args["nodes"],
                            netversion=args["netversion"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 3.2]).unsqueeze(0))
@@ -246,6 +243,7 @@ if __name__ == "__main__":
                 K_tuned.K0min_t = 1
                 K_tuned.K1max_t = 0
                 K_tuned.K1min_t = 5
+                K_tuned.K0Mul = args["K0Mul"]
                 K_tuned.K1Mul = args["K1Mul"]
                 K_tuned.K1Add = args["K1Add"]
                 K_tuned.netversion = args["netversion"]
