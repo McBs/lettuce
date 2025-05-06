@@ -171,6 +171,7 @@ if __name__ == "__main__":
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--nodes", type=int, default=20)
+    parser.add_argument("--K1Mul", type=float, default=3.3)
     parser.add_argument("--K0Mul", type=float, default=1.0)
     parser.add_argument("--K1Mul", type=float, default=3.5)
     parser.add_argument("--K1Add", type=float, default=0)
@@ -197,10 +198,9 @@ if __name__ == "__main__":
     np.random.seed(0)
     context = lt.Context(torch.device("cuda:0"), use_native=False, dtype=torch.float64)
 
-    K_tuned = NeuralTuning(K0Mul = args["K0Mul"],
-                           K1Mul=args["K1Mul"],
+    K_tuned = NeuralTuning(K1Mul = args["K1Mul"],
                            K1Add = args["K1Add"],
-                           nodes= args["nodes"],
+                           nodes = args["nodes"],
                            netversion=args["netversion"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 3.2]).unsqueeze(0))
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
@@ -246,7 +246,6 @@ if __name__ == "__main__":
                 K_tuned.K0min_t = 1
                 K_tuned.K1max_t = 0
                 K_tuned.K1min_t = 5
-                K_tuned.K0Mul = args["K0Mul"]
                 K_tuned.K1Mul = args["K1Mul"]
                 K_tuned.K1Add = args["K1Add"]
                 K_tuned.netversion = args["netversion"]
@@ -311,7 +310,7 @@ if __name__ == "__main__":
     # rectangle = False if args["slices"] else True
 
     slices_plot = slices_domain
-    slices_plot = slices_training
+    # slices_plot = slices_training
     plot_velocity_density(flow.f, flow=flow, config=args, slices=slices_plot, title="simulation", rectangle=True)
     # plotRho(flow.f, flow=flow, config=args, slices=slices_plot, rectangle=rectangle)
 
@@ -365,5 +364,6 @@ if __name__ == "__main__":
         plt.plot(result_k10_k23[0], result_k10_k23[1], marker='', linestyle='-',label="K1=0, K2=3")
         plt.plot(result[0], result[1], marker='', linestyle='-',label="current",color="black")
         plt.legend()
-        plt.ylim(0,0.0002)
+        plt.ylim(0.,0.000175)
+        # plt.yscale("log")
         plt.show()
