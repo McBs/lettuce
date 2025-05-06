@@ -175,6 +175,7 @@ if __name__ == "__main__":
     parser.add_argument("--K1Mul", type=float, default=3.5)
     parser.add_argument("--K1Add", type=float, default=0)
     parser.add_argument("--netversion", type=int, default=1)
+    parser.add_argument("--K0Mul", type=float, default=1.0)
     parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=130)
     parser.add_argument("--scheduler_gamma", type=float, default=0.1)
