@@ -60,7 +60,10 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
     with torch.set_grad_enabled(config["train"]):
         # simulation(num_steps=1)
         # print(f"t_lu = {t_lu}")
-        simulation(num_steps=int(t_lu))
+        for i in range(int(t_lu)):
+            simulation(num_steps=1)
+            if i%config["detach_idx"]==0:
+                flow.f = flow.f.detach()
         # simulation.boundaries[1].K = 0.4
         # simulation(num_steps=int(flow.units.convert_time_to_lu(1)))
     reporter = simulation.reporter[0] if config["reporter"] else None
@@ -172,6 +175,7 @@ if __name__ == "__main__":
     parser.add_argument("--K1Mul", type=float, default=3.3)
     parser.add_argument("--K0Mul", type=float, default=1.0)
     parser.add_argument("--K1Add", type=float, default=0)
+    parser.add_argument("--detach_idx", type=int, default=50)
     parser.add_argument("--netversion", type=int, default=1)
     parser.add_argument("--scheduler", action="store_true", default=False)
     parser.add_argument("--scheduler_step", type=int, default=130)
