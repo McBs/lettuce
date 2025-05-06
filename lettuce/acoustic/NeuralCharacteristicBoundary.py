@@ -298,7 +298,7 @@ if __name__ == "__main__":
         if args["train"]:
             # plot_velocity_density(flow.f, flow=flow, config=args, slices=slices, rectangle=False)
             if args["scheduler"]:
-                scheduler.step()
+                scheduler.step(running_loss)
             epoch_training_loss.append(running_loss)
             if args["verbose"]: print(epoch_training_loss)
 
