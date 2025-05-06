@@ -228,15 +228,16 @@ if __name__ == "__main__":
         criterion = torch.nn.MSELoss(reduction='mean')
         optimizer = torch.optim.Adam(K_tuned.parameters(), lr=args["lr"])
         if args["scheduler"]:
-            # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=args["scheduler_gamma"])
+            print("StepLR Scheduler")
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=args["scheduler_gamma"])
             # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             #     optimizer, mode='min', factor=0.5, patience=5, verbose=True)
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimizer,
-                T_max=20,  # Anzahl Epoch-Intervalle, bis LR auf eta_min fällt
-                eta_min=1e-4,  # Minimal-LR am Ende
-                last_epoch=-1
-            )
+            # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            #     optimizer,
+            #     T_max=20,  # Anzahl Epoch-Intervalle, bis LR auf eta_min fällt
+            #     eta_min=1e-4,  # Minimal-LR am Ende
+            #     last_epoch=-1
+            # )
         epoch_training_loss = []
         scaler = GradScaler()
         optimizer.zero_grad()
