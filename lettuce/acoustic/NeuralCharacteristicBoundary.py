@@ -134,8 +134,8 @@ class NeuralTuning(torch.nn.Module):
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
-        K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1)*self.K0Mul
-        K1 = (torch.nn.Sigmoid()(K[:,1]).unsqueeze(1)+self.K1Add)*self.K1Mul
+        K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1) * self.K0Mul
+        K1 = (torch.nn.Sigmoid()(K[:,1]).unsqueeze(1) + self.K1Add) * self.K1Mul
         self.K0max_t = K0.max() if K0.max() > self.K0max_t else self.K0max_t
         self.K0min_t = K0.min() if K0.min() < self.K0min_t else self.K0min_t
         self.K1max_t = K1.max() if K1.max() > self.K1max_t else self.K1max_t
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--load_dataset_path", type=str, default=None)
     parser.add_argument("--show_dataset_idx", type=int, default=None)
     parser.add_argument("--save_dataset", action="store_true", default=False)
-    parser.add_argument("--save_iteration", type=int, default=5)
+    parser.add_argument("--save_iteration", type=int, default=1)
     parser.add_argument("--save_start_idx", type=float, default=0)
     parser.add_argument("--K_neural", action="store_true", default=True)
     parser.add_argument("--K1Mul", type=float, default=5)
@@ -171,8 +171,8 @@ if __name__ == "__main__":
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--nodes", type=int, default=20)
-    parser.add_argument("--K0Mul", type=float, default=1)
-    parser.add_argument("--K1Mul", type=float, default=3.2)
+    parser.add_argument("--K0Mul", type=float, default=1.0)
+    parser.add_argument("--K1Mul", type=float, default=3.5)
     parser.add_argument("--K1Add", type=float, default=0)
     parser.add_argument("--netversion", type=int, default=1)
     parser.add_argument("--scheduler", action="store_true", default=False)
