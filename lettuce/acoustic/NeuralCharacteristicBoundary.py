@@ -265,14 +265,14 @@ if __name__ == "__main__":
             if args["train"] and int(idx+t_lu/args["save_iteration"])>600:
                 print("continue")
                 continue
-            with autocast(context.device.type):
-                flow, reporter = run(context=context,
-                                     config=args,
-                                     K=K_tuned,
-                                     dataset = dataset_train,
-                                     dataset_nr = idx,
-                                     t_lu = t_lu,
-                                     )
+            # with autocast(context.device.type):
+            flow, reporter = run(context=context,
+                                 config=args,
+                                 K=K_tuned,
+                                 dataset = dataset_train,
+                                 dataset_nr = idx,
+                                 t_lu = t_lu,
+                                 )
             if callable(K_tuned) and args["train"]:
                 offset = 0 if args["load_dataset_idx"] is None else args["load_dataset_idx"]
                 reference = dataset_train.get_f(int(idx+t_lu/args["save_iteration"]), True)
