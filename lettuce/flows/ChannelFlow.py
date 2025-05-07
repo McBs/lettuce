@@ -159,7 +159,7 @@ class ChannelFlow3D(object):
         Lz = zg.max() - zg.min()
 
         # Divergenzfreies 3D-Störfeld nach Premnath (angepasst)
-        epsilon = 0.05
+        epsilon = 0.2
         kx, ky, kz = 2 * np.pi / Lx, np.pi / Ly, 2 * np.pi / Lz
 
         # y-Zentriert, maximal in Wandnähe (sinus in y)
