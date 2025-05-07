@@ -77,9 +77,23 @@ class ChannelFlow2D(object):
         kx = 2 * np.pi / Lx
 
         # Störung mit 0.05 * Hauptgeschwindigkeit, moduliert über Höhe
-        np.random.seed(0)
-        perturb = 0.1 * np.random.normal(0, 1, x[0].shape) * (1 - self.mask.astype(float))
-        u[1] += perturb
+        from scipy.fft import fft2, ifft2
+
+        def generate_perturbation(shape, amplitude=0.1):
+            # Weißes Rauschen → Spektrum manipulieren → Rücktransformieren
+            noise = np.random.randn(*shape)
+            kspace = fft2(noise)
+            # Dämpfe hohe Frequenzen nicht komplett raus
+            nx, ny = shape
+            kx = np.fft.fftfreq(nx)
+            ky = np.fft.fftfreq(ny)
+            kkx, kky = np.meshgrid(kx, ky, indexing='ij')
+            k = np.sqrt(kkx ** 2 + kky ** 2)
+            spectrum = kspace * np.exp(-k * 5.0)  # spektraler Dämpfungsfaktor
+            return amplitude * np.real(ifft2(spectrum))
+
+        perturb = generate_perturbation(x[0].shape)
+        u[1] += perturb * (1 - self.mask.astype(float))
 
         return p, u
 
@@ -133,28 +147,33 @@ class ChannelFlow3D(object):
 
     def initial_solution(self, grid):
         xg, yg, zg = grid  # [res_x, res_y, res_z]
-
-        # Druck: konstant null
         p = np.zeros_like(xg)[None, ...]
 
-        # Basisströmung: gleichförmig in x
+        # Basisströmung (x-Richtung)
         u = np.zeros((3, *xg.shape), dtype=float)
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
-        # 🌀 Sinus-Störung in uy (Richtung senkrecht zur Wand)
-        amp = 0.05 * self.units.characteristic_velocity_pu  # Stärke der Störung
+        # Geometriegrößen
         Lx = xg.max() - xg.min()
+        Ly = yg.max() - yg.min()
         Lz = zg.max() - zg.min()
 
-        # Normierte Koordinaten (optional)
-        xnorm = xg / Lx
-        znorm = zg / Lz
+        # Normiertes y für wandnahe Störung
+        ynorm = yg / Ly
+        wall_weight = (1 - ynorm) * ynorm  # Maximum bei y = 0.5, Null an Wänden
 
-        # in initial_solution()
-        perturb = 0.1 * np.sin(2 * np.pi * xg / Lx) * np.sin(np.pi * zg / Lz)
-        u[1] += perturb * (1 - self.mask.astype(float))
+        # 🎯 Stromabwärts (x) leicht gestört
+        u[0] += 0.05 * np.sin(2 * np.pi * zg / Lz) * wall_weight
 
-        u[2] += 0.1 * (np.sin(4 * np.pi * xg / Lx) + np.sin(8 * np.pi * xg / Lx)) * np.sin(np.pi * yg / Lz)
+        # 🎯 Querströmung (y)
+        u[1] += 0.05 * np.sin(2 * np.pi * xg / Lx) * np.sin(np.pi * zg / Lz) * wall_weight
+
+        # 🎯 Spanwise (z) mit höherfrequenter Mischung
+        u[2] += 0.05 * (np.sin(4 * np.pi * xg / Lx) + np.sin(6 * np.pi * xg / Lx)) * np.sin(
+            np.pi * yg / Ly) * wall_weight
+
+        # Maske respektieren
+        u *= (1 - self.mask.astype(float))
 
         return p, u
 
