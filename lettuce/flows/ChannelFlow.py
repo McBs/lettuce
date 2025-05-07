@@ -154,18 +154,52 @@ class ChannelFlow3D(object):
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
         # Geometriegrößen
-        Lx = xg.max() - xg.min()
-        Ly = yg.max() - yg.min()
-        Lz = zg.max() - zg.min()
+        def add_divergence_free_perturbation(u, grid, amplitude=0.05, seed=42):
+            """
+            Fügt dem 3D-Geschwindigkeitsfeld u eine dreidimensionale diverganzfreie Störung hinzu.
+            :param u: Array der Form [3, Nx, Ny, Nz] (Geschwindigkeitskomponenten)
+            :param grid: Tuple aus (xg, yg, zg) mit den Gitterkoordinaten
+            :param amplitude: Stärke der Störung
+            :param seed: Zufallssamen für Reproduzierbarkeit
+            :return: u mit Störung überlagert
+            """
+            np.random.seed(seed)
+            xg, yg, zg = grid
+            shape = xg.shape
 
-        # Divergenzfreies 3D-Störfeld nach Premnath (angepasst)
-        epsilon = 0.2
-        kx, ky, kz = 2 * np.pi / Lx, np.pi / Ly, 2 * np.pi / Lz
+            # Zufällige Skalarfelder erzeugen
+            phi = np.random.normal(size=shape)
+            psi = np.random.normal(size=shape)
 
-        # y-Zentriert, maximal in Wandnähe (sinus in y)
-        u[0] += epsilon * np.sin(kx * xg) * np.sin(ky * yg) * np.sin(kz * zg)
-        u[1] += epsilon * np.cos(kx * xg) * np.cos(ky * yg) * np.sin(kz * zg)
-        u[2] += epsilon * np.cos(kx * xg) * np.sin(ky * yg) * np.cos(kz * zg)
+            # Gradient und Rotation (z.B. über zentrale Differenzen)
+            def grad(f, axis, dx):
+                return (np.roll(f, -1, axis=axis) - np.roll(f, 1, axis=axis)) / (2 * dx)
+
+            # Schrittweiten
+            dx = xg[1, 0, 0] - xg[0, 0, 0]
+            dy = yg[0, 1, 0] - yg[0, 0, 0]
+            dz = zg[0, 0, 1] - zg[0, 0, 0]
+
+            # Rotationsfeld: v = curl(psi * e_z)
+            vx = grad(psi, axis=1, dx=dy)  # ∂ψ/∂y
+            vy = -grad(psi, axis=0, dx=dx)  # -∂ψ/∂x
+            vz = np.zeros_like(psi)
+
+            # Normieren
+            mag = np.sqrt(vx ** 2 + vy ** 2 + vz ** 2)
+            mag[mag == 0] = 1.0  # Division durch Null vermeiden
+            vx *= amplitude / mag
+            vy *= amplitude / mag
+            vz *= amplitude / mag
+
+            # Auf das Feld u addieren
+            u[0] += vx
+            u[1] += vy
+            u[2] += vz
+
+            return u
+
+        u = add_divergence_free_perturbation(u, grid=(xg, yg, zg), amplitude=0.05)
 
         return p, u
 
