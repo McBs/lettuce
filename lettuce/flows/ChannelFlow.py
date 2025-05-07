@@ -147,62 +147,35 @@ class ChannelFlow3D(object):
 
     def initial_solution(self, grid):
         xg, yg, zg = grid  # [res_x, res_y, res_z]
-        p = np.zeros_like(xg)[None, ...]
+        p = np.zeros_like(xg)[None, ...]  # Druckfeld
 
-        # Basisströmung (x-Richtung, laminares Profil oder konstant)
-        u = np.zeros((3, *xg.shape), dtype=float)
+        u = np.zeros((3, *xg.shape), dtype=float)  # Geschwindigkeitsfeld
+
+        # Gleichmäßige Strömung in x-Richtung
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
         # Geometriegrößen
-        def add_divergence_free_perturbation(u, grid, amplitude=0.05, seed=42):
-            """
-            Fügt dem 3D-Geschwindigkeitsfeld u eine dreidimensionale diverganzfreie Störung hinzu.
-            :param u: Array der Form [3, Nx, Ny, Nz] (Geschwindigkeitskomponenten)
-            :param grid: Tuple aus (xg, yg, zg) mit den Gitterkoordinaten
-            :param amplitude: Stärke der Störung
-            :param seed: Zufallssamen für Reproduzierbarkeit
-            :return: u mit Störung überlagert
-            """
-            np.random.seed(seed)
-            xg, yg, zg = grid
-            shape = xg.shape
+        Lx = xg.max() - xg.min()
+        Ly = yg.max() - yg.min()
+        Lz = zg.max() - zg.min()
 
-            # Zufällige Skalarfelder erzeugen
-            phi = np.random.normal(size=shape)
-            psi = np.random.normal(size=shape)
+        # ✴️ Bedingung: nahe unterer oder oberer Wand (z. B. y < 10% oder y > 90% von Ly)
+        near_lower = yg < 0.1 * Ly
+        near_upper = yg > 0.9 * Ly
+        near_wall = (near_lower | near_upper)
 
-            # Gradient und Rotation (z.B. über zentrale Differenzen)
-            def grad(f, axis, dx):
-                return (np.roll(f, -1, axis=axis) - np.roll(f, 1, axis=axis)) / (2 * dx)
+        # Normierte Koordinaten
+        x_norm = xg / Lx
+        z_norm = zg / Lz
 
-            # Schrittweiten
-            dx = xg[1, 0, 0] - xg[0, 0, 0]
-            dy = yg[0, 1, 0] - yg[0, 0, 0]
-            dz = zg[0, 0, 1] - zg[0, 0, 0]
+        # 🎯 Wandnahe Störung in u₂ (Querströmung)
+        disturbance = 0.1 * np.sin(2 * np.pi * x_norm) * np.sin(2 * np.pi * z_norm)
+        u[1] += disturbance * near_wall.astype(float)
 
-            # Rotationsfeld: v = curl(psi * e_z)
-            vx = grad(psi, axis=1, dx=dy)  # ∂ψ/∂y
-            vy = -grad(psi, axis=0, dx=dx)  # -∂ψ/∂x
-            vz = np.zeros_like(psi)
+        # Maske respektieren
+        u *= (1 - self.mask.astype(float))
 
-            # Normieren
-            mag = np.sqrt(vx ** 2 + vy ** 2 + vz ** 2)
-            mag[mag == 0] = 1.0  # Division durch Null vermeiden
-            vx *= amplitude / mag
-            vy *= amplitude / mag
-            vz *= amplitude / mag
-
-            # Auf das Feld u addieren
-            u[0] += vx
-            u[1] += vy
-            u[2] += vz
-
-            return u
-
-        u = add_divergence_free_perturbation(u, grid=(xg, yg, zg), amplitude=0.05)
-
-        return p, u
-
+        return u, p
 
     @property
     def grid(self):
