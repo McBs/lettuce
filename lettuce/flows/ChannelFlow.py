@@ -149,7 +149,7 @@ class ChannelFlow3D(object):
         xg, yg, zg = grid  # [res_x, res_y, res_z]
         p = np.zeros_like(xg)[None, ...]
 
-        # Basisströmung (x-Richtung)
+        # Basisströmung (x-Richtung, laminares Profil oder konstant)
         u = np.zeros((3, *xg.shape), dtype=float)
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
@@ -158,22 +158,22 @@ class ChannelFlow3D(object):
         Ly = yg.max() - yg.min()
         Lz = zg.max() - zg.min()
 
-        # Normiertes y für wandnahe Störung
+        # Divergenzfreies 3D-Störfeld nach Premnath (angepasst)
+        eps = 0.05 * self.units.characteristic_velocity_pu  # relative Stärke
+
+        # Normiertes y für wandnahe Gewichtung
         ynorm = yg / Ly
-        wall_weight = (1 - ynorm) * ynorm  # Maximum bei y = 0.5, Null an Wänden
+        wall_weight = (1 - ynorm) * ynorm  # 0 an den Wänden, max bei y=0.5
 
-        # 🎯 Stromabwärts (x) leicht gestört
-        u[0] += 0.05 * np.sin(2 * np.pi * zg / Lz) * wall_weight
+        # Divergenzfreies Feld: sin(k·x) * sin(k·y), versetzt für Asymmetrie
+        u[0] += eps * np.sin(2 * np.pi * yg / Ly + 0.5) * np.sin(2 * np.pi * zg / Lz + 1.3) * wall_weight
+        u[1] += eps * np.sin(2 * np.pi * xg / Lx + 0.7) * np.sin(2 * np.pi * zg / Lz + 1.1) * wall_weight
+        u[2] += eps * np.sin(2 * np.pi * xg / Lx + 0.2) * np.sin(2 * np.pi * yg / Ly + 0.9) * wall_weight
 
-        # 🎯 Querströmung (y)
-        u[1] += 0.05 * np.sin(2 * np.pi * xg / Lx) * np.sin(np.pi * zg / Lz) * wall_weight
-
-        # 🎯 Spanwise (z) mit höherfrequenter Mischung
-        u[2] += 0.05 * (np.sin(4 * np.pi * xg / Lx) + np.sin(6 * np.pi * xg / Lx)) * np.sin(
-            np.pi * yg / Ly) * wall_weight
-
-        # Maske respektieren
+        # Maske (Obstacle) berücksichtigen
         u *= (1 - self.mask.astype(float))
+
+        return u, p
 
         return p, u
 
