@@ -175,7 +175,7 @@ class ChannelFlow3D(object):
         # Maske respektieren
         u *= (1 - self.mask.astype(float))
 
-        return u, p
+        return p, u
 
     @property
     def grid(self):
