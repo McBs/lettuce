@@ -151,7 +151,7 @@ class ChannelFlow3D(object):
 
         u = np.zeros((3, *xg.shape), dtype=float)  # Geschwindigkeitsfeld
 
-        # Gleichmäßige Strömung in x-Richtung
+        # Gleichmäßige Strömung in x-Richtung (Poiseuille-ähnlich, falls gewünscht)
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
         # Geometriegrößen
@@ -159,18 +159,28 @@ class ChannelFlow3D(object):
         Ly = yg.max() - yg.min()
         Lz = zg.max() - zg.min()
 
-        # ✴️ Bedingung: nahe unterer oder oberer Wand (z. B. y < 10% oder y > 90% von Ly)
-        near_lower = yg < 0.1 * Ly
-        near_upper = yg > 0.9 * Ly
-        near_wall = (near_lower | near_upper)
-
         # Normierte Koordinaten
         x_norm = xg / Lx
+        y_norm = yg / Ly
         z_norm = zg / Lz
 
-        # 🎯 Wandnahe Störung in u₂ (Querströmung)
-        disturbance = 0.35 * np.sin(2 * np.pi * x_norm) * np.sin(2 * np.pi * z_norm)
-        u[1] += disturbance * near_wall.astype(float)
+        # 🎯 Wandgewichtung (glatt, symmetrisch bei y=0 und y=Ly)
+        wall_weight = np.exp(-((y_norm - 0.05) ** 2) / 0.0025) + np.exp(-((y_norm - 0.95) ** 2) / 0.0025)
+
+        # 🎯 Zufällige Modulation
+        np.random.seed(42)
+        rand_mod = 1.0 + 0.05 * np.random.randn(*xg.shape)
+
+        # 🎯 Frequenzkombinationen
+        fx = np.sin(2 * np.pi * x_norm) + np.sin(4 * np.pi * x_norm)
+        fz = np.sin(2 * np.pi * z_norm) + np.sin(3 * np.pi * z_norm)
+
+        # 🎯 Störungen hinzufügen
+        amp = 0.1  # Amplitude der Störung
+
+        u[0] += amp * fx * fz * wall_weight * rand_mod  # x-Richtung (stromabwärts)
+        u[1] += amp * np.sin(2 * np.pi * z_norm) * wall_weight * rand_mod  # y-Richtung (quer)
+        u[2] += amp * np.sin(6 * np.pi * x_norm) * wall_weight * rand_mod  # z-Richtung (spanwise)
 
         # Maske respektieren
         u *= (1 - self.mask.astype(float))
