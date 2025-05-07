@@ -169,7 +169,7 @@ class ChannelFlow3D(object):
         z_norm = zg / Lz
 
         # 🎯 Wandnahe Störung in u₂ (Querströmung)
-        disturbance = 0.1 * np.sin(2 * np.pi * x_norm) * np.sin(2 * np.pi * z_norm)
+        disturbance = 0.35 * np.sin(2 * np.pi * x_norm) * np.sin(2 * np.pi * z_norm)
         u[1] += disturbance * near_wall.astype(float)
 
         # Maske respektieren
