@@ -173,7 +173,7 @@ class ChannelFlow3D(object):
         # Maske (Obstacle) berücksichtigen
         u *= (1 - self.mask.astype(float))
 
-        return u, p
+        return p, u
 
 
     @property
