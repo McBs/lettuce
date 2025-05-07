@@ -175,7 +175,6 @@ class ChannelFlow3D(object):
 
         return u, p
 
-        return p, u
 
     @property
     def grid(self):
