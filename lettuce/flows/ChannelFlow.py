@@ -159,7 +159,7 @@ class ChannelFlow3D(object):
         Lz = zg.max() - zg.min()
 
         # Divergenzfreies 3D-Störfeld nach Premnath (angepasst)
-        eps = 0.2* self.units.characteristic_velocity_pu  # relative Stärke
+        eps = 0.5* self.units.characteristic_velocity_pu  # relative Stärke
 
         # Normiertes y für wandnahe Gewichtung
         ynorm = yg / Ly
