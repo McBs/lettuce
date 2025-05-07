@@ -159,19 +159,13 @@ class ChannelFlow3D(object):
         Lz = zg.max() - zg.min()
 
         # Divergenzfreies 3D-Störfeld nach Premnath (angepasst)
-        eps = 0.5* self.units.characteristic_velocity_pu  # relative Stärke
+        epsilon = 0.05
+        kx, ky, kz = 2 * np.pi / Lx, np.pi / Ly, 2 * np.pi / Lz
 
-        # Normiertes y für wandnahe Gewichtung
-        ynorm = yg / Ly
-        wall_weight = (1 - ynorm) * ynorm  # 0 an den Wänden, max bei y=0.5
-
-        # Divergenzfreies Feld: sin(k·x) * sin(k·y), versetzt für Asymmetrie
-        u[0] += eps * np.sin(2 * np.pi * yg / Ly + 0.5) * np.sin(2 * np.pi * zg / Lz + 1.3) * wall_weight
-        u[1] += eps * np.sin(2 * np.pi * xg / Lx + 0.7) * np.sin(2 * np.pi * zg / Lz + 1.1) * wall_weight
-        u[2] += eps * np.sin(2 * np.pi * xg / Lx + 0.2) * np.sin(2 * np.pi * yg / Ly + 0.9) * wall_weight
-
-        # Maske (Obstacle) berücksichtigen
-        u *= (1 - self.mask.astype(float))
+        # y-Zentriert, maximal in Wandnähe (sinus in y)
+        u[0] += epsilon * np.sin(kx * xg) * np.sin(ky * yg) * np.sin(kz * zg)
+        u[1] += epsilon * np.cos(kx * xg) * np.cos(ky * yg) * np.sin(kz * zg)
+        u[2] += epsilon * np.cos(kx * xg) * np.sin(ky * yg) * np.cos(kz * zg)
 
         return p, u
 
