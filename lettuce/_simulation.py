@@ -1,6 +1,7 @@
 import warnings
 
 import torch
+import torch.distributed as dist
 import numpy as np
 
 from timeit import default_timer as timer
@@ -191,6 +192,14 @@ class Simulation:
     def _report(self):
         for reporter in self.reporter:
             reporter(self)
+    
+    def exchange_messages():
+        #rank = dist.get_rank()
+        #world_size = dist.get_world_size()
+        #left_neighbor  = (rank - 1) % world_size
+        #right_neighbor = (rank + 1) % world_size
+        print(stencil)
+
 
     def __call__(self, num_steps):
         beg = timer()
@@ -200,6 +209,7 @@ class Simulation:
 
         for _ in range(num_steps):
             self._collide_and_stream(self)
+            self.exchange_messages()
             self.flow.i += 1
             self._report()
 
