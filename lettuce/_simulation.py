@@ -190,10 +190,10 @@ class Simulation:
         return self.flow.f
 
     def _report(self):
-        for reporter in self.reporter:
+        for reporter in self.reporter:left_neighbor
             reporter(self)
     
-    def exchange_messages(self):
+    def _exchange_messages(self):
         rank = dist.get_rank()
         world_size = dist.get_world_size()
         left_neighbor  = (rank - 1) % world_size
@@ -213,7 +213,7 @@ class Simulation:
 
         for _ in range(num_steps):
             self._collide_and_stream(self)
-            self.exchange_messages(self)
+            self._exchange_messages(self)
             self.flow.i += 1
             self._report()
 
