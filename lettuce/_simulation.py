@@ -213,7 +213,7 @@ class Simulation:
 
         for _ in range(num_steps):
             self._collide_and_stream(self)
-            self._exchange_messages(self)
+            self._exchange_messages()
             self.flow.i += 1
             self._report()
 
