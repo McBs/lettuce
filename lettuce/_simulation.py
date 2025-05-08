@@ -190,7 +190,7 @@ class Simulation:
         return self.flow.f
 
     def _report(self):
-        for reporter in self.reporter:left_neighbor
+        for reporter in self.reporter:
             reporter(self)
     
     def _exchange_messages(self):
