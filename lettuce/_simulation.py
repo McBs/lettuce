@@ -194,11 +194,15 @@ class Simulation:
             reporter(self)
     
     def exchange_messages():
-        #rank = dist.get_rank()
-        #world_size = dist.get_world_size()
-        #left_neighbor  = (rank - 1) % world_size
-        #right_neighbor = (rank + 1) % world_size
-        print(stencil)
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+        left_neighbor  = (rank - 1) % world_size
+        right_neighbor = (rank + 1) % world_size
+        print(rank)
+        print(world_size)
+        print(left_neighbor)
+        print(right_neighbor)
+        print(self.flow.stencil)
 
 
     def __call__(self, num_steps):
