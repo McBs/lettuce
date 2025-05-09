@@ -65,43 +65,21 @@ class ChannelFlow2D(object):
         self._mask = m.astype(bool)
 
     def initial_solution(self, x):
-        xg, yg = x  # [res_x, res_y]
+        xg, yg = x
 
-        # Leicht variierendes Anfangsdruckfeld
         p = 1.0 + 0.001 * np.random.randn(*xg.shape)
-        p = p[None, ...]  # [1, res_x, res_y]
+        p = p[None, ...]
 
-        # Gleichmäßige x-Richtung
-        u = np.zeros((2, *xg.shape), dtype=float)
-        u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
+        u = np.zeros((2, *xg.shape), dtype=float)  # Keine Anfangsströmung!
 
-        # Divergenzfreies Störfeld
-        def generate_divergence_free_noise_2d(shape, amplitude=0.25):
-            from scipy.fft import fft2, ifft2
-            nx, ny = shape
-            kx = np.fft.fftfreq(nx).reshape(-1, 1)
-            ky = np.fft.fftfreq(ny).reshape(1, -1)
-            k2 = kx ** 2 + ky ** 2
-            k2[k2 == 0] = 1.0  # Singularität vermeiden
+        # Nur Querkomponenten-Störung
+        amp = 0.2
+        Lx = self.resolution_x / self.units.characteristic_length_lu
+        Ly = self.resolution_y / self.units.characteristic_length_lu
+        kx = 2 * np.pi / Lx
+        ky = np.pi / Ly
 
-            vx = np.random.randn(nx, ny)
-            vy = np.random.randn(nx, ny)
-
-            fx = fft2(vx)
-            fy = fft2(vy)
-
-            dot = kx * fx + ky * fy
-            fx -= kx * dot / k2
-            fy -= ky * dot / k2
-
-            vx = np.real(ifft2(fx))
-            vy = np.real(ifft2(fy))
-
-            return amplitude * np.stack([vx, vy])
-
-        np.random.seed(42)
-        perturb = generate_divergence_free_noise_2d(xg.shape, amplitude=0.05)
-        u += perturb * (1 - self.mask.astype(float))
+        u[1] += amp * np.sin(kx * xg) * np.sin(ky * yg) * (1 - self.mask.astype(float))
 
         return p, u
 
