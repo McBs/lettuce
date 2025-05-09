@@ -64,49 +64,44 @@ class ChannelFlow2D(object):
         assert isinstance(m, np.ndarray) and m.shape == (self.resolution_x, self.resolution_y)
         self._mask = m.astype(bool)
 
-    def initial_solution(self, grid):
-        xg, yg, zg = grid  # [res_x, res_y, res_z]
+    def initial_solution(self, x):
+        xg, yg = x  # [res_x, res_y]
 
-        # Leicht variiertes Anfangsdruckfeld
+        # Leicht variierendes Anfangsdruckfeld
         p = 1.0 + 0.001 * np.random.randn(*xg.shape)
-        p = p[None, ...]  # Druckform [1, res_x, res_y, res_z]
+        p = p[None, ...]  # [1, res_x, res_y]
 
-        # Grundströmung in x-Richtung
-        u = np.zeros((3, *xg.shape), dtype=float)
+        # Gleichmäßige x-Richtung
+        u = np.zeros((2, *xg.shape), dtype=float)
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
-        # Divergenzfreies Störfeld hinzufügen
-        def generate_divergence_free_noise(shape, amplitude=0.05):
-            from scipy.fft import fftn, ifftn
-            nx, ny, nz = shape
-            kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
-            ky = np.fft.fftfreq(ny).reshape(1, -1, 1)
-            kz = np.fft.fftfreq(nz).reshape(1, 1, -1)
-            k2 = kx ** 2 + ky ** 2 + kz ** 2
+        # Divergenzfreies Störfeld
+        def generate_divergence_free_noise_2d(shape, amplitude=0.05):
+            from scipy.fft import fft2, ifft2
+            nx, ny = shape
+            kx = np.fft.fftfreq(nx).reshape(-1, 1)
+            ky = np.fft.fftfreq(ny).reshape(1, -1)
+            k2 = kx ** 2 + ky ** 2
             k2[k2 == 0] = 1.0  # Singularität vermeiden
 
-            vx = np.random.randn(nx, ny, nz)
-            vy = np.random.randn(nx, ny, nz)
-            vz = np.random.randn(nx, ny, nz)
+            vx = np.random.randn(nx, ny)
+            vy = np.random.randn(nx, ny)
 
-            fx = fftn(vx)
-            fy = fftn(vy)
-            fz = fftn(vz)
+            fx = fft2(vx)
+            fy = fft2(vy)
 
-            dot = kx * fx + ky * fy + kz * fz
+            dot = kx * fx + ky * fy
             fx -= kx * dot / k2
             fy -= ky * dot / k2
-            fz -= kz * dot / k2
 
-            vx = np.real(ifftn(fx))
-            vy = np.real(ifftn(fy))
-            vz = np.real(ifftn(fz))
+            vx = np.real(ifft2(fx))
+            vy = np.real(ifft2(fy))
 
-            return amplitude * np.stack([vx, vy, vz])
+            return amplitude * np.stack([vx, vy])
 
-        np.random.seed(42)  # reproduzierbar
-        perturb = generate_divergence_free_noise(xg.shape, amplitude=0.05)
-        u += perturb * (1 - self.mask.astype(float))  # Maske respektieren
+        np.random.seed(42)
+        perturb = generate_divergence_free_noise_2d(xg.shape, amplitude=0.05)
+        u += perturb * (1 - self.mask.astype(float))
 
         return p, u
 
@@ -160,43 +155,47 @@ class ChannelFlow3D(object):
 
     def initial_solution(self, grid):
         xg, yg, zg = grid  # [res_x, res_y, res_z]
-        p = np.zeros_like(xg)[None, ...]  # Druckfeld
 
-        u = np.zeros((3, *xg.shape), dtype=float)  # Geschwindigkeitsfeld
+        # Leicht variiertes Anfangsdruckfeld
+        p = 1.0 + 0.001 * np.random.randn(*xg.shape)
+        p = p[None, ...]  # Druckform [1, res_x, res_y, res_z]
 
-        # Gleichmäßige Strömung in x-Richtung (Poiseuille-ähnlich, falls gewünscht)
+        # Grundströmung in x-Richtung
+        u = np.zeros((3, *xg.shape), dtype=float)
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
-        # Geometriegrößen
-        Lx = xg.max() - xg.min()
-        Ly = yg.max() - yg.min()
-        Lz = zg.max() - zg.min()
+        # Divergenzfreies Störfeld hinzufügen
+        def generate_divergence_free_noise(shape, amplitude=0.05):
+            from scipy.fft import fftn, ifftn
+            nx, ny, nz = shape
+            kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
+            ky = np.fft.fftfreq(ny).reshape(1, -1, 1)
+            kz = np.fft.fftfreq(nz).reshape(1, 1, -1)
+            k2 = kx ** 2 + ky ** 2 + kz ** 2
+            k2[k2 == 0] = 1.0  # Singularität vermeiden
 
-        # Normierte Koordinaten
-        x_norm = xg / Lx
-        y_norm = yg / Ly
-        z_norm = zg / Lz
+            vx = np.random.randn(nx, ny, nz)
+            vy = np.random.randn(nx, ny, nz)
+            vz = np.random.randn(nx, ny, nz)
 
-        # 🎯 Wandgewichtung (glatt, symmetrisch bei y=0 und y=Ly)
-        wall_weight = np.exp(-((y_norm - 0.05) ** 2) / 0.0025) + np.exp(-((y_norm - 0.95) ** 2) / 0.0025)
+            fx = fftn(vx)
+            fy = fftn(vy)
+            fz = fftn(vz)
 
-        # 🎯 Zufällige Modulation
-        np.random.seed(42)
-        rand_mod = 1.0 + 0.05 * np.random.randn(*xg.shape)
+            dot = kx * fx + ky * fy + kz * fz
+            fx -= kx * dot / k2
+            fy -= ky * dot / k2
+            fz -= kz * dot / k2
 
-        # 🎯 Frequenzkombinationen
-        fx = np.sin(2 * np.pi * x_norm) + np.sin(4 * np.pi * x_norm)
-        fz = np.sin(2 * np.pi * z_norm) + np.sin(3 * np.pi * z_norm)
+            vx = np.real(ifftn(fx))
+            vy = np.real(ifftn(fy))
+            vz = np.real(ifftn(fz))
 
-        # 🎯 Störungen hinzufügen
-        amp = 0.1  # Amplitude der Störung
+            return amplitude * np.stack([vx, vy, vz])
 
-        u[0] += amp * fx * fz * wall_weight * rand_mod  # x-Richtung (stromabwärts)
-        u[1] += amp * np.sin(2 * np.pi * z_norm) * wall_weight * rand_mod  # y-Richtung (quer)
-        u[2] += amp * np.sin(6 * np.pi * x_norm) * wall_weight * rand_mod  # z-Richtung (spanwise)
-
-        # Maske respektieren
-        u *= (1 - self.mask.astype(float))
+        np.random.seed(42)  # reproduzierbar
+        perturb = generate_divergence_free_noise(xg.shape, amplitude=0.05)
+        u += perturb * (1 - self.mask.astype(float))  # Maske respektieren
 
         return p, u
 
