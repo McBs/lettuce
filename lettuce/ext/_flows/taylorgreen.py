@@ -84,10 +84,14 @@ class TaylorGreenVortex(ExtFlow):
                 lowerfill_big = 8 - int(((split_size + 1) % 16)/2)
                 upperfill_small = int((16 - split_size % 16)/2)
                 lowerfill_small = 8 - int((split_size % 16)/2)
-
+                
+                print("Fills")
+                print("uppsefill_big = " + str(upperfill_big))
+                print("lowerfill_big = " + lowerfill_big))
+                print("upperfill_small = " + upperfill_small))
+                print("lowerfill_small = " + lowerfill_small))
         
                 extended_splits = []
-                # Todo Überlappungen anpassen nach rest und fall unterscheidung
                 for i in range(remainder):
                     left_neighbor = bigsplits[i-1][-lowerfill_big:] if i > 0 else smallsplits[-1][-lowerfill_big:]  # Get last value of previous (or last split for first one)
                     right_neighbor = bigsplits[i+1][:upperfill_big] if i < remainder - 1 else smallsplits[0][:upperfill_big]  # Get first value of next (or first split for last one)
