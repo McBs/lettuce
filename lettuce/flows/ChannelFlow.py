@@ -64,44 +64,49 @@ class ChannelFlow2D(object):
         assert isinstance(m, np.ndarray) and m.shape == (self.resolution_x, self.resolution_y)
         self._mask = m.astype(bool)
 
-    def initial_solution(self, x):
-        xg, yg = x  # [res_x, res_y]
+    def initial_solution(self, grid):
+        xg, yg, zg = grid  # [res_x, res_y, res_z]
 
-        # Leicht variierendes Anfangsdruckfeld
+        # Leicht variiertes Anfangsdruckfeld
         p = 1.0 + 0.001 * np.random.randn(*xg.shape)
-        p = p[None, ...]  # [1, res_x, res_y]
+        p = p[None, ...]  # Druckform [1, res_x, res_y, res_z]
 
-        # Gleichmäßige x-Richtung
-        u = np.zeros((2, *xg.shape), dtype=float)
+        # Grundströmung in x-Richtung
+        u = np.zeros((3, *xg.shape), dtype=float)
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
-        # Divergenzfreies Störfeld
-        def generate_divergence_free_noise_2d(shape, amplitude=0.05):
-            from scipy.fft import fft2, ifft2
-            nx, ny = shape
-            kx = np.fft.fftfreq(nx).reshape(-1, 1)
-            ky = np.fft.fftfreq(ny).reshape(1, -1)
-            k2 = kx ** 2 + ky ** 2
+        # Divergenzfreies Störfeld hinzufügen
+        def generate_divergence_free_noise(shape, amplitude=0.05):
+            from scipy.fft import fftn, ifftn
+            nx, ny, nz = shape
+            kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
+            ky = np.fft.fftfreq(ny).reshape(1, -1, 1)
+            kz = np.fft.fftfreq(nz).reshape(1, 1, -1)
+            k2 = kx ** 2 + ky ** 2 + kz ** 2
             k2[k2 == 0] = 1.0  # Singularität vermeiden
 
-            vx = np.random.randn(nx, ny)
-            vy = np.random.randn(nx, ny)
+            vx = np.random.randn(nx, ny, nz)
+            vy = np.random.randn(nx, ny, nz)
+            vz = np.random.randn(nx, ny, nz)
 
-            fx = fft2(vx)
-            fy = fft2(vy)
+            fx = fftn(vx)
+            fy = fftn(vy)
+            fz = fftn(vz)
 
-            dot = kx * fx + ky * fy
+            dot = kx * fx + ky * fy + kz * fz
             fx -= kx * dot / k2
             fy -= ky * dot / k2
+            fz -= kz * dot / k2
 
-            vx = np.real(ifft2(fx))
-            vy = np.real(ifft2(fy))
+            vx = np.real(ifftn(fx))
+            vy = np.real(ifftn(fy))
+            vz = np.real(ifftn(fz))
 
-            return amplitude * np.stack([vx, vy])
+            return amplitude * np.stack([vx, vy, vz])
 
-        np.random.seed(42)
-        perturb = generate_divergence_free_noise_2d(xg.shape, amplitude=0.05)
-        u += perturb * (1 - self.mask.astype(float))
+        np.random.seed(42)  # reproduzierbar
+        perturb = generate_divergence_free_noise(xg.shape, amplitude=0.05)
+        u += perturb * (1 - self.mask.astype(float))  # Maske respektieren
 
         return p, u
 
