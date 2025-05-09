@@ -72,18 +72,32 @@ class ChannelFlow2D(object):
 
         u = np.zeros((2, *xg.shape), dtype=float)
 
-        # Laminare Grundströmung (Poiseuille-Profil)
-        y_lu = yg * self.units.characteristic_length_lu / (
-                    self.resolution_y / self.units.characteristic_length_lu)  # Skaliere y auf [0, char_length_lu]
-        U_max_pu = self.units.characteristic_velocity_pu  # Maximale Geschwindigkeit in physikalischen Einheiten
-        U_max_lu = self.units.convert_velocity_to_lu(U_max_pu)
-        u[0] = 4 * U_max_lu * y_lu / self.units.characteristic_length_lu * (
-                    1 - y_lu / self.units.characteristic_length_lu) * (1 - self.mask.astype(float))  # u_x
+        # Laminare Grundströmung (Poiseuille-Profil) mit U_max_lu = 1
+        channel_height_lu = self.resolution_y / self.units.characteristic_length_lu
+        y_normalized = yg / channel_height_lu  # Normalisierte y-Koordinate [0, 1]
+        u[0] = 4 * 1.0 * y_normalized * (1 - y_normalized) * (1 - self.mask.astype(float))  # u_x mit U_max_lu = 1
 
-        # Zufällige Geschwindigkeitsstörungen hinzufügen
-        amplitude = 0.01 * U_max_lu  # Amplitude als kleiner Bruchteil der max. Geschwindigkeit
-        u[0] += amplitude * np.random.randn(*xg.shape) * (1 - self.mask.astype(float))  # Störung in x-Richtung
-        u[1] += amplitude * np.random.randn(*xg.shape) * (1 - self.mask.astype(float))  # Störung in y-Richtung
+        # Strukturierte Störungen überlagern
+        amplitude = 0.3  # Amplitude der Störungen (anpassbar)
+        Lx_lu = self.resolution_x / self.units.characteristic_length_lu
+        Ly_lu = self.resolution_y / self.units.characteristic_length_lu
+        kx = 2 * np.pi / Lx_lu * 2  # Beispielhafte Wellenzahl in x-Richtung (anpassbar)
+        ky = np.pi / Ly_lu * 3  # Beispielhafte Wellenzahl in y-Richtung (anpassbar)
+        phase_x = np.random.rand() * 2 * np.pi
+        phase_y = np.random.rand() * 2 * np.pi
+
+        # Störung in der u-Komponente
+        u[0] += amplitude * np.sin(kx * xg + phase_x) * np.cos(ky * yg + phase_y) * (1 - self.mask.astype(float))
+
+        # Störung in der v-Komponente (divergenzfrei machen!)
+        # Eine einfache Möglichkeit, eine inkompressible Störung zu erzeugen, ist,
+        # die v-Komponente so zu wählen, dass sie mit der u-Komponente eine Art
+        # "Wirbelmuster" bildet.
+        kv_x = 2 * np.pi / Lx_lu * 3  # Unterschiedliche Wellenzahl für v
+        kv_y = np.pi / Ly_lu * 2
+        phase_vx = np.random.rand() * 2 * np.pi
+        phase_vy = np.random.rand() * 2 * np.pi
+        u[1] += amplitude * np.cos(kv_x * xg + phase_vx) * np.sin(kv_y * yg + phase_vy) * (1 - self.mask.astype(float))
 
         return p, u
 
