@@ -76,7 +76,7 @@ class ChannelFlow2D(object):
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
         # Divergenzfreies Störfeld
-        def generate_divergence_free_noise_2d(shape, amplitude=0.05):
+        def generate_divergence_free_noise_2d(shape, amplitude=0.25):
             from scipy.fft import fft2, ifft2
             nx, ny = shape
             kx = np.fft.fftfreq(nx).reshape(-1, 1)
@@ -165,7 +165,7 @@ class ChannelFlow3D(object):
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
         # Divergenzfreies Störfeld hinzufügen
-        def generate_divergence_free_noise(shape, amplitude=0.05):
+        def generate_divergence_free_noise(shape, amplitude=0.25):
             from scipy.fft import fftn, ifftn
             nx, ny, nz = shape
             kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
