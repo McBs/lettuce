@@ -153,71 +153,59 @@ class ChannelFlow3D(object):
         xg, yg, zg = grid  # [res_x, res_y, res_z]
 
         # Leicht variiertes Anfangsdruckfeld
-        p = 1.0 + 0.001 * np.random.randn(*xg.shape)
+        p = 1.0 + 0.00 * np.random.randn(*xg.shape)
         p = p[None, ...]  # Druckform [1, res_x, res_y, res_z]
 
-        # Grundströmung in x-Richtung
+        # Laminare Grundströmung in x-Richtung (Poiseuille-Profil) mit U_max_lu = 1
+        channel_height_lu_y = self.resolution_y / self.units.characteristic_length_lu
+        channel_height_lu_z = self.resolution_z / self.units.characteristic_length_lu
+        y_normalized = yg / channel_height_lu_y  # Normalisierte y-Koordinate [0, 1]
+        z_normalized = zg / channel_height_lu_z  # Normalisierte z-Koordinate [0, 1]
         u = np.zeros((3, *xg.shape), dtype=float)
-        u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
+        u[0] = 4 * 1.0 * y_normalized * (1 - y_normalized) * (1 - self.mask.astype(float)) * (
+                1 - z_normalized * (1 - z_normalized))  # u_x mit U_max_lu = 1 (vereinfacht)
 
-        # Divergenzfreies Störfeld hinzufügen
-        def initial_solution(self, grid):
-            xg, yg, zg = grid  # [res_x, res_y, res_z]
+        # Strukturierte Störungen überlagern
+        amplitude = 0.1  # Amplitude der Störungen (anpassbar)
+        Lx_lu = self.resolution_x / self.units.characteristic_length_lu
+        Ly_lu = self.resolution_y / self.units.characteristic_length_lu
+        Lz_lu = self.resolution_z / self.units.characteristic_length_lu
 
-            # Leicht variiertes Anfangsdruckfeld
-            p = 1.0 + 0.00 * np.random.randn(*xg.shape)
-            p = p[None, ...]  # Druckform [1, res_x, res_y, res_z]
+        kx = 2 * np.pi / Lx_lu * 2  # Beispielhafte Wellenzahl in x-Richtung
+        ky = np.pi / Ly_lu * 3  # Beispielhafte Wellenzahl in y-Richtung
+        kz = 2 * np.pi / Lz_lu * 2  # Beispielhafte Wellenzahl in z-Richtung
 
-            # Laminare Grundströmung in x-Richtung (Poiseuille-Profil) mit U_max_lu = 1
-            channel_height_lu_y = self.resolution_y / self.units.characteristic_length_lu
-            channel_height_lu_z = self.resolution_z / self.units.characteristic_length_lu
-            y_normalized = yg / channel_height_lu_y  # Normalisierte y-Koordinate [0, 1]
-            z_normalized = zg / channel_height_lu_z  # Normalisierte z-Koordinate [0, 1]
-            u = np.zeros((3, *xg.shape), dtype=float)
-            u[0] = 4 * 1.0 * y_normalized * (1 - y_normalized) * (1 - self.mask.astype(float)) * (
-                    1 - z_normalized * (1 - z_normalized))  # u_x mit U_max_lu = 1 (vereinfacht)
+        phase_x = np.random.rand() * 2 * np.pi
+        phase_y = np.random.rand() * 2 * np.pi
+        phase_z = np.random.rand() * 2 * np.pi
 
-            # Strukturierte Störungen überlagern
-            amplitude = 0.1  # Amplitude der Störungen (anpassbar)
-            Lx_lu = self.resolution_x / self.units.characteristic_length_lu
-            Ly_lu = self.resolution_y / self.units.characteristic_length_lu
-            Lz_lu = self.resolution_z / self.units.characteristic_length_lu
+        # Störung in der u-Komponente
+        u[0] += amplitude * np.sin(kx * xg + phase_x) * np.cos(ky * yg + phase_y) * np.sin(kz * zg + phase_z) * (
+                1 - self.mask.astype(float))
 
-            kx = 2 * np.pi / Lx_lu * 2  # Beispielhafte Wellenzahl in x-Richtung
-            ky = np.pi / Ly_lu * 3  # Beispielhafte Wellenzahl in y-Richtung
-            kz = 2 * np.pi / Lz_lu * 2  # Beispielhafte Wellenzahl in z-Richtung
+        # Störung in der v-Komponente (divergenzfrei(er) machen)
+        kv_x = 2 * np.pi / Lx_lu * 3
+        kv_y = np.pi / Ly_lu * 2
+        kv_z = 2 * np.pi / Lz_lu * 1
+        phase_vx = np.random.rand() * 2 * np.pi
+        phase_vy = np.random.rand() * 2 * np.pi
+        phase_vz = np.random.rand() * 2 * np.pi
+        u[1] += amplitude * np.cos(kv_x * xg + phase_vx) * np.sin(ky * yg + phase_vy) * np.cos(
+            kz * zg + phase_vz) * (
+                        1 - self.mask.astype(float))
 
-            phase_x = np.random.rand() * 2 * np.pi
-            phase_y = np.random.rand() * 2 * np.pi
-            phase_z = np.random.rand() * 2 * np.pi
+        # Störung in der w-Komponente (divergenzfrei(er) machen)
+        kw_x = 2 * np.pi / Lx_lu * 1
+        kw_y = np.pi / Ly_lu * 1
+        kw_z = 2 * np.pi / Lz_lu * 3
+        phase_wx = np.random.rand() * 2 * np.pi
+        phase_wy = np.random.rand() * 2 * np.pi
+        phase_wz = np.random.rand() * 2 * np.pi
+        u[2] += amplitude * np.sin(kw_x * xg + phase_wx) * np.cos(ky * yg + phase_wy) * np.sin(
+            kz * zg + phase_wz) * (
+                        1 - self.mask.astype(float))
 
-            # Störung in der u-Komponente
-            u[0] += amplitude * np.sin(kx * xg + phase_x) * np.cos(ky * yg + phase_y) * np.sin(kz * zg + phase_z) * (
-                    1 - self.mask.astype(float))
-
-            # Störung in der v-Komponente (divergenzfrei(er) machen)
-            kv_x = 2 * np.pi / Lx_lu * 3
-            kv_y = np.pi / Ly_lu * 2
-            kv_z = 2 * np.pi / Lz_lu * 1
-            phase_vx = np.random.rand() * 2 * np.pi
-            phase_vy = np.random.rand() * 2 * np.pi
-            phase_vz = np.random.rand() * 2 * np.pi
-            u[1] += amplitude * np.cos(kv_x * xg + phase_vx) * np.sin(ky * yg + phase_vy) * np.cos(
-                kz * zg + phase_vz) * (
-                            1 - self.mask.astype(float))
-
-            # Störung in der w-Komponente (divergenzfrei(er) machen)
-            kw_x = 2 * np.pi / Lx_lu * 1
-            kw_y = np.pi / Ly_lu * 1
-            kw_z = 2 * np.pi / Lz_lu * 3
-            phase_wx = np.random.rand() * 2 * np.pi
-            phase_wy = np.random.rand() * 2 * np.pi
-            phase_wz = np.random.rand() * 2 * np.pi
-            u[2] += amplitude * np.sin(kw_x * xg + phase_wx) * np.cos(ky * yg + phase_wy) * np.sin(
-                kz * zg + phase_wz) * (
-                            1 - self.mask.astype(float))
-
-            return p, u
+        return p, u
 
     @property
     def grid(self):
