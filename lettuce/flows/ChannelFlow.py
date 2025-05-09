@@ -70,16 +70,20 @@ class ChannelFlow2D(object):
         p = 1.0 + 0.001 * np.random.randn(*xg.shape)
         p = p[None, ...]
 
-        u = np.zeros((2, *xg.shape), dtype=float)  # Keine Anfangsströmung!
+        u = np.zeros((2, *xg.shape), dtype=float)
 
-        # Nur Querkomponenten-Störung
-        amp = 0.2
-        Lx = self.resolution_x / self.units.characteristic_length_lu
-        Ly = self.resolution_y / self.units.characteristic_length_lu
-        kx = 2 * np.pi / Lx
-        ky = np.pi / Ly
+        # Laminare Grundströmung (Poiseuille-Profil)
+        y_lu = yg * self.units.characteristic_length_lu / (
+                    self.resolution_y / self.units.characteristic_length_lu)  # Skaliere y auf [0, char_length_lu]
+        U_max_pu = self.units.characteristic_velocity_pu  # Maximale Geschwindigkeit in physikalischen Einheiten
+        U_max_lu = self.units.convert_velocity_to_lu(U_max_pu)
+        u[0] = 4 * U_max_lu * y_lu / self.units.characteristic_length_lu * (
+                    1 - y_lu / self.units.characteristic_length_lu) * (1 - self.mask.astype(float))  # u_x
 
-        u[1] += amp * np.sin(kx * xg) * np.sin(ky * yg) * (1 - self.mask.astype(float))
+        # Zufällige Geschwindigkeitsstörungen hinzufügen
+        amplitude = 0.01 * U_max_lu  # Amplitude als kleiner Bruchteil der max. Geschwindigkeit
+        u[0] += amplitude * np.random.randn(*xg.shape) * (1 - self.mask.astype(float))  # Störung in x-Richtung
+        u[1] += amplitude * np.random.randn(*xg.shape) * (1 - self.mask.astype(float))  # Störung in y-Richtung
 
         return p, u
 
