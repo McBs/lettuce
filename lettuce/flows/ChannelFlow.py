@@ -65,35 +65,43 @@ class ChannelFlow2D(object):
         self._mask = m.astype(bool)
 
     def initial_solution(self, x):
-        p = np.zeros_like(x[0], dtype=float)[None, ...]
+        xg, yg = x  # [res_x, res_y]
 
-        # Grundströmung in x-Richtung (PU)
-        u_char = np.array([self.units.characteristic_velocity_pu, 0.0])[..., None, None]
-        u = (1 - self.mask.astype(float)) * u_char
+        # Leicht variierendes Anfangsdruckfeld
+        p = 1.0 + 0.001 * np.random.randn(*xg.shape)
+        p = p[None, ...]  # [1, res_x, res_y]
 
-        # 🌀 Sinusförmige Anfangsstörung in Querkomponente (y-Richtung)
-        Lx = x[0].max()
-        Ly = x[1].max()
-        kx = 2 * np.pi / Lx
+        # Gleichmäßige x-Richtung
+        u = np.zeros((2, *xg.shape), dtype=float)
+        u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
-        # Störung mit 0.05 * Hauptgeschwindigkeit, moduliert über Höhe
-        from scipy.fft import fft2, ifft2
-
-        def generate_perturbation(shape, amplitude=0.1):
-            # Weißes Rauschen → Spektrum manipulieren → Rücktransformieren
-            noise = np.random.randn(*shape)
-            kspace = fft2(noise)
-            # Dämpfe hohe Frequenzen nicht komplett raus
+        # Divergenzfreies Störfeld
+        def generate_divergence_free_noise_2d(shape, amplitude=0.05):
+            from scipy.fft import fft2, ifft2
             nx, ny = shape
-            kx = np.fft.fftfreq(nx)
-            ky = np.fft.fftfreq(ny)
-            kkx, kky = np.meshgrid(kx, ky, indexing='ij')
-            k = np.sqrt(kkx ** 2 + kky ** 2)
-            spectrum = kspace * np.exp(-k * 5.0)  # spektraler Dämpfungsfaktor
-            return amplitude * np.real(ifft2(spectrum))
+            kx = np.fft.fftfreq(nx).reshape(-1, 1)
+            ky = np.fft.fftfreq(ny).reshape(1, -1)
+            k2 = kx ** 2 + ky ** 2
+            k2[k2 == 0] = 1.0  # Singularität vermeiden
 
-        perturb = generate_perturbation(x[0].shape)
-        u[1] += perturb * (1 - self.mask.astype(float))
+            vx = np.random.randn(nx, ny)
+            vy = np.random.randn(nx, ny)
+
+            fx = fft2(vx)
+            fy = fft2(vy)
+
+            dot = kx * fx + ky * fy
+            fx -= kx * dot / k2
+            fy -= ky * dot / k2
+
+            vx = np.real(ifft2(fx))
+            vy = np.real(ifft2(fy))
+
+            return amplitude * np.stack([vx, vy])
+
+        np.random.seed(42)
+        perturb = generate_divergence_free_noise_2d(xg.shape, amplitude=0.05)
+        u += perturb * (1 - self.mask.astype(float))
 
         return p, u
 
