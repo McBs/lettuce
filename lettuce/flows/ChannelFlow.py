@@ -161,39 +161,63 @@ class ChannelFlow3D(object):
         u[0] = self.units.characteristic_velocity_pu * (1 - self.mask.astype(float))
 
         # Divergenzfreies Störfeld hinzufügen
-        def generate_divergence_free_noise(shape, amplitude=0.25):
-            from scipy.fft import fftn, ifftn
-            nx, ny, nz = shape
-            kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
-            ky = np.fft.fftfreq(ny).reshape(1, -1, 1)
-            kz = np.fft.fftfreq(nz).reshape(1, 1, -1)
-            k2 = kx ** 2 + ky ** 2 + kz ** 2
-            k2[k2 == 0] = 1.0  # Singularität vermeiden
+        def initial_solution(self, grid):
+            xg, yg, zg = grid  # [res_x, res_y, res_z]
 
-            vx = np.random.randn(nx, ny, nz)
-            vy = np.random.randn(nx, ny, nz)
-            vz = np.random.randn(nx, ny, nz)
+            # Leicht variiertes Anfangsdruckfeld
+            p = 1.0 + 0.00 * np.random.randn(*xg.shape)
+            p = p[None, ...]  # Druckform [1, res_x, res_y, res_z]
 
-            fx = fftn(vx)
-            fy = fftn(vy)
-            fz = fftn(vz)
+            # Laminare Grundströmung in x-Richtung (Poiseuille-Profil) mit U_max_lu = 1
+            channel_height_lu_y = self.resolution_y / self.units.characteristic_length_lu
+            channel_height_lu_z = self.resolution_z / self.units.characteristic_length_lu
+            y_normalized = yg / channel_height_lu_y  # Normalisierte y-Koordinate [0, 1]
+            z_normalized = zg / channel_height_lu_z  # Normalisierte z-Koordinate [0, 1]
+            u = np.zeros((3, *xg.shape), dtype=float)
+            u[0] = 4 * 1.0 * y_normalized * (1 - y_normalized) * (1 - self.mask.astype(float)) * (
+                    1 - z_normalized * (1 - z_normalized))  # u_x mit U_max_lu = 1 (vereinfacht)
 
-            dot = kx * fx + ky * fy + kz * fz
-            fx -= kx * dot / k2
-            fy -= ky * dot / k2
-            fz -= kz * dot / k2
+            # Strukturierte Störungen überlagern
+            amplitude = 0.1  # Amplitude der Störungen (anpassbar)
+            Lx_lu = self.resolution_x / self.units.characteristic_length_lu
+            Ly_lu = self.resolution_y / self.units.characteristic_length_lu
+            Lz_lu = self.resolution_z / self.units.characteristic_length_lu
 
-            vx = np.real(ifftn(fx))
-            vy = np.real(ifftn(fy))
-            vz = np.real(ifftn(fz))
+            kx = 2 * np.pi / Lx_lu * 2  # Beispielhafte Wellenzahl in x-Richtung
+            ky = np.pi / Ly_lu * 3  # Beispielhafte Wellenzahl in y-Richtung
+            kz = 2 * np.pi / Lz_lu * 2  # Beispielhafte Wellenzahl in z-Richtung
 
-            return amplitude * np.stack([vx, vy, vz])
+            phase_x = np.random.rand() * 2 * np.pi
+            phase_y = np.random.rand() * 2 * np.pi
+            phase_z = np.random.rand() * 2 * np.pi
 
-        np.random.seed(42)  # reproduzierbar
-        perturb = generate_divergence_free_noise(xg.shape, amplitude=0.05)
-        u += perturb * (1 - self.mask.astype(float))  # Maske respektieren
+            # Störung in der u-Komponente
+            u[0] += amplitude * np.sin(kx * xg + phase_x) * np.cos(ky * yg + phase_y) * np.sin(kz * zg + phase_z) * (
+                    1 - self.mask.astype(float))
 
-        return p, u
+            # Störung in der v-Komponente (divergenzfrei(er) machen)
+            kv_x = 2 * np.pi / Lx_lu * 3
+            kv_y = np.pi / Ly_lu * 2
+            kv_z = 2 * np.pi / Lz_lu * 1
+            phase_vx = np.random.rand() * 2 * np.pi
+            phase_vy = np.random.rand() * 2 * np.pi
+            phase_vz = np.random.rand() * 2 * np.pi
+            u[1] += amplitude * np.cos(kv_x * xg + phase_vx) * np.sin(ky * yg + phase_vy) * np.cos(
+                kz * zg + phase_vz) * (
+                            1 - self.mask.astype(float))
+
+            # Störung in der w-Komponente (divergenzfrei(er) machen)
+            kw_x = 2 * np.pi / Lx_lu * 1
+            kw_y = np.pi / Ly_lu * 1
+            kw_z = 2 * np.pi / Lz_lu * 3
+            phase_wx = np.random.rand() * 2 * np.pi
+            phase_wy = np.random.rand() * 2 * np.pi
+            phase_wz = np.random.rand() * 2 * np.pi
+            u[2] += amplitude * np.sin(kw_x * xg + phase_wx) * np.cos(ky * yg + phase_wy) * np.sin(
+                kz * zg + phase_wz) * (
+                            1 - self.mask.astype(float))
+
+            return p, u
 
     @property
     def grid(self):
