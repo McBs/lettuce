@@ -67,7 +67,7 @@ class ChannelFlow2D(object):
     def initial_solution(self, x):
         xg, yg = x
 
-        p = 1.0 + 0.001 * np.random.randn(*xg.shape)
+        p = 1.0 + 0.00 * np.random.randn(*xg.shape)
         p = p[None, ...]
 
         u = np.zeros((2, *xg.shape), dtype=float)
