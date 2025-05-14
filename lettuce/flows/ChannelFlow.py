@@ -64,40 +64,50 @@ class ChannelFlow2D(object):
         assert isinstance(m, np.ndarray) and m.shape == (self.resolution_x, self.resolution_y)
         self._mask = m.astype(bool)
 
-    def initial_solution(self, x):
-        xg, yg = x
+    def initial_solution(self, grid):
+        xg, yg = grid
 
-        p = 1.0 + 0.00 * np.random.randn(*xg.shape)
-        p = p[None, ...]
+        p = np.ones_like(xg)[None, ...]
 
-        u = np.zeros((2, *xg.shape), dtype=float)
+        # Auflösung
+        ndir = 2
+        nx, ny = self.resolution_x, self.resolution_y
+        shape = (ndir, nx, ny)
+        shape_hat = (ndir, nx, ny // 2)
 
-        # Laminare Grundströmung (Poiseuille-Profil) mit U_max_lu = 1
-        channel_height_lu = self.resolution_y / self.units.characteristic_length_lu
-        y_normalized = yg / channel_height_lu  # Normalisierte y-Koordinate [0, 1]
-        u[0] = 4 * 1.0 * y_normalized * (1 - y_normalized) * (1 - self.mask.astype(float))  # u_x mit U_max_lu = 1
+        # Vektorpotential ψ ∈ [-1, 1]
+        random_psi = (np.random.random(shape) - 0.5) * 2
 
-        # Strukturierte Störungen überlagern
-        amplitude = 0.3  # Amplitude der Störungen (anpassbar)
-        Lx_lu = self.resolution_x / self.units.characteristic_length_lu
-        Ly_lu = self.resolution_y / self.units.characteristic_length_lu
-        kx = 2 * np.pi / Lx_lu * 2  # Beispielhafte Wellenzahl in x-Richtung (anpassbar)
-        ky = np.pi / Ly_lu * 3  # Beispielhafte Wellenzahl in y-Richtung (anpassbar)
-        phase_x = np.random.rand() * 2 * np.pi
-        phase_y = np.random.rand() * 2 * np.pi
+        # Filterparameter
+        k0 = np.sqrt(nx ** 2 + ny ** 2)
+        psi_hat_scaled = np.empty(shape_hat, dtype=complex)
+        psi_scaled = np.empty(shape)
+        for d in range(ndir):
+            psi_hat = np.fft.fftn(random_psi[d], s=shape_hat[1:], axes=[0, 1])
+            kxs, kys = np.meshgrid(np.arange(shape_hat[2]), np.arange(shape_hat[1]), indexing='xy')
+            kabs = np.sqrt(kxs ** 2 + kys ** 2)
+            psi_hat *= np.exp(-2 * kabs / k0)
+            psi_hat[0, 0] = 0  # k=0 Mode entfernen
+            psi_hat_scaled[d] = psi_hat
+            psi_scaled[d] = np.real(np.fft.ifftn(psi_hat_scaled[d], s=shape[1:]))
 
-        # Störung in der u-Komponente
-        u[0] += amplitude * np.sin(kx * xg + phase_x) * np.cos(ky * yg + phase_y) * (1 - self.mask.astype(float))
+        # Gradient von ψ
+        gradOf_psi_scaled = np.array([np.gradient(psi_scaled[d]) for d in range(ndir)])  # shape = [2][2][nx][ny]
 
-        # Störung in der v-Komponente (divergenzfrei machen!)
-        # Eine einfache Möglichkeit, eine inkompressible Störung zu erzeugen, ist,
-        # die v-Komponente so zu wählen, dass sie mit der u-Komponente eine Art
-        # "Wirbelmuster" bildet.
-        kv_x = 2 * np.pi / Lx_lu * 3  # Unterschiedliche Wellenzahl für v
-        kv_y = np.pi / Ly_lu * 2
-        phase_vx = np.random.rand() * 2 * np.pi
-        phase_vy = np.random.rand() * 2 * np.pi
-        u[1] += amplitude * np.cos(kv_x * xg + phase_vx) * np.sin(kv_y * yg + phase_vy) * (1 - self.mask.astype(float))
+        # 2D Curl:
+        # u_x = dψ_y/dy - dψ_x/dx (→ in 2D reduziert sich das auf Skalarform)
+        u = np.zeros((2, nx, ny), dtype=float)
+        u[0] = gradOf_psi_scaled[1][0] - gradOf_psi_scaled[0][1]  # u_x = dψ_y/dx - dψ_x/dy
+        u[1] = gradOf_psi_scaled[0][0] + gradOf_psi_scaled[1][1] * 0  # optional null oder andere Komponente
+
+        # Optional: Maske anwenden
+        u *= (1 - self.mask.astype(float))
+
+        # Optional: Maximalgeschwindigkeit normieren
+        target_umax = 1
+        current_umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
+        if current_umax > 0:
+            u *= target_umax / current_umax
 
         return p, u
 

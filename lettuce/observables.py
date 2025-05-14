@@ -11,7 +11,7 @@ from packaging import version
 
 __all__ = ["Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
            "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter","EnergySpectrum2",
-           "SymmetryTopPercentageReporter"]
+           "SymmetryTopPercentageReporter","WallQuantities"]
 
 
 class Observable:
@@ -437,3 +437,105 @@ class SymmetryTopPercentageReporter(Observable):
         all_coords = torch.cat([coords.flatten() for coords in top_symmetry_coords.values()])
 
         return all_coords  # Jetzt gibt die Methode einen Tensor zurück
+
+class WallQuantities(Observable):
+    def __init__(self, lattice, flow, averaging_steps=100):
+        super().__init__(lattice, flow)
+        self.rho_lu = 1.0
+        self.tau_lu = flow.units.relaxation_parameter_lu
+        self.cs2 = lattice.cs**2
+        self.mu_lu = self.rho_lu * self.cs2 * (self.tau_lu - 0.5)
+        self.nu_lu = self.mu_lu / self.rho_lu
+        self.half_channel_height_lu = (flow.resolution_y / flow.units.characteristic_length_lu) / 2
+        self.wall_y_bottom = 0
+        self.wall_y_top = flow.resolution_y - 1
+        self.averaging_steps = averaging_steps
+        self.current_step = 0
+        self.u_tau_bottom_history = []
+        self.u_tau_top_history = []
+        self.re_tau_bottom_history = []
+        self.re_tau_top_history = []
+        self.y_plus_bottom_history = []
+        self.y_plus_top_history = []
+        self.ndim = len(flow.grid)
+
+    def __call__(self, f):
+        u = self.lattice.u(f)
+
+        dy_lu = 1.0
+
+        if self.ndim == 2:  # 2D-Fall
+            wall_indices_bottom = self.flow.grid[1][:, self.wall_y_bottom] == self.wall_y_bottom / self.flow.units.characteristic_length_lu
+            wall_indices_top = self.flow.grid[1][:, self.wall_y_top] == self.wall_y_top / self.flow.units.characteristic_length_lu
+
+            # Untere Wand
+            u_x_wall_bottom = u[0][:, self.wall_y_bottom]
+            u_x_next_bottom = u[0][:, self.wall_y_bottom + 1]
+            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / dy_lu
+            tau_w_bottom_lu = self.mu_lu * du_dy_bottom_lu
+            u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / 1.0)
+            re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
+            y_plus_bottom_first_cell = 0.5 * u_tau_bottom_lu / self.nu_lu
+
+            # Obere Wand
+            u_x_wall_top = u[0][:, self.wall_y_top]
+            u_x_prev_top = u[0][:, self.wall_y_top - 1]
+            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / dy_lu
+            tau_w_top_lu = self.mu_lu * du_dy_top_lu
+            u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / 1.0)
+            re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
+            y_plus_top_first_cell = 0.5 * u_tau_top_lu / self.nu_lu
+
+        elif self.ndim == 3:  # 3D-Fall
+            wall_indices_bottom = self.flow.grid[1][:, self.wall_y_bottom, :] == self.wall_y_bottom / self.flow.units.characteristic_length_lu
+            wall_indices_top = self.flow.grid[1][:, self.wall_y_top, :] == self.wall_y_top / self.flow.units.characteristic_length_lu
+
+            # Untere Wand
+            u_x_wall_bottom = u[0][:, self.wall_y_bottom, :]
+            u_x_next_bottom = u[0][:, self.wall_y_bottom + 1, :]
+            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / dy_lu
+            tau_w_bottom_lu = self.mu_lu * du_dy_bottom_lu
+            u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / 1.0)
+            re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
+            y_plus_bottom_first_cell = 0.5 * u_tau_bottom_lu / self.nu_lu
+
+            # Obere Wand
+            u_x_wall_top = u[0][:, self.wall_y_top, :]
+            u_x_prev_top = u[0][:, self.wall_y_top - 1, :]
+            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / dy_lu
+            tau_w_top_lu = self.mu_lu * du_dy_top_lu
+            u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / 1.0)
+            re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
+            y_plus_top_first_cell = 0.5 * u_tau_top_lu / self.nu_lu
+
+        else:
+            raise ValueError(f"Unsupported dimensionality: {self.ndim}")
+
+        # Speichern der aktuellen Mittelwerte für die Mittelung
+        self.u_tau_bottom_history.append(torch.mean(u_tau_bottom_lu).item())
+        self.u_tau_top_history.append(torch.mean(u_tau_top_lu).item())
+        self.re_tau_bottom_history.append(torch.mean(re_tau_bottom).item())
+        self.re_tau_top_history.append(torch.mean(re_tau_top).item())
+        self.y_plus_bottom_history.append(torch.mean(y_plus_bottom_first_cell).item())
+        self.y_plus_top_history.append(torch.mean(y_plus_top_first_cell).item())
+        self.current_step += 1
+
+        if self.current_step >= self.averaging_steps:
+            avg_u_tau_bottom = np.mean(self.u_tau_bottom_history)
+            avg_u_tau_top = np.mean(self.u_tau_top_history)
+            avg_re_tau_bottom = np.mean(self.re_tau_bottom_history)
+            avg_re_tau_top = np.mean(self.re_tau_top_history)
+            avg_y_plus_bottom = np.mean(self.y_plus_bottom_history)
+            avg_y_plus_top = np.mean(self.y_plus_top_history)
+
+            self.u_tau_bottom_history = []
+            self.u_tau_top_history = []
+            self.re_tau_bottom_history = []
+            self.re_tau_top_history = []
+            self.y_plus_bottom_history = []
+            self.y_plus_top_history = []
+            self.current_step = 0
+
+            return torch.tensor([avg_re_tau_bottom, avg_y_plus_bottom, avg_re_tau_top, avg_y_plus_top], device=self.lattice.device)
+        else:
+            return torch.zeros(4, device=self.lattice.device)
