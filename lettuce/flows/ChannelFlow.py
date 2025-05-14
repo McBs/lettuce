@@ -221,18 +221,13 @@ class ChannelFlow3D(object):
             u *= target_umax / current_umax
         # Basisgeschwindigkeit: parabolisches Profil in x-Richtung
         # Kanalhöhe in LU
+        # Basisgeschwindigkeit: parabolisches Profil in x-Richtung (nur y-abhängig!)
         channel_height_lu_y = self.resolution_y / self.units.characteristic_length_lu
-        channel_height_lu_z = self.resolution_z / self.units.characteristic_length_lu
-
-        # Normalisierte Koordinaten
         y_normalized = yg / channel_height_lu_y
-        z_normalized = zg / channel_height_lu_z
 
-        # Parabolisches Profil U_max = base_umax
-        base_umax = 1  # oder 0.1, je nach Wunsch
-        u_base = base_umax * y_normalized * (1 - y_normalized) * z_normalized * (1 - z_normalized)
+        base_umax = 1  # sinnvoller Maximalwert in LU
+        u_base = base_umax * y_normalized * (1 - y_normalized)
 
-        # addiere das zum Geschwindigkeitsfeld in x-Richtung
         u[0] += u_base * (1 - self.mask.astype(float))
 
         return p, u
