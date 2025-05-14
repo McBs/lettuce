@@ -160,60 +160,60 @@ class ChannelFlow3D(object):
         self._mask = m.astype(bool)
 
     def initial_solution(self, grid):
-        xg, yg, zg = grid  # [res_x, res_y, res_z]
+        xg, yg, zg = grid
 
-        # Leicht variiertes Anfangsdruckfeld
-        p = 1.0 + 0.00 * np.random.randn(*xg.shape)
-        p = p[None, ...]  # Druckform [1, res_x, res_y, res_z]
+        # Druckfeld: konstant
+        p = np.ones_like(xg)[None, ...]
 
-        # Laminare Grundströmung in x-Richtung (Poiseuille-Profil) mit U_max_lu = 1
-        channel_height_lu_y = self.resolution_y / self.units.characteristic_length_lu
-        channel_height_lu_z = self.resolution_z / self.units.characteristic_length_lu
-        y_normalized = yg / channel_height_lu_y  # Normalisierte y-Koordinate [0, 1]
-        z_normalized = zg / channel_height_lu_z  # Normalisierte z-Koordinate [0, 1]
-        u = np.zeros((3, *xg.shape), dtype=float)
-        u[0] = 4 * 1.0 * y_normalized * (1 - y_normalized) * (1 - self.mask.astype(float)) * (
-                1 - z_normalized * (1 - z_normalized))  # u_x mit U_max_lu = 1 (vereinfacht)
+        # Auflösung
+        ndir = 3
+        nx, ny, nz = self.resolution_x, self.resolution_y, self.resolution_z
+        shape = (ndir, nx, ny, nz)
+        shape_hat = (ndir, nx, ny, nz // 2 + 1)  # korrekt für rfft
 
-        # Strukturierte Störungen überlagern
-        amplitude = 0.1  # Amplitude der Störungen (anpassbar)
-        Lx_lu = self.resolution_x / self.units.characteristic_length_lu
-        Ly_lu = self.resolution_y / self.units.characteristic_length_lu
-        Lz_lu = self.resolution_z / self.units.characteristic_length_lu
+        # Vektorpotential ψ ∈ [-1, 1]
+        random_psi = (np.random.rand(*shape) - 0.5) * 2
 
-        kx = 2 * np.pi / Lx_lu * 2  # Beispielhafte Wellenzahl in x-Richtung
-        ky = np.pi / Ly_lu * 3  # Beispielhafte Wellenzahl in y-Richtung
-        kz = 2 * np.pi / Lz_lu * 2  # Beispielhafte Wellenzahl in z-Richtung
+        # FFT und Filterung
+        k0 = np.sqrt(nx ** 2 + ny ** 2 + nz ** 2)
+        psi_hat_scaled = np.empty(shape_hat, dtype=complex)
+        psi_scaled = np.empty(shape)
+        for d in range(ndir):
+            # FFT in 3D
+            psi_hat = np.fft.rfftn(random_psi[d], s=shape[1:], axes=(0, 1, 2))
 
-        phase_x = np.random.rand() * 2 * np.pi
-        phase_y = np.random.rand() * 2 * np.pi
-        phase_z = np.random.rand() * 2 * np.pi
+            # Frequenzgitter passend zu rfft
+            kx = np.fft.fftfreq(nx)
+            ky = np.fft.fftfreq(ny)
+            kz = np.fft.rfftfreq(nz)  # da rfft
+            kxs, kys, kzs = np.meshgrid(kx, ky, kz, indexing='ij')
+            kabs = np.sqrt(kxs ** 2 + kys ** 2 + kzs ** 2)
 
-        # Störung in der u-Komponente
-        u[0] += amplitude * np.sin(kx * xg + phase_x) * np.cos(ky * yg + phase_y) * np.sin(kz * zg + phase_z) * (
-                1 - self.mask.astype(float))
+            # Filter
+            psi_hat *= np.exp(-2 * kabs * nx / k0)
+            psi_hat[0, 0, 0] = 0  # DC-Mode entfernen
+            psi_hat_scaled[d] = psi_hat
 
-        # Störung in der v-Komponente (divergenzfrei(er) machen)
-        kv_x = 2 * np.pi / Lx_lu * 3
-        kv_y = np.pi / Ly_lu * 2
-        kv_z = 2 * np.pi / Lz_lu * 1
-        phase_vx = np.random.rand() * 2 * np.pi
-        phase_vy = np.random.rand() * 2 * np.pi
-        phase_vz = np.random.rand() * 2 * np.pi
-        u[1] += amplitude * np.cos(kv_x * xg + phase_vx) * np.sin(ky * yg + phase_vy) * np.cos(
-            kz * zg + phase_vz) * (
-                        1 - self.mask.astype(float))
+            # IFFT zurück in realen Raum
+            psi_scaled[d] = np.fft.irfftn(psi_hat_scaled[d], s=shape[1:], axes=(0, 1, 2))
 
-        # Störung in der w-Komponente (divergenzfrei(er) machen)
-        kw_x = 2 * np.pi / Lx_lu * 1
-        kw_y = np.pi / Ly_lu * 1
-        kw_z = 2 * np.pi / Lz_lu * 3
-        phase_wx = np.random.rand() * 2 * np.pi
-        phase_wy = np.random.rand() * 2 * np.pi
-        phase_wz = np.random.rand() * 2 * np.pi
-        u[2] += amplitude * np.sin(kw_x * xg + phase_wx) * np.cos(ky * yg + phase_wy) * np.sin(
-            kz * zg + phase_wz) * (
-                        1 - self.mask.astype(float))
+        # Gradient von ψ berechnen → shape: [3][3][nx][ny][nz]
+        gradOf_psi_scaled = np.array([np.gradient(psi_scaled[d]) for d in range(ndir)])
+
+        # Curl berechnen
+        u = np.zeros(shape)
+        u[0] = gradOf_psi_scaled[2][1] - gradOf_psi_scaled[1][2]
+        u[1] = gradOf_psi_scaled[0][2] - gradOf_psi_scaled[2][0]
+        u[2] = gradOf_psi_scaled[1][0] - gradOf_psi_scaled[0][1]
+
+        # Maske anwenden (z. B. Hindernis)
+        u *= (1 - self.mask.astype(float))
+
+        # Optional: Skalierung auf gewünschte Maximalgeschwindigkeit
+        target_umax = 0.1
+        current_umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
+        if current_umax > 0:
+            u *= target_umax / current_umax
 
         return p, u
 
