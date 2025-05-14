@@ -108,7 +108,12 @@ class ChannelFlow2D(object):
         current_umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
         if current_umax > 0:
             u *= target_umax / current_umax
-
+        # Basisströmung: Poiseuille in x-Richtung
+        channel_height_lu = self.resolution_y / self.units.characteristic_length_lu
+        y_normalized = yg / channel_height_lu
+        base_umax = 1
+        u_base = base_umax * y_normalized * (1 - y_normalized)
+        u[0] += u_base * (1 - self.mask.astype(float))
         return p, u
 
     @property
@@ -214,6 +219,21 @@ class ChannelFlow3D(object):
         current_umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
         if current_umax > 0:
             u *= target_umax / current_umax
+        # Basisgeschwindigkeit: parabolisches Profil in x-Richtung
+        # Kanalhöhe in LU
+        channel_height_lu_y = self.resolution_y / self.units.characteristic_length_lu
+        channel_height_lu_z = self.resolution_z / self.units.characteristic_length_lu
+
+        # Normalisierte Koordinaten
+        y_normalized = yg / channel_height_lu_y
+        z_normalized = zg / channel_height_lu_z
+
+        # Parabolisches Profil U_max = base_umax
+        base_umax = 0.05  # oder 0.1, je nach Wunsch
+        u_base = base_umax * y_normalized * (1 - y_normalized) * z_normalized * (1 - z_normalized)
+
+        # addiere das zum Geschwindigkeitsfeld in x-Richtung
+        u[0] += u_base * (1 - self.mask.astype(float))
 
         return p, u
 
