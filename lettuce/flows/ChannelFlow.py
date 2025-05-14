@@ -229,7 +229,7 @@ class ChannelFlow3D(object):
         z_normalized = zg / channel_height_lu_z
 
         # Parabolisches Profil U_max = base_umax
-        base_umax = 0.05  # oder 0.1, je nach Wunsch
+        base_umax = 1  # oder 0.1, je nach Wunsch
         u_base = base_umax * y_normalized * (1 - y_normalized) * z_normalized * (1 - z_normalized)
 
         # addiere das zum Geschwindigkeitsfeld in x-Richtung
