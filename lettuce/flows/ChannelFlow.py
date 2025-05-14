@@ -215,7 +215,7 @@ class ChannelFlow3D(object):
         u *= (1 - self.mask.astype(float))
 
         # Optional: Skalierung auf gewünschte Maximalgeschwindigkeit
-        target_umax = 0.1
+        target_umax = 1
         current_umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
         if current_umax > 0:
             u *= target_umax / current_umax
