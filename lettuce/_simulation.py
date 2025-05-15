@@ -198,10 +198,7 @@ class Simulation:
         world_size = dist.get_world_size()
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
-        print(rank)
-        print(world_size)
-        print(left_neighbor)
-        print(right_neighbor)
+        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " left_neighbor: " + str(left_neighbor) + " right_neighbor " + str(right_neighbor))
         print(self.flow.stencil)
 
 
