@@ -179,7 +179,7 @@ class Simulation:
         if self.no_collision_mask is None:
             self.flow.f = self.collision(self.flow)
             for i, boundary in enumerate(self.boundaries[1:], start=1):
-                print("i: " + str(i) + " boundary: " str(boundary))
+                print("boundary: " str(boundary))
                 self.flow.f = boundary(self.flow)
         else:
             torch.where(torch.eq(self.no_collision_mask, 0),
