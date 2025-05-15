@@ -179,12 +179,14 @@ class Simulation:
         if self.no_collision_mask is None:
             self.flow.f = self.collision(self.flow)
             for i, boundary in enumerate(self.boundaries[1:], start=1):
+                print("i: " + str(i) + " boundary: " str(boundary))
                 self.flow.f = boundary(self.flow)
         else:
             torch.where(torch.eq(self.no_collision_mask, 0),
                         self.collision(self.flow), self.flow.f,
                         out=self.flow.f)
             for i, boundary in enumerate(self.boundaries[1:], start=1):
+                print("i: " + str(i) + " boundary: " str(boundary))
                 torch.where(torch.eq(self.no_collision_mask, i),
                             boundary(self.flow), self.flow.f, out=self.flow.f)
         return self.flow.f
@@ -199,8 +201,7 @@ class Simulation:
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " left_neighbor: " + str(left_neighbor) + " right_neighbor " + str(right_neighbor))
-        for i, boundary in enumerate(self.boundaries[1:], start=1):
-            print("i: " + str(i) + " boundry: " str(boundary)) 
+        #for i, boundary in enumerate(self.boundaries[1:], start=1): 
         print(self.flow.stencil)
 
 
