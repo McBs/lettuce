@@ -199,8 +199,9 @@ class Simulation:
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " left_neighbor: " + str(left_neighbor) + " right_neighbor " + str(right_neighbor))
-        for i, boundary in enumerate(self.boundaries[1:], start=1):
-                print("i: " + str(i) + " boundary: " + str(boundary)) 
+        print(self.flow)
+        print(self.flow.collision)
+        print(self.boundaries)
         print(self.flow.stencil)
 
 
