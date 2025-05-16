@@ -446,7 +446,7 @@ class WallQuantities(Observable):
         self.cs2 = lattice.cs**2
         self.mu_lu = self.rho_lu * self.cs2 * (self.tau_lu - 0.5)
         self.nu_lu = self.mu_lu / self.rho_lu
-        self.half_channel_height_lu = (flow.resolution_y / flow.units.characteristic_length_lu) / 2
+        self.half_channel_height_lu = flow.resolution_y / 2
         self.wall_y_bottom = 0
         self.wall_y_top = flow.resolution_y - 1
         self.averaging_steps = averaging_steps

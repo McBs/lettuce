@@ -76,7 +76,16 @@ class ChannelFlow2D(object):
         shape_hat = (ndir, nx, ny // 2)
 
         # Vektorpotential ψ ∈ [-1, 1]
-        random_psi = (np.random.random(shape) - 0.5) * 2
+        # Vertikale Gewichtung (1 an Wand, 0 in der Mitte)
+        y = np.linspace(0, 1, ny)
+        weight_y = 1.0 - np.exp(-((y - 0.0) / 0.2) ** 2) - np.exp(-((y - 1.0) / 0.2) ** 2)
+        weight_y = 1.0 - weight_y / weight_y.max()  # Skaliert zwischen 0 (Mitte) und 1 (Wand)
+
+        # 2D Gewichtungsmaske (broadcastfähig)
+        weight_2d = weight_y[None, :]  # shape = [1, ny]
+
+        # Auf jedes Richtungsfeld anwenden
+        random_psi = ((np.random.random(shape) - 0.5) * 2) * weight_2d
 
         # Filterparameter
         k0 = np.sqrt(nx ** 2 + ny ** 2)
@@ -177,7 +186,16 @@ class ChannelFlow3D(object):
         shape_hat = (ndir, nx, ny, nz // 2 + 1)  # korrekt für rfft
 
         # Vektorpotential ψ ∈ [-1, 1]
-        random_psi = (np.random.rand(*shape) - 0.5) * 2
+        # Turbulenzgewichtung in y-Richtung (wandnah = 1, mitte = 0)
+        y = np.linspace(0, 1, ny)
+        weight_y = np.exp(-((y - 0.0) / 0.2) ** 2) + np.exp(-((y - 1.0) / 0.2) ** 2)
+        weight_y /= weight_y.max()  # normiert auf [0,1]
+
+        # Auf 3D-Maske erweitern
+        weight_3d = weight_y[None, :, None]  # shape = [1, ny, 1], broadcastbar auf (nx, ny, nz)
+
+        # Gewichtetes ψ-Feld
+        random_psi = ((np.random.rand(*shape) - 0.5) * 2) * weight_3d
 
         # FFT und Filterung
         k0 = np.sqrt(nx ** 2 + ny ** 2 + nz ** 2)
