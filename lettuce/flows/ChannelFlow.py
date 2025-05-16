@@ -78,8 +78,8 @@ class ChannelFlow2D(object):
         # Vektorpotential ψ ∈ [-1, 1]
         # Vertikale Gewichtung (1 an Wand, 0 in der Mitte)
         y = np.linspace(0, 1, ny)
-        weight_y = 1.0 - np.exp(-((y - 0.0) / 0.2) ** 2) - np.exp(-((y - 1.0) / 0.2) ** 2)
-        weight_y = 1.0 - weight_y / weight_y.max()  # Skaliert zwischen 0 (Mitte) und 1 (Wand)
+        weight_y = np.exp(-((y - 0.0) / 0.2) ** 2) + np.exp(-((y - 1.0) / 0.2) ** 2)
+        weight_y /= weight_y.max()  # Normieren auf [0, 1]
 
         # 2D Gewichtungsmaske (broadcastfähig)
         weight_2d = weight_y[None, :]  # shape = [1, ny]
