@@ -66,63 +66,55 @@ class ChannelFlow2D(object):
 
     def initial_solution(self, grid):
         xg, yg = grid
-
         p = np.ones_like(xg)[None, ...]
 
         # Auflösung
         ndir = 2
         nx, ny = self.resolution_x, self.resolution_y
         shape = (ndir, nx, ny)
-        shape_hat = (ndir, nx, ny // 2)
 
-        # Vektorpotential ψ ∈ [-1, 1]
-        # Vertikale Gewichtung (1 an Wand, 0 in der Mitte)
-        y = np.linspace(0, 1, ny)
-        weight_y = np.exp(-((y - 0.0) / 0.2) ** 2) + np.exp(-((y - 1.0) / 0.2) ** 2)
-        weight_y /= weight_y.max()  # Normieren auf [0, 1]
+        # --- 🌀 Vektorpotential ψ ∈ [-1, 1] ---
+        # Normiertes y ∈ [0,1]
+        y_normalized = yg / yg.max()
 
-        # 2D Gewichtungsmaske (broadcastfähig)
-        weight_2d = weight_y[None, :]  # shape = [1, ny]
+        # Vertikale Gewichtung: hohe Energie an den Wänden
+        weight_y = np.exp(-((y_normalized - 0.0) / 0.2) ** 2) + np.exp(-((y_normalized - 1.0) / 0.2) ** 2)
+        weight_y /= weight_y.max()
+        weight_2d = weight_y  # shape [nx, ny] → wie yg
 
-        # Auf jedes Richtungsfeld anwenden
-        random_psi = ((np.random.random(shape) - 0.5) * 2) * weight_2d
+        # Zufälliges Feld für ψ, skaliert mit Wandgewichtung
+        random_psi = ((np.random.rand(*shape) - 0.5) * 2) * weight_2d[None, :, :]
 
-        # Filterparameter
+        # --- 🎚️ Glätten mit FFT Lowpass-Filter ---
         k0 = np.sqrt(nx ** 2 + ny ** 2)
-        psi_hat_scaled = np.empty(shape_hat, dtype=complex)
-        psi_scaled = np.empty(shape)
+        psi_filtered = np.empty_like(random_psi)
         for d in range(ndir):
-            psi_hat = np.fft.fftn(random_psi[d], s=shape_hat[1:], axes=[0, 1])
-            kxs, kys = np.meshgrid(np.arange(shape_hat[2]), np.arange(shape_hat[1]), indexing='xy')
-            kabs = np.sqrt(kxs ** 2 + kys ** 2)
-            psi_hat *= np.exp(-2 * kabs / k0)
-            psi_hat[0, 0] = 0  # k=0 Mode entfernen
-            psi_hat_scaled[d] = psi_hat
-            psi_scaled[d] = np.real(np.fft.ifftn(psi_hat_scaled[d], s=shape[1:]))
+            psi_hat = np.fft.fft2(random_psi[d])
+            kx = np.fft.fftfreq(nx).reshape(-1, 1)
+            ky = np.fft.fftfreq(ny).reshape(1, -1)
+            kabs = np.sqrt((kx * nx) ** 2 + (ky * ny) ** 2)
+            filter_mask = np.exp(-2 * kabs / k0)
+            psi_hat *= filter_mask
+            psi_hat[0, 0] = 0  # DC-Komponente entfernen
+            psi_filtered[d] = np.real(np.fft.ifft2(psi_hat))
 
-        # Gradient von ψ
-        gradOf_psi_scaled = np.array([np.gradient(psi_scaled[d]) for d in range(ndir)])  # shape = [2][2][nx][ny]
+        # --- 🌀 Geschwindigkeit aus Curl(ψ) ---
+        u = np.zeros_like(psi_filtered)
+        u[0] = np.gradient(psi_filtered[1], axis=0) - np.gradient(psi_filtered[0], axis=1)  # u_x = dψ_y/dx - dψ_x/dy
+        u[1] = np.zeros_like(u[0])  # optional für u_y = 0
 
-        # 2D Curl:
-        # u_x = dψ_y/dy - dψ_x/dx (→ in 2D reduziert sich das auf Skalarform)
-        u = np.zeros((2, nx, ny), dtype=float)
-        u[0] = gradOf_psi_scaled[1][0] - gradOf_psi_scaled[0][1]  # u_x = dψ_y/dx - dψ_x/dy
-        u[1] = gradOf_psi_scaled[0][0] + gradOf_psi_scaled[1][1] * 0  # optional null oder andere Komponente
+        # --- 🎯 Normierung der Störung ---
+        target_umax = 0.1  # z.B. 10 % der Basisgeschwindigkeit
+        umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
+        if umax > 0:
+            u *= target_umax / umax
 
-        # Optional: Maske anwenden
-        u *= (1 - self.mask.astype(float))
-
-        # Optional: Maximalgeschwindigkeit normieren
-        target_umax = 1
-        current_umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
-        if current_umax > 0:
-            u *= target_umax / current_umax
-        # Basisströmung: Poiseuille in x-Richtung
-        channel_height_lu = self.resolution_y / self.units.characteristic_length_lu
-        y_normalized = yg / channel_height_lu
-        base_umax = 1
+        # --- ➕ Poiseuille-Profil (Basisströmung in x) ---
+        y_normalized = yg / yg.max()
+        base_umax = 1.0  # maximale Basisgeschwindigkeit
         u_base = base_umax * y_normalized * (1 - y_normalized)
         u[0] += u_base * (1 - self.mask.astype(float))
+
         return p, u
 
     @property
@@ -130,8 +122,8 @@ class ChannelFlow2D(object):
         stop_x = self.resolution_x / self.units.characteristic_length_lu
         stop_y = self.resolution_y / self.units.characteristic_length_lu
 
-        x = np.linspace(0, stop_x, num=self.resolution_x, endpoint=False)
-        y = np.linspace(0, stop_y, num=self.resolution_y, endpoint=False)
+        x = np.linspace(0, stop_x, num=self.resolution_x, endpoint=True)
+        y = np.linspace(0, stop_y, num=self.resolution_y, endpoint=True)
 
         return np.meshgrid(x, y, indexing='ij')
 
