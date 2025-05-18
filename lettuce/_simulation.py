@@ -199,8 +199,7 @@ class Simulation:
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " left_neighbor: " + str(left_neighbor) + " right_neighbor " + str(right_neighbor))
-        print(self.flow)
-        print(self.flow.f)
+        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow:" + self.flow.f)
         print(self.flow.collision)
         print(self.boundaries)
         print(self.flow.stencil)
