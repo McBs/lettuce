@@ -104,7 +104,7 @@ class ChannelFlow2D(object):
         u[1] = np.zeros_like(u[0])  # optional für u_y = 0
 
         # --- 🎯 Normierung der Störung ---
-        target_umax = 0.1  # z.B. 10 % der Basisgeschwindigkeit
+        target_umax = 1  # z.B. 10 % der Basisgeschwindigkeit
         umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
         if umax > 0:
             u *= target_umax / umax
@@ -167,77 +167,54 @@ class ChannelFlow3D(object):
 
     def initial_solution(self, grid):
         xg, yg, zg = grid
-
-        # Druckfeld: konstant
         p = np.ones_like(xg)[None, ...]
 
         # Auflösung
         ndir = 3
         nx, ny, nz = self.resolution_x, self.resolution_y, self.resolution_z
         shape = (ndir, nx, ny, nz)
-        shape_hat = (ndir, nx, ny, nz // 2 + 1)  # korrekt für rfft
 
-        # Vektorpotential ψ ∈ [-1, 1]
-        # Turbulenzgewichtung in y-Richtung (wandnah = 1, mitte = 0)
-        y = np.linspace(0, 1, ny)
-        weight_y = np.exp(-((y - 0.0) / 0.2) ** 2) + np.exp(-((y - 1.0) / 0.2) ** 2)
-        weight_y /= weight_y.max()  # normiert auf [0,1]
+        # --- 🌀 Vektorpotential ψ ∈ [-1, 1] ---
+        y_normalized = yg / yg.max()
 
-        # Auf 3D-Maske erweitern
-        weight_3d = weight_y[None, :, None]  # shape = [1, ny, 1], broadcastbar auf (nx, ny, nz)
+        # Vertikale Gewichtung für Wände
+        weight_y = np.exp(-((y_normalized - 0.0) / 0.2) ** 2) + np.exp(-((y_normalized - 1.0) / 0.2) ** 2)
+        weight_y /= weight_y.max()
+        weight_3d = weight_y  # shape (nx, ny, nz)
 
-        # Gewichtetes ψ-Feld
-        random_psi = ((np.random.rand(*shape) - 0.5) * 2) * weight_3d
+        # Zufälliges ψ-Feld, skaliert mit Gewichtung
+        random_psi = ((np.random.rand(*shape) - 0.5) * 2) * weight_3d[None, :, :, :]
 
-        # FFT und Filterung
+        # --- 🎚️ FFT Lowpass-Filter ---
         k0 = np.sqrt(nx ** 2 + ny ** 2 + nz ** 2)
-        psi_hat_scaled = np.empty(shape_hat, dtype=complex)
-        psi_scaled = np.empty(shape)
+        psi_filtered = np.empty_like(random_psi)
         for d in range(ndir):
-            # FFT in 3D
-            psi_hat = np.fft.rfftn(random_psi[d], s=shape[1:], axes=(0, 1, 2))
+            psi_hat = np.fft.fftn(random_psi[d])
+            kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
+            ky = np.fft.fftfreq(ny).reshape(1, -1, 1)
+            kz = np.fft.fftfreq(nz).reshape(1, 1, -1)
+            kabs = np.sqrt((kx * nx) ** 2 + (ky * ny) ** 2 + (kz * nz) ** 2)
+            filter_mask = np.exp(-2 * kabs / k0)
+            psi_hat *= filter_mask
+            psi_hat[0, 0, 0] = 0  # DC entfernen
+            psi_filtered[d] = np.real(np.fft.ifftn(psi_hat))
 
-            # Frequenzgitter passend zu rfft
-            kx = np.fft.fftfreq(nx)
-            ky = np.fft.fftfreq(ny)
-            kz = np.fft.rfftfreq(nz)  # da rfft
-            kxs, kys, kzs = np.meshgrid(kx, ky, kz, indexing='ij')
-            kabs = np.sqrt(kxs ** 2 + kys ** 2 + kzs ** 2)
+        # --- 🌀 Curl(ψ) ergibt Geschwindigkeit ---
+        u = np.zeros_like(psi_filtered)
+        u[0] = np.gradient(psi_filtered[2], axis=1) - np.gradient(psi_filtered[1], axis=2)  # u_x
+        u[1] = np.gradient(psi_filtered[0], axis=2) - np.gradient(psi_filtered[2], axis=0)  # u_y
+        u[2] = np.gradient(psi_filtered[1], axis=0) - np.gradient(psi_filtered[0], axis=1)  # u_z
 
-            # Filter
-            psi_hat *= np.exp(-2 * kabs * nx / k0)
-            psi_hat[0, 0, 0] = 0  # DC-Mode entfernen
-            psi_hat_scaled[d] = psi_hat
-
-            # IFFT zurück in realen Raum
-            psi_scaled[d] = np.fft.irfftn(psi_hat_scaled[d], s=shape[1:], axes=(0, 1, 2))
-
-        # Gradient von ψ berechnen → shape: [3][3][nx][ny][nz]
-        gradOf_psi_scaled = np.array([np.gradient(psi_scaled[d]) for d in range(ndir)])
-
-        # Curl berechnen
-        u = np.zeros(shape)
-        u[0] = gradOf_psi_scaled[2][1] - gradOf_psi_scaled[1][2]
-        u[1] = gradOf_psi_scaled[0][2] - gradOf_psi_scaled[2][0]
-        u[2] = gradOf_psi_scaled[1][0] - gradOf_psi_scaled[0][1]
-
-        # Maske anwenden (z. B. Hindernis)
-        u *= (1 - self.mask.astype(float))
-
-        # Optional: Skalierung auf gewünschte Maximalgeschwindigkeit
+        # --- 🎯 Normierung der Störung ---
         target_umax = 1
-        current_umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
-        if current_umax > 0:
-            u *= target_umax / current_umax
-        # Basisgeschwindigkeit: parabolisches Profil in x-Richtung
-        # Kanalhöhe in LU
-        # Basisgeschwindigkeit: parabolisches Profil in x-Richtung (nur y-abhängig!)
-        channel_height_lu_y = self.resolution_y / self.units.characteristic_length_lu
-        y_normalized = yg / channel_height_lu_y
+        umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
+        if umax > 0:
+            u *= target_umax / umax
 
-        base_umax = 1  # sinnvoller Maximalwert in LU
+        # --- ➕ Basisströmung in x (Poiseuille-Profil) ---
+        y_normalized = yg / yg.max()
+        base_umax = 1.0
         u_base = base_umax * y_normalized * (1 - y_normalized)
-
         u[0] += u_base * (1 - self.mask.astype(float))
 
         return p, u
