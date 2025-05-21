@@ -175,54 +175,68 @@ class ChannelFlow3D(object):
     def initial_solution(self, grid):
         xg, yg, zg = grid
         p = np.ones_like(xg)[None, ...]
-
-        # Auflösung
-        ndir = 3
         nx, ny, nz = self.resolution_x, self.resolution_y, self.resolution_z
-        shape = (ndir, nx, ny, nz)
 
-        # --- 🌀 Vektorpotential ψ ∈ [-1, 1] ---
+        u = np.zeros((3, nx, ny, nz))
+
+        # --- 📐 Poiseuille-Profil (in x-Richtung) ---
         y_normalized = yg / yg.max()
+        u_base = y_normalized * (1 - y_normalized)
+        u[0] = u_base * (1 - self.mask.astype(float))  # u_x = Basisströmung
 
-        # Vertikale Gewichtung für Wände
-        weight_y = np.exp(-((y_normalized - 0.0) / 0.2) ** 2) + np.exp(-((y_normalized - 1.0) / 0.2) ** 2)
-        weight_y /= weight_y.max()
-        weight_3d = weight_y  # shape (nx, ny, nz)
+        # --- 🎛️ Sinusmoden-Störung (3D) ---
+        A_sin = 1  # 5% Amplitude
+        Lx, Ly, Lz = xg.max(), yg.max(), zg.max()
+        sinus_modes = [(1, 1, 1), (2, 2, 3), (3, 2, 1)]
 
-        # Zufälliges ψ-Feld, skaliert mit Gewichtung
-        random_psi = ((np.random.rand(*shape) - 0.5) * 2) * weight_3d[None, :, :, :]
+        for kx, ky, kz in sinus_modes:
+            phase = 2 * np.pi * np.random.rand()
+            mode = np.sin(2 * np.pi * (kx * xg / Lx + ky * yg / Ly + kz * zg / Lz) + phase)
+            envelope = y_normalized * (1 - y_normalized)
+            u[0] += A_sin * mode * envelope  # nur u_x gestört, kannst du erweitern
 
-        # --- 🎚️ FFT Lowpass-Filter ---
+        # --- 🌪️ Vektorpotential ψ (3 Komponenten für Curl in 3D) ---
+        A_psi = 1
+        random_psi = ((np.random.rand(3, nx, ny, nz) - 0.5) * 2)
+
+        # Wandgewichtung in y und z
+        y_weight = np.exp(-((y_normalized - 0.0) / 0.2) ** 2) + np.exp(-((y_normalized - 1.0) / 0.2) ** 2)
+        y_weight /= y_weight.max()
+
+        z_normalized = zg / zg.max()
+        z_weight = np.exp(-((z_normalized - 0.5) / 0.3) ** 2)
+        z_weight /= z_weight.max()
+
+        weight = y_weight * z_weight
+        random_psi *= weight[None, :, :, :]
+
+        # FFT-Filterung (3D)
         k0 = np.sqrt(nx ** 2 + ny ** 2 + nz ** 2)
         psi_filtered = np.empty_like(random_psi)
-        for d in range(ndir):
+        for d in range(3):
             psi_hat = np.fft.fftn(random_psi[d])
             kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
             ky = np.fft.fftfreq(ny).reshape(1, -1, 1)
             kz = np.fft.fftfreq(nz).reshape(1, 1, -1)
             kabs = np.sqrt((kx * nx) ** 2 + (ky * ny) ** 2 + (kz * nz) ** 2)
-            filter_mask = np.exp(-2 * kabs / k0)
+            filter_mask = np.exp(-kabs / (0.3 * k0))
             psi_hat *= filter_mask
-            psi_hat[0, 0, 0] = 0  # DC entfernen
+            psi_hat[0, 0, 0] = 0
             psi_filtered[d] = np.real(np.fft.ifftn(psi_hat))
 
-        # --- 🌀 Curl(ψ) ergibt Geschwindigkeit ---
-        u = np.zeros_like(psi_filtered)
-        u[0] = np.gradient(psi_filtered[2], axis=1) - np.gradient(psi_filtered[1], axis=2)  # u_x
-        u[1] = np.gradient(psi_filtered[0], axis=2) - np.gradient(psi_filtered[2], axis=0)  # u_y
-        u[2] = np.gradient(psi_filtered[1], axis=0) - np.gradient(psi_filtered[0], axis=1)  # u_z
+        # --- 🌀 Curl(ψ): u = ∇ × ψ ---
+        u_psi = np.zeros_like(u)
+        u_psi[0] = np.gradient(psi_filtered[2], axis=1) - np.gradient(psi_filtered[1], axis=2)  # u_x
+        u_psi[1] = np.gradient(psi_filtered[0], axis=2) - np.gradient(psi_filtered[2], axis=0)  # u_y
+        u_psi[2] = np.gradient(psi_filtered[1], axis=0) - np.gradient(psi_filtered[0], axis=1)  # u_z
 
-        # --- 🎯 Normierung der Störung ---
-        target_umax = 1
-        umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
-        if umax > 0:
-            u *= target_umax / umax
+        # Normierung
+        umax_psi = np.max(np.sqrt(np.sum(u_psi ** 2, axis=0)))
+        if umax_psi > 0:
+            u_psi *= A_psi / umax_psi
 
-        # --- ➕ Basisströmung in x (Poiseuille-Profil) ---
-        y_normalized = yg / yg.max()
-        base_umax = 1.0
-        u_base = base_umax * y_normalized * (1 - y_normalized)
-        u[0] += u_base * (1 - self.mask.astype(float))
+        # --- Überlagerung: Basis + Sine + Curl ---
+        u += u_psi
 
         return p, u
 
