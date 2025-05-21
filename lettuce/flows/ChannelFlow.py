@@ -67,53 +67,60 @@ class ChannelFlow2D(object):
     def initial_solution(self, grid):
         xg, yg = grid
         p = np.ones_like(xg)[None, ...]
-
-        # Auflösung
-        ndir = 2
         nx, ny = self.resolution_x, self.resolution_y
-        shape = (ndir, nx, ny)
 
-        # --- 🌀 Vektorpotential ψ ∈ [-1, 1] ---
-        # Normiertes y ∈ [0,1]
+        # --- 📐 Basisströmung: Poiseuille-Profil ---
         y_normalized = yg / yg.max()
+        u_base = y_normalized * (1 - y_normalized)
 
-        # Vertikale Gewichtung: hohe Energie an den Wänden
+        u = np.zeros((2, nx, ny))
+        u[0] = u_base * (1 - self.mask.astype(float))
+
+        # --- 🎛️ Sinus-Moden-Störung ---
+        A_sin = 1  # 5 % Störung
+        Lx = xg.max()
+        Ly = yg.max()
+        sinus_modes = [(1, 1), (2, 3), (3, 2)]
+
+        for kx, ky in sinus_modes:
+            phase = 2 * np.pi * np.random.rand()
+            mode = np.sin(2 * np.pi * (kx * xg / Lx + ky * yg / Ly) + phase)
+            envelope = y_normalized * (1 - y_normalized)  # nur in der Mitte stark
+            u[0] += A_sin * mode * envelope
+
+        # --- 🌪️ Vektorpotential-Störung ---
+        A_psi = 1  # separat skalierbar
+        random_psi = ((np.random.rand(2, nx, ny) - 0.5) * 2)
+
+        # Wandgewichtung (nur vertikal)
         weight_y = np.exp(-((y_normalized - 0.0) / 0.2) ** 2) + np.exp(-((y_normalized - 1.0) / 0.2) ** 2)
         weight_y /= weight_y.max()
-        weight_2d = weight_y  # shape [nx, ny] → wie yg
+        random_psi *= weight_y[None, :, :]
 
-        # Zufälliges Feld für ψ, skaliert mit Wandgewichtung
-        random_psi = ((np.random.rand(*shape) - 0.5) * 2) * weight_2d[None, :, :]
-
-        # --- 🎚️ Glätten mit FFT Lowpass-Filter ---
+        # Weichfilterung im Spektralraum
         k0 = np.sqrt(nx ** 2 + ny ** 2)
         psi_filtered = np.empty_like(random_psi)
-        for d in range(ndir):
+        for d in range(2):
             psi_hat = np.fft.fft2(random_psi[d])
             kx = np.fft.fftfreq(nx).reshape(-1, 1)
             ky = np.fft.fftfreq(ny).reshape(1, -1)
             kabs = np.sqrt((kx * nx) ** 2 + (ky * ny) ** 2)
-            filter_mask = np.exp(-2 * kabs / k0)
+            filter_mask = np.exp(-kabs / (0.3 * k0))  # sanfter Filter
             psi_hat *= filter_mask
-            psi_hat[0, 0] = 0  # DC-Komponente entfernen
+            psi_hat[0, 0] = 0
             psi_filtered[d] = np.real(np.fft.ifft2(psi_hat))
 
-        # --- 🌀 Geschwindigkeit aus Curl(ψ) ---
-        u = np.zeros_like(psi_filtered)
-        u[0] = np.gradient(psi_filtered[1], axis=0) - np.gradient(psi_filtered[0], axis=1)  # u_x = dψ_y/dx - dψ_x/dy
-        u[1] = np.zeros_like(u[0])  # optional für u_y = 0
+        # Geschwindigkeit via Curl(ψ)
+        u_psi = np.zeros_like(psi_filtered)
+        u_psi[0] = np.gradient(psi_filtered[1], axis=0) - np.gradient(psi_filtered[0], axis=1)
+        u_psi[1] = 0.0  # kann auch u_y mit aufnehmen
 
-        # --- 🎯 Normierung der Störung ---
-        target_umax = 1  # z.B. 10 % der Basisgeschwindigkeit
-        umax = np.max(np.sqrt(np.sum(u ** 2, axis=0)))
-        if umax > 0:
-            u *= target_umax / umax
+        # Normierung und Überlagerung
+        umax_psi = np.max(np.sqrt(np.sum(u_psi ** 2, axis=0)))
+        if umax_psi > 0:
+            u_psi *= A_psi / umax_psi
 
-        # --- ➕ Poiseuille-Profil (Basisströmung in x) ---
-        y_normalized = yg / yg.max()
-        base_umax = 1.0  # maximale Basisgeschwindigkeit
-        u_base = base_umax * y_normalized * (1 - y_normalized)
-        u[0] += u_base * (1 - self.mask.astype(float))
+        u += u_psi  # überlagern
 
         return p, u
 
