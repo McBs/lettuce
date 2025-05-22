@@ -201,7 +201,8 @@ class Simulation:
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " left_neighbor: " + str(left_neighbor) + " right_neighbor " + str(right_neighbor))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[0]))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.d: " + str(self.flow.stencil.d))
-
+        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.e: " + str(self.flow.stencil.e))
+        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.q: " + str(self.flow.stencil.q))
 
 
     def __call__(self, num_steps):
