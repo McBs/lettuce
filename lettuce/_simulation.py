@@ -200,7 +200,7 @@ class Simulation:
         right_neighbor = (rank + 1) % world_size
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " left_neighbor: " + str(left_neighbor) + " right_neighbor " + str(right_neighbor))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[0]))
-        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.d: " + self.flow.stencil.d)
+        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.d: " + str(self.flow.stencil.d))
 
 
 
