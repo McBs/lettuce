@@ -204,7 +204,10 @@ class Simulation:
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.e: " + str(self.flow.stencil.e))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.q: " + str(self.flow.stencil.q))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[0].shape))
-
+        send_slice = self.flow.f[0:8, :].clone()
+        dst = (rank + 1) % world_size
+        src = (rank - 1 + world_size) % world_size
+        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " send_slice " + str(send_slice))
     def __call__(self, num_steps):
         beg = timer()
 
