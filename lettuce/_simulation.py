@@ -212,8 +212,8 @@ class Simulation:
         #src = (rank - 1 + world_size) % world_size
         send_req_right = dist.isend(tensor=send_slice_right, dst=right_neighbor)
         recv_req_right = dist.irecv(tensor=recv_slice_right, src=left_neighbor)
-        send_req_right = dist.isend(tensor=send_slice_left, dst=left_neighbor)
-        recv_req_right = dist.irecv(tensor=recv_slice_left, src=right_neighbor)
+        send_req_left = dist.isend(tensor=send_slice_left, dst=left_neighbor)
+        recv_req_left = dist.irecv(tensor=recv_slice_left, src=right_neighbor)
 
         send_req_right.wait()
         recv_req_right.wait()
