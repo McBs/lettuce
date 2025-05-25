@@ -205,12 +205,17 @@ class Simulation:
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.q: " + str(self.flow.stencil.q))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[0].shape))
         send_slice = self.flow.f[0:8, :].clone()
-        recv_slive = torch.empty_like(send_slice)
+        recv_slice = torch.empty_like(send_slice)
         dst = (rank + 1) % world_size
         src = (rank - 1 + world_size) % world_size
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " send_slice " + str(send_slice))
         send_req = dist.isend(tensor=send_slice, dst=dst)
-        recv_req = dist.irecv(tensor=recv_slive, src=src)
+        recv_req = dist.irecv(tensor=recv_slice, src=src)
+
+        send_req.wait()
+        recv_req.wait()
+        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " recv_slice " + str(recv_slice))
+
 
     def __call__(self, num_steps):
         beg = timer()
