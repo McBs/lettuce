@@ -15,7 +15,7 @@ import warnings
 import torch
 import numpy as np
 
-__all__ = ["Simulation"]
+__all__ = ["Simulation", "SimulationHWBB"]
 
 class Simulation:
     """High-level API for simulations.
@@ -257,3 +257,47 @@ class Simulation:
         """Load f as np.array using pickle module."""
         with open(filename, "rb") as fp:
             self.f = pickle.load(fp)
+
+
+class SimulationHWBB(Simulation):
+    def __init__(self, flow, lattice, collision, streaming):
+        print("Calling SimulationHWBB.__init__")  # Debug-Ausgabe
+        super().__init__(flow, lattice, collision, streaming)
+
+
+    def step(self, num_steps):
+        """Perform stream-and-collide steps with support for Halfway Bounce-Back."""
+        start = timer()
+
+        if self.i == 0:
+            self._report()  # Call reporters before first step
+
+        for _ in range(num_steps):
+            ### 1. Collision
+            self.f = torch.where(self.no_collision_mask, self.f, self.collision(self.f))
+
+            ### 2. Store f_collided for boundaries (needed by Halfway BB)
+            for boundary in self._boundaries:
+                if hasattr(boundary, "store_f_collided"):
+                    boundary.store_f_collided(self.f)
+
+            ### 3. Streaming
+            self.f = self.streaming(self.f)
+
+            ### 4. Apply Boundary Conditions (including Halfway BB)
+            for boundary in self._boundaries:
+                self.f = boundary(self.f)
+
+            ### 5. Increase timestep counter
+            self.i += 1
+
+            ### 6. Reporting (e.g. for plots, monitoring)
+            self._report()
+
+        end = timer()
+
+        ### Performance Calculation
+        seconds = end - start
+        num_grid_points = self.lattice.rho(self.f).numel()
+        mlups = num_steps * num_grid_points / 1e6 / seconds
+        return mlups

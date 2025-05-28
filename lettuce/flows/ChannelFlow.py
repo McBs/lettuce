@@ -1,6 +1,6 @@
 import numpy as np
 from lettuce.unit import UnitConversion
-from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet
+from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet, HalfwayBounceBackBoundary
 
 
 class ChannelFlow2D(object):
@@ -148,7 +148,7 @@ class ChannelFlow3D(object):
     See documentation for :class:`~Obstacle2D` for details.
     """
 
-    def __init__(self, resolution_x, resolution_y, resolution_z, reynolds_number, mach_number, lattice, char_length_lu):
+    def __init__(self, resolution_x, resolution_y, resolution_z, reynolds_number, mach_number, lattice, char_length_lu, boundary):
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
         self.resolution_z = resolution_z
@@ -162,7 +162,7 @@ class ChannelFlow3D(object):
             characteristic_velocity_pu=1)
 
         self._mask = np.zeros(shape=(self.resolution_x, self.resolution_y, self.resolution_z), dtype=bool)
-
+        self._boundary = boundary
     @property
     def mask(self):
         return self._mask
@@ -255,6 +255,9 @@ class ChannelFlow3D(object):
     @property
     def boundaries(self):
         x, y, z = self.grid
-        return [
-                BounceBackBoundary(self.mask, self.units.lattice)]
+        if self._boundary == "halfway":
+            boundary = HalfwayBounceBackBoundary(self.mask, self.units.lattice)
+        elif self._boundary == "fullway":
+            boundary = BounceBackBoundary(self.mask, self.units.lattice)
+        return [boundary]
 

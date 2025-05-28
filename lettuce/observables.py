@@ -439,7 +439,7 @@ class SymmetryTopPercentageReporter(Observable):
         return all_coords  # Jetzt gibt die Methode einen Tensor zurück
 
 class WallQuantities(Observable):
-    def __init__(self, lattice, flow, averaging_steps=100):
+    def __init__(self, lattice, flow, averaging_steps=100, dy_lu = 1):
         super().__init__(lattice, flow)
         self.rho_lu = 1.0
         self.tau_lu = flow.units.relaxation_parameter_lu
@@ -458,11 +458,10 @@ class WallQuantities(Observable):
         self.y_plus_bottom_history = []
         self.y_plus_top_history = []
         self.ndim = len(flow.grid)
-
+        self.dy_lu = dy_lu
     def __call__(self, f):
         u = self.lattice.u(f)
 
-        dy_lu = 1.0
 
         if self.ndim == 2:  # 2D-Fall
             wall_indices_bottom = self.flow.grid[1][:, self.wall_y_bottom] == self.wall_y_bottom / self.flow.units.characteristic_length_lu
@@ -471,7 +470,7 @@ class WallQuantities(Observable):
             # Untere Wand
             u_x_wall_bottom = u[0][:, self.wall_y_bottom]
             u_x_next_bottom = u[0][:, self.wall_y_bottom + 1]
-            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / dy_lu
+            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / self.dy_lu
             tau_w_bottom_lu = self.mu_lu * du_dy_bottom_lu
             u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / 1.0)
             re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
@@ -480,7 +479,7 @@ class WallQuantities(Observable):
             # Obere Wand
             u_x_wall_top = u[0][:, self.wall_y_top]
             u_x_prev_top = u[0][:, self.wall_y_top - 1]
-            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / dy_lu
+            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / self.dy_lu
             tau_w_top_lu = self.mu_lu * du_dy_top_lu
             u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / 1.0)
             re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
@@ -493,7 +492,7 @@ class WallQuantities(Observable):
             # Untere Wand
             u_x_wall_bottom = u[0][:, self.wall_y_bottom, :]
             u_x_next_bottom = u[0][:, self.wall_y_bottom + 1, :]
-            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / dy_lu
+            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / self.dy_lu
             tau_w_bottom_lu = self.mu_lu * du_dy_bottom_lu
             u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / 1.0)
             re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
@@ -502,7 +501,7 @@ class WallQuantities(Observable):
             # Obere Wand
             u_x_wall_top = u[0][:, self.wall_y_top, :]
             u_x_prev_top = u[0][:, self.wall_y_top - 1, :]
-            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / dy_lu
+            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / self.dy_lu
             tau_w_top_lu = self.mu_lu * du_dy_top_lu
             u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / 1.0)
             re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
