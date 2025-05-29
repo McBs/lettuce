@@ -221,17 +221,17 @@ class Simulation:
         recv_req_left.wait()
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " recv_slice " + str(recv_slice_left))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " send_slice " + str(recv_slice_right))
-        for i in range(1, self.flow.stencil.q):
-            if i != 2 or i != 4:
-                if self.no_streaming_mask is None:
-                    self.flow.f[i] = self.__stream(self.flow.f, i,
-                                                self.flow.stencil.e,
-                                                self.flow.stencil.d)
-                else:
-                    new_fi = self.__stream(self.flow.f, i, self.flow.stencil.e,
-                                        self.flow.stencil.d)
-                    self.flow.f[i] = torch.where(torch.eq(
-                        self.no_streaming_mask[i], 1), self.flow.f[i], new_fi)
+#        for i in range(1, self.flow.stencil.q):
+#            if i != 2 or i != 4:
+#                if self.no_streaming_mask is None:
+#                    self.flow.f[i] = self.__stream(self.flow.f, i,
+#                                                self.flow.stencil.e,
+#                                                self.flow.stencil.d)
+#                else:
+#                    new_fi = self.__stream(self.flow.f, i, self.flow.stencil.e,
+#                                        self.flow.stencil.d)
+#                    self.flow.f[i] = torch.where(torch.eq(
+#                        self.no_streaming_mask[i], 1), self.flow.f[i], new_fi)
 
 
     def __call__(self, num_steps):
