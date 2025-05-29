@@ -224,7 +224,7 @@ class Simulation:
         for i in range(1, self.flow.stencil.q):
             if i != 2 or i != 4:
                 if self.no_streaming_mask is None:
-                    self.flow.f[i,:-8:, :] = self.__stream(self.recv_slice_left, i,
+                    self.flow.f[i,:-8:, :] = self.__stream(self.recv_slice_left.f, i,
                                                 self.flow.stencil.e,
                                                 self.flow.stencil.d)
                 else:
