@@ -1,6 +1,7 @@
 import numpy as np
 from lettuce.unit import UnitConversion
-from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet, HalfwayBounceBackBoundary
+from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet,\
+    HalfwayBounceBackBoundary, WallFunctionBoundary
 
 
 class ChannelFlow2D(object):
@@ -122,6 +123,8 @@ class ChannelFlow2D(object):
 
         u += u_psi  # überlagern
 
+        u[:, :, 0] = 0.0  # untere Wand y=0
+        u[:, :, -1] = 0.0  # obere Wand y=Ny-1
         return p, u
 
     @property
@@ -139,7 +142,7 @@ class ChannelFlow2D(object):
         x, y = self.grid
         return [
 
-            BounceBackBoundary(self.mask, self.units.lattice)
+            WallFunctionBoundary(self.mask, self.units.lattice, self.units.viscosity_lu)
         ]
 
 
@@ -237,6 +240,10 @@ class ChannelFlow3D(object):
 
         # --- Überlagerung: Basis + Sine + Curl ---
         u += u_psi
+        # 2D: Nullsetzen der Wandgeschwindigkeit
+
+        u[:, :, 0, :] = 0.0  # untere Wand (y=0)
+        u[:, :, -1, :] = 0.0  # obere Wand (y=Ny-1)
 
         return p, u
 

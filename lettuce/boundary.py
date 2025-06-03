@@ -20,7 +20,7 @@ import numpy as np
 from lettuce import (LettuceException)
 
 __all__ = ["BounceBackBoundary", "AntiBounceBackOutlet", "EquilibriumBoundaryPU", "EquilibriumOutletP"
-    , "TGV3D", "newsuperTGV3D","superTGV2D", "HalfwayBounceBackBoundary"]
+    , "TGV3D", "newsuperTGV3D","superTGV2D", "HalfwayBounceBackBoundary", "WallFunctionBoundary"]
 
 
 class BounceBackBoundary:
@@ -486,3 +486,44 @@ class HalfwayBounceBackBoundary:
                                                                  self.f_index_solid[:, 2],
                                                                  self.f_index_solid[:, 3]],
                                               self.lattice.e[self.f_index_solid[:, 0]])
+
+class WallFunctionBoundary:
+    def __init__(self, mask, lattice, viscosity, y_lattice=1.0, kappa=0.41, B=5.2, switch_yplus=30):
+        self.mask = lattice.convert_to_tensor(mask)
+        self.lattice = lattice
+        self.viscosity = viscosity
+        self.y_lattice = y_lattice
+        self.kappa = kappa
+        self.B = B
+        self.switch_yplus = switch_yplus
+
+    def __call__(self, f):
+        rho = self.lattice.rho(f)  # Shape: (1, Nx, Ny)
+        u = self.lattice.u(f)      # Shape: (D, Nx, Ny)
+
+        u_x = u[0]  # Tangentiale Komponente (x-Richtung)
+        shifted_mask = torch.roll(self.mask, shifts=1, dims=1)  # y+1 Richtung
+        du_dy = torch.zeros_like(u_x)
+        du_dy[shifted_mask] = u_x[shifted_mask] / self.y_lattice
+
+        u_tau = torch.sqrt(torch.abs(self.viscosity * du_dy))
+        y_plus = (self.y_lattice * u_tau) / self.viscosity
+
+        u_plus = torch.where(
+            y_plus < self.switch_yplus,
+            y_plus,
+            (1.0 / self.kappa) * torch.log(y_plus) + self.B
+        )
+
+        u_x_target = u_plus * u_tau
+
+        D = self.lattice.D
+        u_target = torch.zeros((D,) + u_x.shape, device=f.device, dtype=f.dtype)
+        u_target[0] = torch.where(self.mask, u_x_target, torch.tensor(0.0, device=f.device, dtype=f.dtype))
+
+        feq = self.lattice.equilibrium(rho, u_target)
+        f = torch.where(self.mask, feq, f)
+        return f
+
+    def make_no_collision_mask(self, f_shape):
+        return self.mask
