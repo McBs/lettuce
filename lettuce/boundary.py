@@ -488,7 +488,7 @@ class HalfwayBounceBackBoundary:
                                               self.lattice.e[self.f_index_solid[:, 0]])
 
 class WallFunctionBoundary:
-    def __init__(self, mask, lattice, viscosity, y_lattice=1.0, kappa=0.41, B=5.2, switch_yplus=30):
+    def __init__(self, mask, lattice, viscosity, y_lattice=1.0, kappa=0.41, B=5.2, switch_yplus=30, max_iter=20, tol=1e-6):
         self.mask = lattice.convert_to_tensor(mask)
         self.lattice = lattice
         self.viscosity = viscosity
@@ -496,23 +496,40 @@ class WallFunctionBoundary:
         self.kappa = kappa
         self.B = B
         self.switch_yplus = switch_yplus
+        self.max_iter = max_iter
+        self.tol = tol
+
+    def spalding_law(self, y_plus):
+        # numerisch invertiert: solve u_plus = y_plus + (1/kappa) * (exp(kappa*u_plus) - 1 - kappa*u_plus - 0.5*(kappa*u_plus)^2 - (1/6)*(kappa*u_plus)^3)
+        u_plus = y_plus.clone()
+        for _ in range(self.max_iter):
+            ku = self.kappa * u_plus
+            exp_ku = torch.exp(ku)
+            f = u_plus - y_plus - (1/self.kappa) * (exp_ku - 1 - ku - 0.5*ku**2 - (1/6)*ku**3)
+            df = 1 - (exp_ku - 1 - ku - 0.5*ku**2)  # Ableitung
+            delta = f / df
+            u_plus = u_plus - delta
+            if torch.max(torch.abs(delta)) < self.tol:
+                break
+        return u_plus
 
     def __call__(self, f):
-        rho = self.lattice.rho(f)  # Shape: (1, Nx, Ny)
-        u = self.lattice.u(f)      # Shape: (D, Nx, Ny)
+        rho = self.lattice.rho(f)
+        u = self.lattice.u(f)
 
-        u_x = u[0]  # Tangentiale Komponente (x-Richtung)
-        shifted_mask = torch.roll(self.mask, shifts=1, dims=1)  # y+1 Richtung
+        u_x = u[0]
+        shifted_mask = torch.roll(self.mask, shifts=1, dims=1)
         du_dy = torch.zeros_like(u_x)
         du_dy[shifted_mask] = u_x[shifted_mask] / self.y_lattice
 
         u_tau = torch.sqrt(torch.abs(self.viscosity * du_dy))
         y_plus = (self.y_lattice * u_tau) / self.viscosity
 
+        u_plus_log = self.spalding_law(y_plus)
         u_plus = torch.where(
             y_plus < self.switch_yplus,
             y_plus,
-            (1.0 / self.kappa) * torch.log(y_plus) + self.B
+            u_plus_log
         )
 
         u_x_target = u_plus * u_tau
