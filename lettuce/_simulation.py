@@ -221,9 +221,9 @@ class Simulation:
         recv_req_left.wait()
 
         for i in (1,2,8):
-            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + self.flow.f[i,0:8,:]))
+            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + self.flow.f[i,0:8,:])
             self.flow.f[i,0:8,:]=recv_slice_left[i,0:8,:]
-            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + self.flow.f[i,0:8,:]))
+            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + self.flow.f[i,0:8,:])
         
         for i in (4,5,6):
             self.flow.f[i,-8,:]=recv_slice_left[i,-8,:]
