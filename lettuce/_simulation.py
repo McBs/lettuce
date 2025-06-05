@@ -229,7 +229,7 @@ class Simulation:
             #self.flow.f[i,0:8,:]=recv_slice_left[i,0:8,:]
             #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[i,0:8,:]))
         
-        for i in (4,5,6):
+        #for i in (4,5,6):
             #self.flow.f[i,-8,:]=recv_slice_left[i,-8,:]
 
 
