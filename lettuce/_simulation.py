@@ -219,6 +219,15 @@ class Simulation:
         recv_req_right.wait()
         send_req_left.wait()
         recv_req_left.wait()
+
+        for i in (1,2,8):
+            self.flow.f[i,0:8,:]=recv_slice_left[i,0:8,:]
+        
+        for i in (4,5,6):
+            self.flow.f[i,-8,:]=recv_slice_left[i,-8,:]
+
+
+
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " recv_slice " + str(recv_slice_left))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " send_slice " + str(recv_slice_right))
         for i in range(1, self.flow.stencil.q):
