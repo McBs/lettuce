@@ -226,8 +226,8 @@ class Simulation:
             print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow shape: " + str(recv_slice_left[i,0:8,:].shape))
 
 
-            #self.flow.f[i,0:8,:]=recv_slice_left[i,0:8,:]
-            #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[i,0:8,:]))
+            self.flow.f[i,0:8,:]=recv_slice_left[i,0:8,:]
+            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[i,0:8,:]))
         
         #for i in (4,5,6):
             #self.flow.f[i,-8,:]=recv_slice_left[i,-8,:]
@@ -236,17 +236,7 @@ class Simulation:
 
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " recv_slice " + str(recv_slice_left))
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " send_slice " + str(recv_slice_right))
-        for i in range(1, self.flow.stencil.q):
-            if i != 2 or i != 4:
-                if self.no_streaming_mask is None:
-                    self.flow.f[i,:-8:, :] = self.__stream(recv_slice_left, i,
-                                                self.flow.stencil.e,
-                                                self.flow.stencil.d)
-                else:
-                    new_fi = self.__stream(self.flow.f, i, self.flow.stencil.e,
-                                        self.flow.stencil.d)
-                    self.flow.f[i] = torch.where(torch.eq(
-                        self.no_streaming_mask[i], 1), self.flow.f[i], new_fi)
+        
 
 
     def __call__(self, num_steps):
