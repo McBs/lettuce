@@ -47,8 +47,8 @@ class Simulation:
     no_collision_mask: Optional[torch.Tensor]
     no_streaming_mask: Optional[torch.Tensor]
     reporter: List['Reporter']
-    overlap = 8
-    overlap_counter = 1
+    #overlap = 8
+    #overlap_counter = 1
 
     def __init__(self, flow: 'Flow', collision: 'Collision',
                  reporter: List['Reporter']):
@@ -249,15 +249,15 @@ class Simulation:
 
         for _ in range(num_steps):
             self._collide_and_stream(self)
-            if overlap_counter == overlap:
-                print(overlap_counter)
-                self._exchange_messages()
-                overlap_counter = 1
-                print(overlap_counter)
-            else:
-                print(overlap_counter)
-                overlap_counter += 1
-                print(overlap_counter)
+        #    if overlap_counter == overlap:
+        #        print(overlap_counter)
+            self._exchange_messages()
+        #        overlap_counter = 1
+        #        print(overlap_counter)
+        #    else:
+        #        print(overlap_counter)
+        #        overlap_counter += 1
+        #        print(overlap_counter)
             self.flow.i += 1
             self._report()
 
