@@ -51,7 +51,7 @@ class Simulation:
     #overlap_counter = 1
 
     def __init__(self, flow: 'Flow', collision: 'Collision',
-                 reporter: List['Reporter']):
+                 reporter: List['Reporter'],dist: Optional['dist'] = None):
         self.flow = flow
         self.flow.collision = collision
         self.context = flow.context
@@ -59,6 +59,7 @@ class Simulation:
         self.reporter = reporter
         self.boundaries = ([None]
                            + sorted(flow.boundaries, key=lambda b: str(b)))
+        self.dist = dist
 
         # ==================================== #
         # initialise masks based on boundaries #
@@ -222,7 +223,7 @@ class Simulation:
         send_req_left.wait()
         recv_req_left.wait()
 
-        for i in (1,2,8):
+        for i in range(1, 9):
             print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[i,0:8,:]))
             print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow shape: " + str(self.flow.f[i,0:8,:].shape))
             print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow shape: " + str(recv_slice_left[i,0:8,:].shape))
@@ -231,7 +232,7 @@ class Simulation:
             self.flow.f[i,0:8,:]=recv_slice_left[i,0:8,:]
             print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[i,0:8,:]))
         
-        for i in (4,5,6):
+        for i in range(1, 9):
             self.flow.f[i,-8,:]=recv_slice_left[i,-8,:]
 
 
@@ -251,7 +252,8 @@ class Simulation:
             self._collide_and_stream(self)
         #    if overlap_counter == overlap:
         #        print(overlap_counter)
-            self._exchange_messages()
+            if self.dist == "mpi":
+                self._exchange_messages()
         #        overlap_counter = 1
         #        print(overlap_counter)
         #    else:
