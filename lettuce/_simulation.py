@@ -260,6 +260,12 @@ class Simulation:
         #        print(overlap_counter)
         #        overlap_counter += 1
         #        print(overlap_counter)
+            if self.dist == "mpi":
+                filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + ".pt"
+                torch.save(self.flow.f, filename)
+            else:
+                filename = "/home/mbecke3g/data/" + str(self.flow.i) + "serial" + str(dist.get_rank()) + ".pt"
+                torch.save(self.flow.f, filename)
             self.flow.i += 1
             self._report()
 
