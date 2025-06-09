@@ -265,7 +265,7 @@ class Simulation:
                 filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + ".pt"
                 torch.save(self.flow.f, filename)
             else:
-                filename = "/home/mbecke3g/data/" + str(self.flow.i) + "serial" + str(dist.get_rank()) + ".pt"
+                filename = "/home/mbecke3g/data/" + str(self.flow.i) + "serial" + ".pt"
                 torch.save(self.flow.f, filename)
             self.flow.i += 1
             self._report()
