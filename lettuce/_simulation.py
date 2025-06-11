@@ -267,7 +267,7 @@ class Simulation:
                 torch.save(self.flow.f, filename)
             else:
                 filename = "/home/mbecke3g/data/" + str(self.flow.i) + "serial" + ".pt"
-                print("Serial: " + str(world_size) + " Flow.f shape: " + str(self.flow.i.shape))
+                print("Serial:  Flow.f shape: " + str(self.flow.i.shape))
                 torch.save(self.flow.f, filename)
             self.flow.i += 1
             self._report()
