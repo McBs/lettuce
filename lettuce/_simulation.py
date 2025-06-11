@@ -263,7 +263,7 @@ class Simulation:
             print(dist)
             if self.dist == "mpi":
                 filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + ".pt"
-                print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow.f shape: " + str(self.flow.i.shape))
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " Flow.f shape: " + str(self.flow.i.shape))
                 torch.save(self.flow.f, filename)
             else:
                 filename = "/home/mbecke3g/data/" + str(self.flow.i) + "serial" + ".pt"
