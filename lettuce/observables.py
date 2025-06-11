@@ -438,17 +438,41 @@ class SymmetryTopPercentageReporter(Observable):
 
         return all_coords  # Jetzt gibt die Methode einen Tensor zurück
 
+
+import torch
+import numpy as np
+# Angenommen, 'Observable' ist eine Basisklasse aus dem Framework
+from lettuce.observables import Observable
+
+
 class WallQuantities(Observable):
-    def __init__(self, lattice, flow, averaging_steps=100, dy_lu = 1):
+    def __init__(self, lattice, flow, averaging_steps=100, distance_to_wall=1.0):
+        """
+        Berechnet und mittelt wandnahe Größen (u_tau, Re_tau, y+).
+
+        Args:
+            lattice: Das LBM-Gitterobjekt.
+            flow: Das Flow-Objekt der Simulation.
+            averaging_steps (int): Anzahl der Zeitschritte für die Mittelung.
+            distance_to_wall (float): Der Abstand des ersten Fluidknotens von der
+                                      effektiven Wand in Gittereinheiten.
+                                      - Für Fullway/Simple Bounce-Back: 1.0
+                                      - Für Halfway Bounce-Back: 0.5
+        """
         super().__init__(lattice, flow)
         self.rho_lu = 1.0
         self.tau_lu = flow.units.relaxation_parameter_lu
-        self.cs2 = lattice.cs**2
-        self.mu_lu = self.rho_lu * self.cs2 * (self.tau_lu - 0.5)
-        self.nu_lu = self.mu_lu / self.rho_lu
+        self.cs2 = lattice.cs ** 2
+        # Viskosität wird korrekt aus dem Lettuce-Framework bezogen
+        self.nu_lu = flow.units.viscosity_lu
         self.half_channel_height_lu = flow.resolution_y / 2
+
+        # Annahme: Wandpositionen sind die äußersten Gitterknoten
         self.wall_y_bottom = 0
         self.wall_y_top = flow.resolution_y - 1
+
+        self.distance_to_wall = distance_to_wall
+
         self.averaging_steps = averaging_steps
         self.current_step = 0
         self.u_tau_bottom_history = []
@@ -458,83 +482,86 @@ class WallQuantities(Observable):
         self.y_plus_bottom_history = []
         self.y_plus_top_history = []
         self.ndim = len(flow.grid)
-        self.dy_lu = dy_lu
+
     def __call__(self, f):
         u = self.lattice.u(f)
 
+        if self.ndim == 2:
+            # --- Untere Wand ---
+            # Geschwindigkeit am ersten Fluidknoten (Annahme u_wall=0)
+            u_next_bottom = u[:, :, self.wall_y_bottom + 1]
+            du_dy_bottom_lu = u_next_bottom / self.distance_to_wall
 
-        if self.ndim == 2:  # 2D-Fall
-            wall_indices_bottom = self.flow.grid[1][:, self.wall_y_bottom] == self.wall_y_bottom / self.flow.units.characteristic_length_lu
-            wall_indices_top = self.flow.grid[1][:, self.wall_y_top] == self.wall_y_top / self.flow.units.characteristic_length_lu
+            # Wandschubspannung (nur x-Komponente in 2D)
+            tau_w_bottom_lu = self.nu_lu * self.rho_lu * du_dy_bottom_lu[0]
 
-            # Untere Wand
-            u_x_wall_bottom = u[0][:, self.wall_y_bottom]
-            u_x_next_bottom = u[0][:, self.wall_y_bottom + 1]
-            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / self.dy_lu
-            tau_w_bottom_lu = self.mu_lu * du_dy_bottom_lu
-            u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / 1.0)
-            re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
-            y_plus_bottom_first_cell = 0.5 * u_tau_bottom_lu / self.nu_lu
+            # --- Obere Wand ---
+            # Geschwindigkeit am ersten Fluidknoten (Annahme u_wall=0)
+            u_prev_top = u[:, :, self.wall_y_top - 1]
+            # Gradient hat negatives Vorzeichen, da dy negativ ist (y_top - y_prev)
+            du_dy_top_lu = -u_prev_top / self.distance_to_wall
+            tau_w_top_lu = self.nu_lu * self.rho_lu * du_dy_top_lu[0]
 
-            # Obere Wand
-            u_x_wall_top = u[0][:, self.wall_y_top]
-            u_x_prev_top = u[0][:, self.wall_y_top - 1]
-            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / self.dy_lu
-            tau_w_top_lu = self.mu_lu * du_dy_top_lu
-            u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / 1.0)
-            re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
-            y_plus_top_first_cell = 0.5 * u_tau_top_lu / self.nu_lu
+        elif self.ndim == 3:
+            # --- Untere Wand ---
+            u_next_bottom = u[:, :, self.wall_y_bottom + 1, :]
+            du_dy_bottom_lu = u_next_bottom / self.distance_to_wall
 
-        elif self.ndim == 3:  # 3D-Fall
-            wall_indices_bottom = self.flow.grid[1][:, self.wall_y_bottom, :] == self.wall_y_bottom / self.flow.units.characteristic_length_lu
-            wall_indices_top = self.flow.grid[1][:, self.wall_y_top, :] == self.wall_y_top / self.flow.units.characteristic_length_lu
+            # Schubspannungskomponenten (x und z)
+            tau_wx_bottom = self.nu_lu * self.rho_lu * du_dy_bottom_lu[0]
+            tau_wz_bottom = self.nu_lu * self.rho_lu * du_dy_bottom_lu[2]
+            # Betrag der gesamten Wandschubspannung
+            tau_w_bottom_lu = torch.sqrt(tau_wx_bottom ** 2 + tau_wz_bottom ** 2)
 
-            # Untere Wand
-            u_x_wall_bottom = u[0][:, self.wall_y_bottom, :]
-            u_x_next_bottom = u[0][:, self.wall_y_bottom + 1, :]
-            du_dy_bottom_lu = (u_x_next_bottom - u_x_wall_bottom) / self.dy_lu
-            tau_w_bottom_lu = self.mu_lu * du_dy_bottom_lu
-            u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / 1.0)
-            re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
-            y_plus_bottom_first_cell = 0.5 * u_tau_bottom_lu / self.nu_lu
+            # --- Obere Wand ---
+            u_prev_top = u[:, :, self.wall_y_top - 1, :]
+            du_dy_top_lu = -u_prev_top / self.distance_to_wall
 
-            # Obere Wand
-            u_x_wall_top = u[0][:, self.wall_y_top, :]
-            u_x_prev_top = u[0][:, self.wall_y_top - 1, :]
-            du_dy_top_lu = (u_x_wall_top - u_x_prev_top) / self.dy_lu
-            tau_w_top_lu = self.mu_lu * du_dy_top_lu
-            u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / 1.0)
-            re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
-            y_plus_top_first_cell = 0.5 * u_tau_top_lu / self.nu_lu
-
+            tau_wx_top = self.nu_lu * self.rho_lu * du_dy_top_lu[0]
+            tau_wz_top = self.nu_lu * self.rho_lu * du_dy_top_lu[2]
+            tau_w_top_lu = torch.sqrt(tau_wx_top ** 2 + tau_wz_top ** 2)
         else:
             raise ValueError(f"Unsupported dimensionality: {self.ndim}")
 
-        # Speichern der aktuellen Mittelwerte für die Mittelung
+        # --- Gemeinsame Berechnungen für 2D und 3D ---
+        u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / self.rho_lu)
+        u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / self.rho_lu)
+
+        re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
+        re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
+
+        # y+ für den ersten Fluidknoten. y ist hier der Abstand von der Wand.
+        y_dist_first_node = self.distance_to_wall
+        y_plus_bottom = y_dist_first_node * u_tau_bottom_lu / self.nu_lu
+        y_plus_top = y_dist_first_node * u_tau_top_lu / self.nu_lu
+
+        # Speichern der räumlich gemittelten Werte für die zeitliche Mittelung
         self.u_tau_bottom_history.append(torch.mean(u_tau_bottom_lu).item())
         self.u_tau_top_history.append(torch.mean(u_tau_top_lu).item())
         self.re_tau_bottom_history.append(torch.mean(re_tau_bottom).item())
         self.re_tau_top_history.append(torch.mean(re_tau_top).item())
-        self.y_plus_bottom_history.append(torch.mean(y_plus_bottom_first_cell).item())
-        self.y_plus_top_history.append(torch.mean(y_plus_top_first_cell).item())
+        self.y_plus_bottom_history.append(torch.mean(y_plus_bottom).item())
+        self.y_plus_top_history.append(torch.mean(y_plus_top).item())
         self.current_step += 1
 
         if self.current_step >= self.averaging_steps:
-            avg_u_tau_bottom = np.mean(self.u_tau_bottom_history)
-            avg_u_tau_top = np.mean(self.u_tau_top_history)
             avg_re_tau_bottom = np.mean(self.re_tau_bottom_history)
-            avg_re_tau_top = np.mean(self.re_tau_top_history)
             avg_y_plus_bottom = np.mean(self.y_plus_bottom_history)
+            avg_re_tau_top = np.mean(self.re_tau_top_history)
             avg_y_plus_top = np.mean(self.y_plus_top_history)
 
-            self.u_tau_bottom_history = []
-            self.u_tau_top_history = []
-            self.re_tau_bottom_history = []
-            self.re_tau_top_history = []
-            self.y_plus_bottom_history = []
-            self.y_plus_top_history = []
+            # Optional: Werte ausgeben
+            print(f"Avg Re_tau_bottom: {avg_re_tau_bottom:.2f}, Avg y+_bottom: {avg_y_plus_bottom:.2f}")
+            print(f"Avg Re_tau_top:    {avg_re_tau_top:.2f}, Avg y+_top:    {avg_y_plus_top:.2f}")
+
+            # Historie zurücksetzen
+            self.u_tau_bottom_history, self.u_tau_top_history = [], []
+            self.re_tau_bottom_history, self.re_tau_top_history = [], []
+            self.y_plus_bottom_history, self.y_plus_top_history = [], []
             self.current_step = 0
 
-            return torch.tensor([avg_re_tau_bottom, avg_y_plus_bottom, avg_re_tau_top, avg_y_plus_top], device=self.lattice.device)
+            return torch.tensor([avg_re_tau_bottom, avg_y_plus_bottom, avg_re_tau_top, avg_y_plus_top],
+                                device=self.lattice.device)
         else:
+            # Während der Mittelungsphase nichts zurückgeben oder einen Platzhalter
             return torch.zeros(4, device=self.lattice.device)

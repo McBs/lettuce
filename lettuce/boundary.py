@@ -487,60 +487,165 @@ class HalfwayBounceBackBoundary:
                                                                  self.f_index_solid[:, 3]],
                                               self.lattice.e[self.f_index_solid[:, 0]])
 
+
+import torch
+import numpy as np
+
+
 class WallFunctionBoundary:
-    def __init__(self, mask, lattice, viscosity, y_lattice=1.0, kappa=0.41, B=5.2, switch_yplus=30, max_iter=20, tol=1e-6):
+    def __init__(
+            self, mask, lattice, viscosity, y_lattice=1.0,
+            kappa=0.41, B=5.2, switch_yplus=30,
+            max_iter=20, tol=1e-6, wall='bottom',
+            # Parameter für die interne Smagorinsky-Berechnung der Eddy-Viskosität
+            smagorinsky_constant=0.17,
+            delta_x=1.0  # Gitterzellgröße in Lattice Units, meist 1.0
+    ):
         self.mask = lattice.convert_to_tensor(mask)
         self.lattice = lattice
-        self.viscosity = viscosity
+        self.molecular_viscosity = viscosity
         self.y_lattice = y_lattice
         self.kappa = kappa
         self.B = B
         self.switch_yplus = switch_yplus
         self.max_iter = max_iter
         self.tol = tol
+        self.wall = wall
+
+        # Parameter für die interne Eddy-Viskosität (Smagorinsky-Ansatz)
+        self.smagorinsky_constant = smagorinsky_constant
+        self.delta_x = delta_x
 
     def spalding_law(self, y_plus):
-        # numerisch invertiert: solve u_plus = y_plus + (1/kappa) * (exp(kappa*u_plus) - 1 - kappa*u_plus - 0.5*(kappa*u_plus)^2 - (1/6)*(kappa*u_plus)^3)
+        """
+        Löst das Spalding-Gesetz für u+ iterativ für ein gegebenes y+.
+        """
         u_plus = y_plus.clone()
         for _ in range(self.max_iter):
             ku = self.kappa * u_plus
             exp_ku = torch.exp(ku)
-            f = u_plus - y_plus - (1/self.kappa) * (exp_ku - 1 - ku - 0.5*ku**2 - (1/6)*ku**3)
-            df = 1 - (exp_ku - 1 - ku - 0.5*ku**2)  # Ableitung
-            delta = f / df
+            f_val = u_plus - y_plus - (1 / self.kappa) * (
+                    exp_ku - 1 - ku - 0.5 * ku ** 2 - (1 / 6) * ku ** 3
+            )
+            df_val = 1 - (exp_ku - 1 - ku - 0.5 * ku ** 2)
+
+            df_val = torch.where(torch.abs(df_val) < 1e-10, torch.tensor(1e-10, device=f_val.device, dtype=f_val.dtype),
+                                 df_val)
+
+            delta = f_val / df_val
             u_plus = u_plus - delta
+
             if torch.max(torch.abs(delta)) < self.tol:
                 break
         return u_plus
 
+    def compute_du_dy_near_wall(self, u_x, wall_axis=1, wall='bottom', dy_lu=1.0):
+        """
+        Berechnet ∂u/∂y (oder allgemein ∂u/∂n) an der ersten Fluidzelle nahe einer Wand.
+        Annahme: u_wall ≈ 0 (z.B. durch Bounce-Back).
+
+        Parameter:
+        - u_x: torch.Tensor, x-Komponente der Geschwindigkeit (shape: [Nx, Ny(, Nz)])
+        - wall_axis: int, Achse der Wand (1 = y, 0 = x, 2 = z)
+        - wall: 'bottom' oder 'top' (unten oder oben in positiver Achsenrichtung)
+        - dy_lu: Gitterabstand in LU (Abstand von Wand zur ersten Fluidzelle)
+
+        Rückgabe:
+        - du_dy_values_flat: 1D-Tensor mit abgeleiteten Werten (u_fluid / dy_lu) an den aktiven Punkten.
+        - active_mask: Boolesche Maske für das gesamte Feld, True an den aktiven Punkten.
+        """
+        dims = u_x.ndim
+
+        # Indexlisten vorbereiten für das Slicing der ersten Fluidzellenschicht
+        idx_fluid = [slice(None)] * dims
+
+        if wall == 'bottom':
+            idx_fluid[wall_axis] = 1
+        elif wall == 'top':
+            idx_fluid[wall_axis] = -2
+        else:
+            raise ValueError("wall must be 'bottom' or 'top'")
+
+        u_fluid_layer = u_x[tuple(idx_fluid)]
+        du_dy_result_flat = (u_fluid_layer / dy_lu).flatten()  # Abflachen für spätere Maskierung
+
+        active_mask = torch.zeros_like(u_x, dtype=torch.bool)
+        active_mask[tuple(idx_fluid)] = True
+
+        return du_dy_result_flat, active_mask
+
     def __call__(self, f):
         rho = self.lattice.rho(f)
         u = self.lattice.u(f)
-
         u_x = u[0]
-        shifted_mask = torch.roll(self.mask, shifts=1, dims=1)
-        du_dy = torch.zeros_like(u_x)
-        du_dy[shifted_mask] = u_x[shifted_mask] / self.y_lattice
 
-        u_tau = torch.sqrt(torch.abs(self.viscosity * du_dy))
-        y_plus = (self.y_lattice * u_tau) / self.viscosity
-
-        u_plus_log = self.spalding_law(y_plus)
-        u_plus = torch.where(
-            y_plus < self.switch_yplus,
-            y_plus,
-            u_plus_log
+        # 1. Berechne den Geschwindigkeitsgradienten (angenähert als u_x / dy_lu) an den aktiven Wandzellen
+        calculated_du_dy_values_flat, active_fluid_mask = self.compute_du_dy_near_wall(
+            u_x, wall_axis=1, wall=self.wall, dy_lu=self.y_lattice
         )
 
-        u_x_target = u_plus * u_tau
+        # 2. BERECHNUNG DER EDDY-VISKOSITÄT (NU_TUR) MIT EINEM KÜNSTLICHEN SMAGORINSKY-MODELL HIER
+        # Für einen Kanalfluss ist der dominante Geschwindigkeitsgradient du_x/dy.
+        # Der Betrag des Strain-Rate-Tensors |S| wird für 2D/3D oft als |du_x/dy| angenähert.
+        # nu_tur = (Cs * Delta_x)^2 * |S|
+        # Hier verwenden wir den Absolutwert des berechneten Gradienten als |S|
+        magnitude_of_gradient_flat = torch.abs(calculated_du_dy_values_flat)
 
-        D = self.lattice.D
+        nu_turbulent_wf_flat = (self.smagorinsky_constant * self.delta_x) ** 2 * magnitude_of_gradient_flat
+
+        # 3. Berechne die effektive Viskosität (NU_EFF) für die Wandfunktion
+        # nu_eff = molekulare_viskosität + nu_turbulent
+        effective_viscosity_for_wf_flat = self.molecular_viscosity + nu_turbulent_wf_flat
+
+        # Sicherstellen, dass die effektive Viskosität nicht unter die molekulare fällt
+        effective_viscosity_for_wf_flat = torch.max(effective_viscosity_for_wf_flat,
+                                                    self.molecular_viscosity * torch.ones_like(
+                                                        effective_viscosity_for_wf_flat))
+
+        # 4. Berechne die Reibgeschwindigkeit (u_tau) basierend auf dem Gradienten und der effektiven Viskosität
+        # u_tau = sqrt(nu_eff * |du/dy|)
+        u_tau_active_flat = torch.sqrt(torch.abs(effective_viscosity_for_wf_flat * calculated_du_dy_values_flat))
+
+        # 5. Berechne den dimensionslosen Wandabstand (y_plus)
+        # y_plus = (y_lattice * u_tau) / nu_eff
+        effective_viscosity_for_wf_flat = torch.where(effective_viscosity_for_wf_flat < 1e-10,
+                                                      torch.tensor(1e-10, device=effective_viscosity_for_wf_flat.device,
+                                                                   dtype=effective_viscosity_for_wf_flat.dtype),
+                                                      effective_viscosity_for_wf_flat)
+        y_plus_active_flat = (self.y_lattice * u_tau_active_flat) / effective_viscosity_for_wf_flat
+
+        # 6. Wende das Spalding-Gesetz an, um den Ziel-u+ zu erhalten
+        u_plus_turbulent_profile_flat = self.spalding_law(y_plus_active_flat)
+
+        # 7. Kombiniere den linearen Bereich mit dem turbulenten Profil (Wechsel bei switch_yplus)
+        u_plus_flat = torch.where(
+            y_plus_active_flat < self.switch_yplus,
+            y_plus_active_flat,
+            u_plus_turbulent_profile_flat
+        )
+
+        # 8. Berechne die Ziel-Geschwindigkeit (u_x_target) in Gittereinheiten
+        u_x_target_flat = u_plus_flat * u_tau_active_flat
+
+        # 9. Erstelle ein leeres Geschwindigkeitsfeld und fülle die x-Komponente an den aktiven Zellen
+        D = self.lattice.D  # Anzahl der Geschwindigkeitskomponenten (2 für 2D, 3 für 3D)
         u_target = torch.zeros((D,) + u_x.shape, device=f.device, dtype=f.dtype)
-        u_target[0] = torch.where(self.mask, u_x_target, torch.tensor(0.0, device=f.device, dtype=f.dtype))
+        # Die 1D-Werte u_x_target_flat werden in das 3D/2D Feld an den durch active_fluid_mask markierten Stellen eingefügt.
+        u_target[0][active_fluid_mask] = u_x_target_flat
 
+        # 10. Berechne die Gleichgewichts-Verteilungsfunktionen für die angepassten Geschwindigkeiten
         feq = self.lattice.equilibrium(rho, u_target)
-        f = torch.where(self.mask, feq, f)
+
+        # 11. Wende die feq nur auf die Fluidzellen an, die von der Wandfunktion betroffen sind.
+        # unsqueeze(0) ist notwendig, um die zusätzliche Dimension für die Verteilungsfunktionen (Q) zu matchen.
+        f = torch.where(active_fluid_mask.unsqueeze(0), feq, f)
         return f
 
     def make_no_collision_mask(self, f_shape):
-        return self.mask
+        """
+        Diese Boundary-Methode liefert KEINE "No-Collision"-Maske, da die Wandfunktion
+        auf Fluidzellen wirkt, die am Kollisionsschritt teilnehmen müssen.
+        Die "No-Collision"-Maske für feste Wände wird von der BounceBackBoundary geliefert.
+        """
+        # Erstellt einen Tensor mit False-Werten in der Form des Raumgitters (ohne Q-Dimension)
+        return torch.zeros(f_shape[1:], dtype=torch.bool, device=self.lattice.device)

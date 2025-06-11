@@ -45,7 +45,7 @@ class ChannelFlow2D(object):
     >>> flow.mask[np.where(condition)] = 1
    """
 
-    def __init__(self, resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu):
+    def __init__(self, resolution_x, resolution_y, reynolds_number, mach_number, lattice, char_length_lu, boundary):
         self.resolution_x = resolution_x
         self.resolution_y = resolution_y
         self.units = UnitConversion(
@@ -55,6 +55,7 @@ class ChannelFlow2D(object):
             characteristic_velocity_pu=1
         )
         self._mask = np.zeros(shape=(self.resolution_x, self.resolution_y), dtype=bool)
+        self._boundary = boundary
 
     @property
     def mask(self):
@@ -72,7 +73,7 @@ class ChannelFlow2D(object):
 
         # --- 📐 Basisströmung: Poiseuille-Profil ---
         y_normalized = yg / yg.max()
-        u_base = y_normalized * (1 - y_normalized)
+        u_base = y_normalized * (1 - y_normalized) * 4
 
         u = np.zeros((2, nx, ny))
         u[0] = u_base * (1 - self.mask.astype(float))
@@ -140,9 +141,29 @@ class ChannelFlow2D(object):
     @property
     def boundaries(self):
         x, y = self.grid
-        return [
+        Ny = y.shape[1]
 
-            WallFunctionBoundary(self.mask, self.units.lattice, self.units.viscosity_lu)
+        # Bounce-Back-Maske (Wände bei y=0 und y=Ny-1)
+        mask_bb = np.zeros_like(x, dtype=bool)
+        mask_bb[:, 0] = True  # untere Wand
+        mask_bb[:, Ny - 1] = True  # obere Wand
+
+        # Wall-Function-Masken (erste Fluidzellen direkt an der Wand)
+        mask_bottom = np.zeros_like(x, dtype=bool)
+        mask_bottom[:, 1] = True
+
+        mask_top = np.zeros_like(x, dtype=bool)
+        mask_top[:, Ny - 2] = True
+
+        if self._boundary == "halfway":
+            bb = HalfwayBounceBackBoundary(mask_bb, self.units.lattice)
+        else:
+            bb = BounceBackBoundary(mask_bb, self.units.lattice)
+
+        return [
+            bb,
+            WallFunctionBoundary(mask_bottom, self.units.lattice, self.units.viscosity_lu, wall='bottom'),
+            WallFunctionBoundary(mask_top, self.units.lattice, self.units.viscosity_lu, wall='top')
         ]
 
 
@@ -261,10 +282,36 @@ class ChannelFlow3D(object):
 
     @property
     def boundaries(self):
-        x, y, z = self.grid
+        x, y, z = self.grid  # Jetzt auch z
+        Ny = y.shape[1]  # Höhe des Kanals in y-Richtung
+
+        # Bounce-Back-Maske (Wände bei y=0 und y=Ny-1)
+        # In 3D müssen wir die Maske über alle x- und z-Koordinaten ausdehnen.
+        mask_bb = np.zeros_like(x, dtype=bool)
+        mask_bb[:, 0, :] = True  # untere Wand (y=0)
+        mask_bb[:, Ny - 1, :] = True  # obere Wand (y=Ny-1)
+
+        # Wall-Function-Masken (erste Fluidzellen direkt an der Wand)
+        # Auch hier über alle x- und z-Koordinaten ausdehnen.
+        mask_bottom = np.zeros_like(x, dtype=bool)
+        mask_bottom[:, 1, :] = True  # Erste Fluidzelle über der unteren Wand (y=1)
+
+        mask_top = np.zeros_like(x, dtype=bool)
+        mask_top[:, Ny - 2, :] = True  # Erste Fluidzelle unter der oberen Wand (y=Ny-2)
+
+        # Das Boundary-Objekt für Bounce-Back
         if self._boundary == "halfway":
-            boundary = HalfwayBounceBackBoundary(self.mask, self.units.lattice)
-        elif self._boundary == "fullway":
-            boundary = BounceBackBoundary(self.mask, self.units.lattice)
-        return [boundary]
+            bb = HalfwayBounceBackBoundary(mask_bb, self.units.lattice)
+        else:
+            bb = BounceBackBoundary(mask_bb, self.units.lattice)
+
+        # Rückgabe der Liste von Boundary-Objekten
+        # Wichtig: Die WallFunctionBoundary-Objekte müssen später (nach der Simulation-Initialisierung)
+        # mit dem 'collision_model' aktualisiert werden, wie wir es besprochen haben.
+        return [
+            bb,
+            WallFunctionBoundary(mask_bottom, self.units.lattice, self.units.viscosity_lu, wall='bottom'),
+            WallFunctionBoundary(mask_top, self.units.lattice, self.units.viscosity_lu, wall='top')
+        ]
+
 
