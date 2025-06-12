@@ -13,6 +13,7 @@ from plot import *
 from torch.cuda.amp import GradScaler
 from torch.amp import autocast
 import torch.optim as optim
+from simulation_nbc import *
 
 
 
@@ -26,7 +27,7 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
                     xc=config["xc"],
                     distanceFromRight=200+config["extension"])
     collision = lt.BGKCollision(tau=flow.units.relaxation_parameter_lu)
-    simulation = lt.Simulation(flow=flow, collision=collision, reporter=[])
+    simulation = SimulationNBC(flow=flow, collision=collision, reporter=[])
     if config["reporter"]:
         # TotalPressureReporter = TotalPressure(context=context, interval=int(flow.units.convert_time_to_lu(0.05)), slices=slices_2)
         # simulation.reporter.append(TotalPressureReporter)
