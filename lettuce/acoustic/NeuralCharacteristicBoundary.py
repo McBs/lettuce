@@ -137,25 +137,28 @@ class NeuralTuning(torch.nn.Module):
         #         u_dt.unsqueeze(1),
         #         v_dt.unsqueeze(1)], dim=1)
         # )
-        K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1) * self.K0Mul
-        K1 = (torch.nn.Sigmoid()(K[:,1]).unsqueeze(1) + self.K1Add) * self.K1Mul
-        self.K0max_t = K0.max() if K0.max() > self.K0max_t else self.K0max_t
-        self.K0min_t = K0.min() if K0.min() < self.K0min_t else self.K0min_t
-        self.K1max_t = K1.max() if K1.max() > self.K1max_t else self.K1max_t
-        self.K1min_t = K1.min() if K1.min() < self.K1min_t else self.K1min_t
-        return torch.cat([K0, K1],dim=1)
+        # K0 = torch.nn.Sigmoid()(K[:,0]).unsqueeze(1) * self.K0Mul
+        # K1 = (torch.nn.Sigmoid()(K[:,1]).unsqueeze(1) + self.K1Add) * self.K1Mul
+        # K0 = K[:,0]
+        # K1 = K[:,1]
+        self.K0max_t = K[:,0].max() if K[:,0].max() > self.K0max_t else self.K0max_t
+        self.K0min_t = K[:,0].min() if K[:,0].min() < self.K0min_t else self.K0min_t
+        self.K1max_t = K[:,1].max() if K[:,1].max() > self.K1max_t else self.K1max_t
+        self.K1min_t = K[:,1].min() if K[:,1].min() < self.K1min_t else self.K1min_t
+        # return torch.cat([K0, K1],dim=1)
+        return K
 
 if __name__ == "__main__":
     parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("--nx", type=int, default=300)
     parser.add_argument("--ny", type=int, default=500)
-    parser.add_argument("--extension", type=int, default=00)
+    parser.add_argument("--extension", type=int, default=0)
     parser.add_argument("--Re", type=int, default=750, help="")
     parser.add_argument("--Ma", type=float, default=0.3, help="")
     parser.add_argument("--xc", type=int, default=150)
-    parser.add_argument("--t_lu", type=int, default=600)
-    parser.add_argument("--load_dataset", action="store_true", default=False)
-    parser.add_argument("--load_dataset_idx", type=int, default=None)
+    parser.add_argument("--t_lu", type=int, default=500)
+    parser.add_argument("--load_dataset", action="store_true", default=True)
+    parser.add_argument("--load_dataset_idx", type=int, default=0)
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-55.00_000055.pt")
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-210.00_000210.pt")
     parser.add_argument("--load_dataset_path", type=str, default=None)
@@ -165,15 +168,16 @@ if __name__ == "__main__":
     parser.add_argument("--save_start_idx", type=float, default=0)
     parser.add_argument("--K_neural", action="store_true", default=False)
     parser.add_argument("--train", action="store_true", default=False)
-    parser.add_argument("--load_model", action="store_true", default=False)
+    parser.add_argument("--load_model", action="store_true", default=True)
     parser.add_argument("--model_name_saved", type=str, default="model_trained_v6.pt")
-    parser.add_argument("--model_name_loaded", type=str, default="model_training_v1_17_553809.pt")
+    # parser.add_argument("--model_name_loaded", type=str, default="model_training_v1_18_553838.pt")
+    parser.add_argument("--model_name_loaded", type=str, default="model_training_v1_19_557101.pt")
     parser.add_argument("--output_directory", type=str, default="/home/mbedru3s/Dokumente/lettuce/lettuce/acoustic/datasets_re750")
     parser.add_argument("--reporter", action="store_true", default=False)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--nodes", type=int, default=20)
-    parser.add_argument("--K1Mul", type=float, default=3.3)
-    parser.add_argument("--K0Mul", type=float, default=1.0)
+    parser.add_argument("--K1Mul", type=float, default=1)
+    parser.add_argument("--K0Mul", type=float, default=1)
     parser.add_argument("--K1Add", type=float, default=0)
     parser.add_argument("--detach_idx", type=int, default=50)
     parser.add_argument("--netversion", type=int, default=1)
@@ -202,7 +206,7 @@ if __name__ == "__main__":
                            K1Mul = args["K1Mul"],
                            K1Add = args["K1Add"],
                            nodes = args["nodes"],
-                           netversion=args["netversion"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([1, 3.2]).unsqueeze(0))
+                           netversion=args["netversion"]) if args["K_neural"] else context.convert_to_tensor(torch.tensor([0., 0.5]).unsqueeze(0))
     if args["load_model"] and args["K_neural"]:
         K_tuned = torch.load(args["model_name_loaded"], weights_only=False)
         K_tuned.eval()
@@ -210,6 +214,7 @@ if __name__ == "__main__":
     if args["train"] and callable(K_tuned):
         K_tuned.train()
     slices_training = [slice(args["nx"] - 200, args["nx"]-1), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
+    slices_procdure = [slice(args["nx"] - 200, args["nx"]+args["extension"]), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     slices_domain = [slice(0, args["nx"]+args["extension"]), slice(0, args["ny"])]
     slices_2 = [slice(args["nx"] - 200, args["nx"]-150), slice(args["ny"] // 2 - 100, args["ny"] // 2 + 100)]
     # slices_all = [slice(None, None), slice(None, None)]
@@ -230,14 +235,6 @@ if __name__ == "__main__":
         if args["scheduler"]:
             print("StepLR Scheduler")
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=args["scheduler_step"], gamma=args["scheduler_gamma"])
-            # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            #     optimizer, mode='min', factor=0.5, patience=5, verbose=True)
-            # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            #     optimizer,
-            #     T_max=20,  # Anzahl Epoch-Intervalle, bis LR auf eta_min fällt
-            #     eta_min=1e-4,  # Minimal-LR am Ende
-            #     last_epoch=-1
-            # )
         epoch_training_loss = []
         scaler = GradScaler()
         optimizer.zero_grad()
@@ -293,14 +290,10 @@ if __name__ == "__main__":
                 rho_train = flow.rho()[:,*slices_training][:,-training_iteration:,50:150]
                 u_ref = flow.u(reference)[:,-training_iteration:,50:150]
                 u_train = flow.u()[:,*slices_training][:,-training_iteration:,50:150]
-                # loss = criterion(flow.f[:,slices[0],slices[1]], reference)
-                # k = K_tuned(flow.f[:,slices[0].stop-1,:],3*[torch.zeros_like(flow.f[0,-1,:])])
                 loss = criterion(rho_ref, rho_train) + criterion(u_ref, u_train) #+ criterion(k, torch.zeros_like(k))
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
                 scaler.update()
-                # loss.backward()
-                # optimizer.step()
                 running_loss += loss.item()
                 optimizer.zero_grad()
                 if args["verbose"]: print("running_loss:", running_loss)
@@ -321,8 +314,11 @@ if __name__ == "__main__":
     # rectangle = False if args["slices"] else True
 
     slices_plot = slices_domain
-    # slices_plot = slices_training
-    plot_velocity_density(flow.f, flow=flow, config=args, slices=slices_plot, title="simulation", rectangle=True)
+    slices_plot = slices_training
+    slices_plot = slices_procdure
+    # plot_velocity_density(flow.f, flow=flow, config=args, slices=slices_plot, title="simulation", rectangle=False)
+    # plotRho(flow.f, flow=flow, config=args, slices=slices_plot, title=f"Step {args["t_lu"]}", rectangle=False, figsize=(3,3),savename=f"s0k0_{args["t_lu"]}")
+    plotRho(flow.f, flow=flow, config=args, slices=slices_plot, rectangle=False, figsize=(2+0/200*2,2),savename=f"pressurewaves/nn_{args["t_lu"]}")
     # plotRho(flow.f, flow=flow, config=args, slices=slices_plot, rectangle=rectangle)
 
     if args["load_dataset"]:
@@ -340,12 +336,12 @@ if __name__ == "__main__":
     #                   flow.boundaries[1].rho_dt_old,
     #                   flow.boundaries[1].u_dt_old,
     #                   flow.boundaries[1].v_dt_old))
-    if args["train"]:
-        plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
-        plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
-    if args["K_neural"]:
-        print("K0 tuned min: ", K_tuned.K0min_t, "K0 tuned max: ", K_tuned.K0max_t)
-        print("K1 tuned min: ", K_tuned.K1min_t, "K1 tuned max: ", K_tuned.K1max_t)
+    # if args["train"]:
+    #     plot = PlotNeuralNetwork(base="./", show=True, style="./ecostyle.mplstyle")
+    #     plot.loss_function(np.array(epoch_training_loss)/epoch_training_loss[0], name=args["loss_plot_name"])
+    # if args["K_neural"]:
+    #     print("K0 tuned min: ", K_tuned.K0min_t, "K0 tuned max: ", K_tuned.K0max_t)
+    #     print("K1 tuned min: ", K_tuned.K1min_t, "K1 tuned max: ", K_tuned.K1max_t)
 
 
     if reporter is not None:
@@ -354,16 +350,21 @@ if __name__ == "__main__":
                     torch.tensor(reporter.out_total).cpu().detach()), dim=0).numpy()
 
         # 3) Speichere den kombinierten Tensor
-        # np.save(f'result_k1{int(K_tuned[0,0].item())}_k2{int(K_tuned[0,1].item())}.npy',result)
-        result_k10_k20 = np.load('result_k10_k20.npy')
-        result_k10_k21 = np.load('result_k10_k21.npy')
-        result_k10_k25 = np.load('result_k10_k25.npy')
-        result_k11_k20 = np.load('result_k11_k20.npy')
-        result_k11_k21 = np.load('result_k11_k21.npy')
-        result_k11_k22 = np.load('result_k11_k22.npy')
-        result_k11_k23 = np.load('result_k11_k23.npy')
-        result_k10_k22 = np.load('result_k10_k22.npy')
-        result_k10_k23 = np.load('result_k10_k23.npy')
+        if args["K_neural"]:
+            np.save(f'result_{args["model_name_loaded"]}.npy',result)
+        else:
+            np.save(f'result_s{round(K_tuned[0,0].item(),1)}_k{round(K_tuned[0,1].item(),1)}.npy',result)
+            # np.save(f'zou.npy',result)
+
+        result_k10_k20 = np.load('archive/result_k10_k20.npy')
+        result_k10_k21 = np.load('archive/result_k10_k21.npy')
+        result_k10_k25 = np.load('archive/result_k10_k25.npy')
+        result_k11_k20 = np.load('archive/result_k11_k20.npy')
+        result_k11_k21 = np.load('archive/result_k11_k21.npy')
+        result_k11_k22 = np.load('archive/result_k11_k22.npy')
+        result_k11_k23 = np.load('archive/result_k11_k23.npy')
+        result_k10_k22 = np.load('archive/result_k10_k22.npy')
+        result_k10_k23 = np.load('archive/result_k10_k23.npy')
         # plt.plot(result_k10_k20[0], result_k10_k20[1], marker='', linestyle='-',label="K1=0, K2=0")
         # plt.plot(result_k10_k21[0], result_k10_k21[1], marker='', linestyle='-',label="K1=0, K2=1")
         # plt.plot(result_k10_k25[0], result_k10_k25[1], marker='', linestyle='-',label="K1=0, K2=5")
