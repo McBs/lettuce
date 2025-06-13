@@ -488,12 +488,81 @@ class HalfwayBounceBackBoundary:
                                               self.lattice.e[self.f_index_solid[:, 0]])
 
 
-import torch
-import numpy as np
+class FreeSlipBoundary:  # Erbt von Boundary
+        def __init__(self, mask, lattice, normal_axis=1):  # normal_axis: 0 für x, 1 für y, 2 für z
+            self.mask = lattice.convert_to_tensor(mask)  # Maske der Wandknoten
+            self.lattice = lattice
+            self.normal_axis = normal_axis  # Die Achse, die senkrecht zur Wand steht (z.B. 1 für y-Wand)
 
-import torch
-import numpy as np
+            # Einmalige Berechnung des Free-Slip-Mappings in __init__
+            self.free_slip_map = self._precompute_free_slip_map()
 
+        def _precompute_free_slip_map(self):
+            """
+            Berechnet das Mapping für die Free-Slip-Boundary-Bedingung.
+            Für jeden Geschwindigkeitsvektor c_i wird der Index des Vektors c_j gefunden,
+            bei dem die Komponente entlang der normalen Achse gespiegelt ist.
+            """
+            c_vectors = self.lattice.stencil.e  # Greife auf die Geschwindigkeitsvektoren des Stencils zu
+            free_slip_map = {}
+
+            # Ihre D3Q27 Stencil e Vektoren sind:
+            # e = np.array([
+            #     [0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+            #     [0, 1, 1], [0, -1, -1], [0, 1, -1], [0, -1, 1], [1, 0, 1], [-1, 0, -1],
+            #     [1, 0, -1], [-1, 0, 1], [1, 1, 0], [-1, -1, 0], [1, -1, 0], [-1, 1, 0],
+            #     [1, 1, 1], [-1, -1, -1], [1, 1, -1], [-1, -1, 1], [1, -1, 1], [-1, 1, -1],
+            #     [1, -1, -1], [-1, 1, 1]
+            # ])
+
+            for i in range(self.lattice.stencil.Q):
+                current_vec = c_vectors[i]
+
+                # Erstelle den gespiegelten Vektor: Normalkomponente umkehren
+                # z.B. für normal_axis=1 (y-Achse): (dx, dy, dz) -> (dx, -dy, dz)
+                free_slip_vec = np.copy(current_vec)
+                free_slip_vec[self.normal_axis] *= -1
+
+                # Finde den Index des gespiegelten Vektors im Stencil
+                # np.where(np.all(...)) gibt ein Tupel von Arrays zurück, wir brauchen den ersten Wert
+                idx_free_slip_partner = int(np.where(np.all(c_vectors == free_slip_vec, axis=1))[0])
+
+                free_slip_map[i] = idx_free_slip_partner
+
+            # Konvertiere das Dictionary in einen PyTorch-Tensor für effiziente Indexierung
+            free_slip_map_array = np.array([free_slip_map[i] for i in range(self.lattice.stencil.Q)])
+            return torch.tensor(free_slip_map_array, device=self.lattice.device)
+
+        def __call__(self, f):
+            """
+            Wendet die Free-Slip-Boundary-Bedingung auf die maskierten Gitterpunkte an.
+            """
+            # f ist der Tensor, der direkt modifiziert wird (In-place-Operation).
+            # Die Free-Slip-Regel: f_i (am Wandknoten) = f_j (dessen Vektor die Normalkomponente gespiegelt hat).
+
+            # Wende die Free-Slip-Regel auf alle Populationen an den maskierten Wandknoten an.
+            # self.free_slip_map ist ein Tensor der Indizes, den wir direkt verwenden können.
+            # f[self.free_slip_map] holt für jede Richtung f_i den f_j, der gespiegelt werden soll.
+            f[self.mask.unsqueeze(0)] = f[self.free_slip_map][self.mask.unsqueeze(0)]
+
+            return f
+
+        def make_no_collision_mask(self, f_shape):
+            """
+            Free-Slip-Boundaries sind in der Regel Teil des aktiven Fluids, aber kollidieren nicht wie Standard-Fluid.
+            Da diese Boundary auf den Wandknoten operiert (wo auch Bounce-Back wäre), werden diese
+            Zellen oft vom Kollisionsschritt ausgeschlossen.
+            """
+            assert self.mask.shape == f_shape[1:]
+            return self.mask  # Maske der festen Wandzellen
+        def make_no_collision_mask(self, f_shape):
+            """
+            Free-Slip-Boundaries sind in der Regel Teil des aktiven Fluids, aber kollidieren nicht wie Standard-Fluid.
+            Da diese Boundary auf den Wandknoten operiert (wo auch Bounce-Back wäre), werden diese
+            Zellen oft vom Kollisionsschritt ausgeschlossen.
+            """
+            assert self.mask.shape == f_shape[1:]
+            return self.mask  # Maske der festen Wandzellen
 
 class WallFunctionBoundary:
     def __init__(

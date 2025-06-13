@@ -1,7 +1,7 @@
 import numpy as np
 from lettuce.unit import UnitConversion
 from lettuce.boundary import EquilibriumBoundaryPU, BounceBackBoundary, AntiBounceBackOutlet,\
-    HalfwayBounceBackBoundary, WallFunctionBoundary
+    HalfwayBounceBackBoundary, WallFunctionBoundary, FreeSlipBoundary
 
 
 class ChannelFlow2D(object):
@@ -294,24 +294,25 @@ class ChannelFlow3D(object):
         # Wall-Function-Masken (erste Fluidzellen direkt an der Wand)
         # Auch hier über alle x- und z-Koordinaten ausdehnen.
         mask_bottom = np.zeros_like(x, dtype=bool)
-        mask_bottom[:, 1, :] = True  # Erste Fluidzelle über der unteren Wand (y=1)
+        mask_bottom[:, 0, :] = True  # Erste Fluidzelle über der unteren Wand (y=1)
 
         mask_top = np.zeros_like(x, dtype=bool)
-        mask_top[:, Ny - 2, :] = True  # Erste Fluidzelle unter der oberen Wand (y=Ny-2)
+        mask_top[:, Ny - 1, :] = True  # Erste Fluidzelle unter der oberen Wand (y=Ny-2)
 
         # Das Boundary-Objekt für Bounce-Back
         if self._boundary == "halfway":
-            bb = HalfwayBounceBackBoundary(mask_bb, self.units.lattice)
-        else:
-            bb = BounceBackBoundary(mask_bb, self.units.lattice)
+            bb = [HalfwayBounceBackBoundary(mask_bb, self.units.lattice)]
+        elif self._boundary == "fullway":
+            bb = [BounceBackBoundary(mask_bb, self.units.lattice)]
+        elif self._boundary == "freeslip":
+            bb = [FreeSlipBoundary(mask_bb, self.units.lattice)]
+        elif self._boundary == "wallfunction":
+            bb = [
 
+            WallFunctionBoundary(mask_bottom, self.units.lattice, self.units.viscosity_lu, wall='bottom'),
+            WallFunctionBoundary(mask_top, self.units.lattice, self.units.viscosity_lu, wall='top')]
         # Rückgabe der Liste von Boundary-Objekten
         # Wichtig: Die WallFunctionBoundary-Objekte müssen später (nach der Simulation-Initialisierung)
         # mit dem 'collision_model' aktualisiert werden, wie wir es besprochen haben.
-        return [
-            bb,
-            WallFunctionBoundary(mask_bottom, self.units.lattice, self.units.viscosity_lu, wall='bottom'),
-            WallFunctionBoundary(mask_top, self.units.lattice, self.units.viscosity_lu, wall='top')
-        ]
-
+        return bb
 
