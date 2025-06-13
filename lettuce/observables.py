@@ -439,129 +439,106 @@ class SymmetryTopPercentageReporter(Observable):
         return all_coords  # Jetzt gibt die Methode einen Tensor zurück
 
 
-import torch
-import numpy as np
-# Angenommen, 'Observable' ist eine Basisklasse aus dem Framework
-from lettuce.observables import Observable
-
-
 class WallQuantities(Observable):
-    def __init__(self, lattice, flow, averaging_steps=100, distance_to_wall=1.0):
-        """
-        Berechnet und mittelt wandnahe Größen (u_tau, Re_tau, y+).
-
-        Args:
-            lattice: Das LBM-Gitterobjekt.
-            flow: Das Flow-Objekt der Simulation.
-            averaging_steps (int): Anzahl der Zeitschritte für die Mittelung.
-            distance_to_wall (float): Der Abstand des ersten Fluidknotens von der
-                                      effektiven Wand in Gittereinheiten.
-                                      - Für Fullway/Simple Bounce-Back: 1.0
-                                      - Für Halfway Bounce-Back: 0.5
-        """
+    def __init__(self, lattice, flow, averaging_steps=100, distance_to_wall=1.0,
+                 smagorinsky_constant=0.17, delta_x=1.0, normal_axis=1):
         super().__init__(lattice, flow)
         self.rho_lu = 1.0
-        self.tau_lu = flow.units.relaxation_parameter_lu
-        self.cs2 = lattice.cs ** 2
-        # Viskosität wird korrekt aus dem Lettuce-Framework bezogen
-        self.nu_lu = flow.units.viscosity_lu
+        self.molecular_nu_lu = flow.units.viscosity_lu
         self.half_channel_height_lu = flow.resolution_y / 2
 
-        # Annahme: Wandpositionen sind die äußersten Gitterknoten
-        self.wall_y_bottom = 0
-        self.wall_y_top = flow.resolution_y - 1
-
+        self.smagorinsky_constant = smagorinsky_constant
+        self.delta_x = delta_x
+        self.normal_axis = normal_axis
         self.distance_to_wall = distance_to_wall
 
         self.averaging_steps = averaging_steps
         self.current_step = 0
-        self.u_tau_bottom_history = []
-        self.u_tau_top_history = []
-        self.re_tau_bottom_history = []
-        self.re_tau_top_history = []
-        self.y_plus_bottom_history = []
-        self.y_plus_top_history = []
         self.ndim = len(flow.grid)
 
-    def __call__(self, f):
+        self.histories = {
+            "bottom": {"u_tau": [], "re_tau": [], "y_plus": []},
+            "top": {"u_tau": [], "re_tau": [], "y_plus": []},
+        }
+
+        self.wall_indices = {
+            "bottom": 1,
+            "top": flow.resolution_y - 2,
+        }
+
+    def _evaluate_wall(self, f, wall: str):
         u = self.lattice.u(f)
+        rho = self.lattice.rho(f).squeeze()
+        u_x = u[0].squeeze()
+        u_z = u[2].squeeze() if self.ndim == 3 else torch.zeros_like(u_x)
+
+        idx = self.wall_indices[wall]
+        dims = u_x.ndim
+        mask = torch.zeros_like(u_x, dtype=torch.bool)
+        slices = [slice(None)] * dims
+        slices[self.normal_axis] = idx
+        mask[tuple(slices)] = True
+
+        rho_f = rho[mask]
+        u_x_f = u_x[mask]
+        u_z_f = u_z[mask]
+
+        sign = 1.0 if wall == "bottom" else -1.0
+        du_dn = sign * u_x_f / self.distance_to_wall
+
+        magnitude_of_gradient = torch.abs(du_dn)
+        nu_turbulent = (self.smagorinsky_constant * self.delta_x) ** 2 * magnitude_of_gradient
+        nu_effective = torch.clamp(self.molecular_nu_lu + nu_turbulent, min=self.molecular_nu_lu)
+
+        u_tau_from_gradient = torch.sqrt(torch.abs(nu_effective * du_dn))
+        tau_w_magnitude = rho_f * u_tau_from_gradient ** 2
+
+        u_mag_f = torch.sqrt(u_x_f ** 2 + u_z_f ** 2)
+        dir_x = torch.where(u_mag_f > 1e-10, u_x_f / u_mag_f, torch.tensor(0.0, device=u_x_f.device))
+        dir_z = torch.where(u_mag_f > 1e-10, u_z_f / u_mag_f, torch.tensor(0.0, device=u_z_f.device))
+
+        tau_x = -dir_x * tau_w_magnitude
+        tau_z = -dir_z * tau_w_magnitude
 
         if self.ndim == 2:
-            # --- Untere Wand ---
-            # Geschwindigkeit am ersten Fluidknoten (Annahme u_wall=0)
-            u_next_bottom = u[:, :, self.wall_y_bottom + 1]
-            du_dy_bottom_lu = u_next_bottom / self.distance_to_wall
-
-            # Wandschubspannung (nur x-Komponente in 2D)
-            tau_w_bottom_lu = self.nu_lu * self.rho_lu * du_dy_bottom_lu[0]
-
-            # --- Obere Wand ---
-            # Geschwindigkeit am ersten Fluidknoten (Annahme u_wall=0)
-            u_prev_top = u[:, :, self.wall_y_top - 1]
-            # Gradient hat negatives Vorzeichen, da dy negativ ist (y_top - y_prev)
-            du_dy_top_lu = -u_prev_top / self.distance_to_wall
-            tau_w_top_lu = self.nu_lu * self.rho_lu * du_dy_top_lu[0]
-
-        elif self.ndim == 3:
-            # --- Untere Wand ---
-            u_next_bottom = u[:, :, self.wall_y_bottom + 1, :]
-            du_dy_bottom_lu = u_next_bottom / self.distance_to_wall
-
-            # Schubspannungskomponenten (x und z)
-            tau_wx_bottom = self.nu_lu * self.rho_lu * du_dy_bottom_lu[0]
-            tau_wz_bottom = self.nu_lu * self.rho_lu * du_dy_bottom_lu[2]
-            # Betrag der gesamten Wandschubspannung
-            tau_w_bottom_lu = torch.sqrt(tau_wx_bottom ** 2 + tau_wz_bottom ** 2)
-
-            # --- Obere Wand ---
-            u_prev_top = u[:, :, self.wall_y_top - 1, :]
-            du_dy_top_lu = -u_prev_top / self.distance_to_wall
-
-            tau_wx_top = self.nu_lu * self.rho_lu * du_dy_top_lu[0]
-            tau_wz_top = self.nu_lu * self.rho_lu * du_dy_top_lu[2]
-            tau_w_top_lu = torch.sqrt(tau_wx_top ** 2 + tau_wz_top ** 2)
+            tau = tau_x
         else:
-            raise ValueError(f"Unsupported dimensionality: {self.ndim}")
+            tau = torch.sqrt(tau_x ** 2 + tau_z ** 2)
 
-        # --- Gemeinsame Berechnungen für 2D und 3D ---
-        u_tau_bottom_lu = torch.sqrt(torch.abs(tau_w_bottom_lu) / self.rho_lu)
-        u_tau_top_lu = torch.sqrt(torch.abs(tau_w_top_lu) / self.rho_lu)
+        u_tau = torch.sqrt(torch.abs(tau) / self.rho_lu)
+        mean_nu = torch.mean(nu_effective).item()
+        mean_nu = max(mean_nu, 1e-10)
 
-        re_tau_bottom = u_tau_bottom_lu * self.half_channel_height_lu / self.nu_lu
-        re_tau_top = u_tau_top_lu * self.half_channel_height_lu / self.nu_lu
+        re_tau = u_tau * self.half_channel_height_lu / mean_nu
+        y_plus = self.distance_to_wall * u_tau / mean_nu
 
-        # y+ für den ersten Fluidknoten. y ist hier der Abstand von der Wand.
-        y_dist_first_node = self.distance_to_wall
-        y_plus_bottom = y_dist_first_node * u_tau_bottom_lu / self.nu_lu
-        y_plus_top = y_dist_first_node * u_tau_top_lu / self.nu_lu
+        return torch.mean(u_tau).item(), torch.mean(re_tau).item(), torch.mean(y_plus).item()
 
-        # Speichern der räumlich gemittelten Werte für die zeitliche Mittelung
-        self.u_tau_bottom_history.append(torch.mean(u_tau_bottom_lu).item())
-        self.u_tau_top_history.append(torch.mean(u_tau_top_lu).item())
-        self.re_tau_bottom_history.append(torch.mean(re_tau_bottom).item())
-        self.re_tau_top_history.append(torch.mean(re_tau_top).item())
-        self.y_plus_bottom_history.append(torch.mean(y_plus_bottom).item())
-        self.y_plus_top_history.append(torch.mean(y_plus_top).item())
+    def __call__(self, f):
+        for wall in ["bottom", "top"]:
+            u_tau, re_tau, y_plus = self._evaluate_wall(f, wall)
+            self.histories[wall]["u_tau"].append(u_tau)
+            self.histories[wall]["re_tau"].append(re_tau)
+            self.histories[wall]["y_plus"].append(y_plus)
+
         self.current_step += 1
 
         if self.current_step >= self.averaging_steps:
-            avg_re_tau_bottom = np.mean(self.re_tau_bottom_history)
-            avg_y_plus_bottom = np.mean(self.y_plus_bottom_history)
-            avg_re_tau_top = np.mean(self.re_tau_top_history)
-            avg_y_plus_top = np.mean(self.y_plus_top_history)
+            avg = {}
+            for wall in ["bottom", "top"]:
+                avg[f"re_tau_{wall}"] = np.mean(self.histories[wall]["re_tau"])
+                avg[f"y_plus_{wall}"] = np.mean(self.histories[wall]["y_plus"])
+                self.histories[wall]["u_tau"].clear()
+                self.histories[wall]["re_tau"].clear()
+                self.histories[wall]["y_plus"].clear()
 
-            # Optional: Werte ausgeben
-            print(f"Avg Re_tau_bottom: {avg_re_tau_bottom:.2f}, Avg y+_bottom: {avg_y_plus_bottom:.2f}")
-            print(f"Avg Re_tau_top:    {avg_re_tau_top:.2f}, Avg y+_top:    {avg_y_plus_top:.2f}")
-
-            # Historie zurücksetzen
-            self.u_tau_bottom_history, self.u_tau_top_history = [], []
-            self.re_tau_bottom_history, self.re_tau_top_history = [], []
-            self.y_plus_bottom_history, self.y_plus_top_history = [], []
             self.current_step = 0
+            print(f"[WallQuantities] Avg Re_tau_bottom: {avg['re_tau_bottom']:.2f}, y+_bottom: {avg['y_plus_bottom']:.2f}")
+            print(f"[WallQuantities] Avg Re_tau_top:    {avg['re_tau_top']:.2f}, y+_top:    {avg['y_plus_top']:.2f}")
 
-            return torch.tensor([avg_re_tau_bottom, avg_y_plus_bottom, avg_re_tau_top, avg_y_plus_top],
-                                device=self.lattice.device)
-        else:
-            # Während der Mittelungsphase nichts zurückgeben oder einen Platzhalter
-            return torch.zeros(4, device=self.lattice.device)
+            return torch.tensor([
+                avg["re_tau_bottom"], avg["y_plus_bottom"],
+                avg["re_tau_top"], avg["y_plus_top"]
+            ], device=self.lattice.device)
+
+        return torch.zeros(4, device=self.lattice.device)
