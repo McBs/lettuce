@@ -248,6 +248,15 @@ class Simulation:
         if self.flow.i == 0:
             self._report()
 
+        if self.dist == "mpi":
+            filename = "/home/mbecke3g/data/precomm_rank_" + str(dist.get_rank()) + ".pt"
+            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " Flow.f shape: " + str(self.flow.f.shape))
+            torch.save(self.flow.f, filename)
+        else:
+            filename = "/home/mbecke3g/data/precomm_serial" + ".pt"
+            print("Serial:  Flow.f shape: " + str(self.flow.f.shape))
+            torch.save(self.flow.f, filename)
+
         for _ in range(num_steps):
             self._collide_and_stream(self)
         #    if overlap_counter == overlap:

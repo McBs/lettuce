@@ -129,6 +129,8 @@ class TaylorGreenVortex(ExtFlow):
             print(dist.get_rank())
             print("------xyz-----")
             print(xyz)
+            filename = "/home/mbecke3g/data/meshgrif" + str(dist.get_rank()) + ".pt"
+            torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
             print("singel node function")
@@ -141,6 +143,8 @@ class TaylorGreenVortex(ExtFlow):
                         for n in range(self.stencil.d))
             print("------xyz (single)-----")
             print(xyz)
+            filename = "/home/mbecke3g/data/meshgrid_serial.pt"
+            torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):
