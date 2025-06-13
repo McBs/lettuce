@@ -566,17 +566,14 @@ class FreeSlipBoundary:  # Erbt von Boundary
 
 class WallFunctionBoundary:
     def __init__(
-            self, mask, lattice, viscosity, y_lattice=1.0,
-            kappa=0.41, B=5.2, switch_yplus=30,
-            max_iter=20, tol=1e-6, wall='bottom',
-            # NEU: Parameter für die interne Smagorinsky-Berechnung der Eddy-Viskosität
-            smagorinsky_constant=0.17,  # Typischer Smagorinsky-Konstant (z.B. 0.17)
-            delta_x=1.0  # Gitterzellgröße in Lattice Units, meist 1.0
+        self, mask, lattice, viscosity, y_lattice=1.0, # y_lattice=0.5 für Halfway BB
+        kappa=0.41, B=5.2, switch_yplus=30,
+        max_iter=20, tol=1e-6, wall='bottom', # 'bottom' oder 'top'
+        smagorinsky_constant=0.17, delta_x=1.0, # Parameter für interne Eddy-Viskosität
+        apply_wfb_correction=True # Flag, um die WFB-Korrektur zu aktivieren
     ):
-        self.mask = lattice.convert_to_tensor(mask)
+        self.mask = lattice.convert_to_tensor(mask) # Maske der WANDKNOTEN (mask_bb)
         self.lattice = lattice
-        # HIER BEHEBUNG von FEHLER 1: Viskosität für WF-Berechnung ist die molekulare.
-        # Die effektive Viskosität wird intern in __call__ berechnet.
         self.molecular_viscosity = viscosity
         self.y_lattice = y_lattice
         self.kappa = kappa
@@ -584,31 +581,50 @@ class WallFunctionBoundary:
         self.switch_yplus = switch_yplus
         self.max_iter = max_iter
         self.tol = tol
-        self.wall = wall
+        self.wall = wall # 'bottom' oder 'top'
 
-        # Parameter für die interne Eddy-Viskosität (Smagorinsky-Ansatz)
         self.smagorinsky_constant = smagorinsky_constant
         self.delta_x = delta_x
+        self.apply_wfb_correction = apply_wfb_correction
+
+        self.normal_axis = 1 # Für Wände normal zur Y-Achse
+        self.free_slip_map = self._precompute_free_slip_map()
+
+
+    def _precompute_free_slip_map(self):
+        c_vectors = self.lattice.stencil.e
+        free_slip_map = {}
+
+        # KORREKTUR HIER: Aufruf von Q, falls es eine Methode ist.
+        # Im Lettuce-Framework ist Q normalerweise ein Attribut, aber in Ihrem Test-Setup könnte es anders sein.
+        # Sicherer Weg: Überprüfen Sie den Typ oder rufen Sie es auf.
+        # Wenn Q ein Attribut ist: self.lattice.stencil.Q
+        # Wenn Q eine Methode ist: self.lattice.stencil.Q()
+        # Basierend auf dem Fehler, ist es eine Methode.
+        for i in range(self.lattice.stencil.Q()):  # <-- HIER IST DIE ANPASSUNG
+            current_vec = c_vectors[i]
+            free_slip_vec = np.copy(current_vec)
+            free_slip_vec[self.normal_axis] *= -1
+
+            idx_free_slip_partner = int(np.where(np.all(c_vectors == free_slip_vec, axis=1))[0].item())
+
+            free_slip_map[i] = idx_free_slip_partner
+
+        free_slip_map_array = np.array([free_slip_map[i] for i in range(self.lattice.stencil.Q())])  # <-- HIER AUCH
+        return torch.tensor(free_slip_map_array, device=self.lattice.device)
 
     def spalding_law(self, y_plus):
-        """
-        Löst das Spalding-Gesetz für u+ iterativ für ein gegebenes y+.
-        """
         u_plus = y_plus.clone()
         for _ in range(self.max_iter):
             ku = self.kappa * u_plus
             exp_ku = torch.exp(ku)
             f_val = u_plus - y_plus - (1 / self.kappa) * (
-                    exp_ku - 1 - ku - 0.5 * ku ** 2 - (1 / 6) * ku ** 3
+                exp_ku - 1 - ku - 0.5 * ku**2 - (1/6) * ku**3
             )
-            df_val = 1 - (exp_ku - 1 - ku - 0.5 * ku ** 2)
-
-            df_val = torch.where(torch.abs(df_val) < 1e-10, torch.tensor(1e-10, device=f_val.device, dtype=f_val.dtype),
-                                 df_val)
-
+            df_val = 1 - (exp_ku - 1 - ku - 0.5 * ku**2)
+            df_val = torch.where(torch.abs(df_val) < 1e-10, torch.tensor(1e-10, device=f_val.device, dtype=f_val.dtype), df_val)
             delta = f_val / df_val
             u_plus = u_plus - delta
-
             if torch.max(torch.abs(delta)) < self.tol:
                 break
         return u_plus
@@ -616,20 +632,9 @@ class WallFunctionBoundary:
     def compute_du_dy_near_wall(self, u_x, wall_axis=1, wall='bottom', dy_lu=1.0):
         """
         Berechnet ∂u/∂y (oder allgemein ∂u/∂n) an der ersten Fluidzelle nahe einer Wand.
-        Annahme: u_wall ≈ 0 (z.B. durch Bounce-Back).
-
-        Parameter:
-        - u_x: torch.Tensor, x-Komponente der Geschwindigkeit (shape: [Nx, Ny(, Nz)])
-        - wall_axis: int, Achse der Wand (1 = y, 0 = x, 2 = z)
-        - wall: 'bottom' oder 'top' (unten oder oben in positiver Achsenrichtung)
-        - dy_lu: Gitterabstand in LU (Abstand von Wand zur ersten Fluidzelle)
-
-        Rückgabe:
-        - du_dy_values_flat: 1D-Tensor mit abgeleiteten Werten (u_fluid / dy_lu) an den aktiven Punkten.
-        - active_mask: Boolesche Maske für das gesamte Feld, True an den aktiven Punkten.
+        Für Halfway BB ist der Abstand zur Wand (dy_lu) 0.5.
         """
         dims = u_x.ndim
-
         idx_fluid = [slice(None)] * dims
 
         if wall == 'bottom':
@@ -640,82 +645,131 @@ class WallFunctionBoundary:
             raise ValueError("wall must be 'bottom' or 'top'")
 
         u_fluid_layer = u_x[tuple(idx_fluid)]
-        du_dy_result_flat = (u_fluid_layer / dy_lu).flatten()  # Abflachen für spätere Maskierung
+        du_dy_result_flat = (u_fluid_layer / dy_lu).flatten()
 
         active_mask = torch.zeros_like(u_x, dtype=torch.bool)
         active_mask[tuple(idx_fluid)] = True
 
         return du_dy_result_flat, active_mask
 
-    def __call__(self, f):
-        rho = self.lattice.rho(f)
+    def _calculate_wfb_shear_terms(self, f):
+        """
+        Berechne die Schubspannungsterme τ_x und τ_z an Wandknoten gemäß Han et al. (2020).
+        Nutzt nur die erste Fluid-Schicht neben der Wand für du/dy.
+        """
+        # Stellen Sie sicher, dass rho, u_x, u_z die korrekte räumliche Form haben (gesqueezt)
+        rho = self.lattice.rho(f).squeeze()
         u = self.lattice.u(f)
-        u_x = u[0]
+        u_x = u[0].squeeze()
+        u_z = u[2].squeeze() if self.lattice.D == 3 else torch.zeros_like(u_x)
 
-        # 1. Berechne den Geschwindigkeitsgradienten (angenähert als u_x / dy_lu) an den aktiven Wandzellen
-        # Dies ist der `du_dy` in deinen originalen Fehlerbeschreibungen.
-        calculated_du_dy_values_flat, active_fluid_mask = self.compute_du_dy_near_wall(
-            u_x, wall_axis=1, wall=self.wall, dy_lu=self.y_lattice
-        )
+        dims = u_x.ndim
+        fluid_slice_indices = [slice(None)] * dims
 
-        # 2. BERECHNUNG DER EDDY-VISKOSITÄT (NU_TUR) MIT KÜNSTLICHEM SMAGORINSKY-MODELL HIER
-        # Da `du_dy_values_flat` hier den dominanten Gradienten darstellt,
-        # verwenden wir dessen Absolutwert als Betrag des Strain-Rate-Tensors |S|.
-        magnitude_of_gradient_flat = torch.abs(calculated_du_dy_values_flat)
+        if self.wall == "bottom":
+            idx_wall = 0
+            fluid_slice_indices[self.normal_axis] = 1  # erste Fluidzelle über Wand
+        elif self.wall == "top":
+            idx_wall = -1
+            fluid_slice_indices[self.normal_axis] = -2  # erste Fluidzelle unterhalb der Wand
 
-        # nu_tur = (Cs * Delta_x)^2 * |S|
-        nu_turbulent_wf_flat = (self.smagorinsky_constant * self.delta_x) ** 2 * magnitude_of_gradient_flat
+        # Extrahiere nur Fluidzellen direkt neben der Wand und FLATTEN SIE DIESE SOFORT
+        u_x_f = u_x[tuple(fluid_slice_indices)].flatten()  # <--- HIER .flatten()
+        u_z_f = u_z[tuple(fluid_slice_indices)].flatten()  # <--- HIER .flatten()
+        rho_f = rho[tuple(fluid_slice_indices)].flatten()  # <--- HIER .flatten()
 
-        # 3. Berechne die effektive Viskosität (NU_EFF) für die Wandfunktion
-        # nu_eff = molekulare_viskosität + nu_turbulent
-        effective_viscosity_for_wf_flat = self.molecular_viscosity + nu_turbulent_wf_flat
+        # du/dy ≈ u_x / dy (du_dy wird automatisch 1D, da u_x_f jetzt 1D ist)
+        du_dy = u_x_f / self.y_lattice
 
-        # Sicherstellen, dass die effektive Viskosität nicht unter die molekulare fällt
-        effective_viscosity_for_wf_flat = torch.max(effective_viscosity_for_wf_flat,
-                                                    self.molecular_viscosity * torch.ones_like(
-                                                        effective_viscosity_for_wf_flat))
+        # Eddy-Viscosity (Smagorinsky)
+        magnitude_of_gradient = torch.abs(du_dy)  # du_dy ist jetzt 1D
+        nu_turbulent = (self.smagorinsky_constant * self.delta_x) ** 2 * magnitude_of_gradient
+        nu_eff = torch.clamp(self.molecular_viscosity + nu_turbulent, min=self.molecular_viscosity)  # nu_eff ist 1D
 
-        # 4. Berechne die Reibgeschwindigkeit (u_tau) basierend auf dem Gradienten und der effektiven Viskosität
-        # HIER BEHEBUNG von FEHLER 3: u_tau verwendet jetzt effective_viscosity_for_wf_flat
-        u_tau_active_flat = torch.sqrt(torch.abs(effective_viscosity_for_wf_flat * calculated_du_dy_values_flat))
+        # Reibungsgeschwindigkeit und Schubspannung
+        # u_tau ist jetzt 1D, da nu_eff und du_dy 1D sind
+        u_tau = torch.sqrt(torch.abs(nu_eff * du_dy))
+        tau_mag = rho_f * u_tau ** 2  # <--- DIESE ZEILE SOLLTE JETZT FUNKTIONIEREN (alle sind 1D)!
 
-        # 5. Berechne den dimensionslosen Wandabstand (y_plus)
-        # HIER BEHEBUNG von FEHLER 4: y_plus verwendet jetzt effective_viscosity_for_wf_flat
-        effective_viscosity_for_wf_flat = torch.where(effective_viscosity_for_wf_flat < 1e-10,
-                                                      torch.tensor(1e-10, device=effective_viscosity_for_wf_flat.device,
-                                                                   dtype=effective_viscosity_for_wf_flat.dtype),
-                                                      effective_viscosity_for_wf_flat)
-        y_plus_active_flat = (self.y_lattice * u_tau_active_flat) / effective_viscosity_for_wf_flat
+        # u_mag ist jetzt 1D
+        u_mag = torch.sqrt(u_x_f ** 2 + u_z_f ** 2)
+        u_mag = torch.clamp(u_mag, min=1e-10)
 
-        # 6. Wende das Spalding-Gesetz an, um den Ziel-u+ zu erhalten
-        u_plus_turbulent_profile_flat = self.spalding_law(y_plus_active_flat)
+        # tau_x und tau_z sind jetzt 1D
+        tau_x = - (u_x_f / u_mag) * tau_mag
+        tau_z = - (u_z_f / u_mag) * tau_mag
 
-        # 7. Kombiniere den linearen Bereich mit dem turbulenten Profil (Wechsel bei switch_yplus)
-        u_plus_flat = torch.where(
-            y_plus_active_flat < self.switch_yplus,
-            y_plus_active_flat,
-            u_plus_turbulent_profile_flat
-        )
+        # Erstelle volle Felder für Projektion auf Wand
+        # Diese müssen jetzt von 1D-Daten gefüllt werden, die an die 2D/3D-Ebene angepasst werden.
+        tau_x_full = torch.zeros_like(u_x, device=u_x.device)  # u_x hier hat die (Nx,Ny,Nz) Form
+        tau_z_full = torch.zeros_like(u_z, device=u_z.device)
 
-        # 8. Berechne die Ziel-Geschwindigkeit (u_x_target) in Gittereinheiten
-        u_x_target_flat = u_plus_flat * u_tau_active_flat
+        # Schreibe auf Wandposition (Hier müssen die 1D-Werte korrekt in die 2D/3D Ebene geschrieben werden)
+        if self.lattice.D == 3:
+            if self.wall == "bottom":
+                tau_x_full[:, 0, :] = tau_x.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
+                tau_z_full[:, 0, :] = tau_z.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
+            else:  # top
+                tau_x_full[:, -1, :] = tau_x.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
+                tau_z_full[:, -1, :] = tau_z.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
+        elif self.lattice.D == 2:
+            if self.wall == "bottom":
+                tau_x_full[:, 0] = tau_x.reshape(u_x.shape[0])  # <-- .reshape() hier
+                tau_z_full[:, 0] = tau_z.reshape(u_x.shape[0])  # <-- .reshape() hier
+            else:  # top
+                tau_x_full[:, -1] = tau_x.reshape(u_x.shape[0])  # <-- .reshape() hier
+                tau_z_full[:, -1] = tau_z.reshape(u_x.shape[0])  # <-- .reshape() hier
+        else:
+            raise ValueError("Only 2D and 3D supported.")
 
-        # 9. Erstelle ein leeres Geschwindigkeitsfeld und fülle die x-Komponente an den aktiven Zellen
-        D = self.lattice.D
-        u_target = torch.zeros((D,) + u_x.shape, device=f.device, dtype=f.dtype)
-        u_target[0][active_fluid_mask] = u_x_target_flat
+        # Korrekturterme (Gleichung 14 aus Han et al.)
+        dt_over_2dy = 1 / (2.0 * self.y_lattice)
+        return dt_over_2dy * tau_x_full, dt_over_2dy * tau_z_full
 
-        # 10. Berechne die Gleichgewichts-Verteilungsfunktionen für die angepassten Geschwindigkeiten
-        feq = self.lattice.equilibrium(rho, u_target)
 
-        # 11. Wende die feq nur auf die Fluidzellen an, die von der Wandfunktion betroffen sind.
-        # HIER BEHEBUNG von FEHLER 5: active_mask.unsqueeze(0) statt self.mask
-        f = torch.where(active_fluid_mask.unsqueeze(0), feq, f)
+    def __call__(self, f):
+        # --- 1. Klonen der Originalverteilungen für spätere Korrektur ---
+        if self.wall == 'bottom':
+            f17_old = f[17,self.mask].clone()
+            f16_old = f[16,self.mask].clone()  # f[16]
+            f10_old = f[10,self.mask].clone()      # f[10]
+            f8_old  = f[8,self.mask].clone()       # f[8]
+        elif self.wall == 'top':
+            f15_old = f[15,self.mask].clone()      # f[15]
+            f18_old = f[18,self.mask].clone()      # f[18]
+            f7_old  = f[7,self.mask].clone()       # f[7]
+            f9_old  = f[9,self.mask].clone()      # f[9]
+        else:
+            raise ValueError("wall must be 'bottom' or 'top'")
+
+        # --- 2. Schubspannungsterme berechnen ---
+        tau_x_field, tau_z_field = self._calculate_wfb_shear_terms(f)  # ⬅️ vor dem Free-Slip!
+
+        # --- 3. Free-Slip anwenden ---
+        f[:, self.mask] = f[self.free_slip_map][:, self.mask]
+
+        # --- 4. Additive Korrektur mit geklonten Originalwerten ---
+        if self.wall == 'bottom':
+            f[15,self.mask] = f17_old + tau_z_field[self.mask]  # f[15] = f[17] + τ_z
+            f[18,self.mask] = f16_old - tau_z_field[self.mask]  # f[16] = f[16] - τ_z
+            f[7,self.mask]  = f10_old + tau_x_field[self.mask]  # f[7]  = f[10] + τ_x
+            f[9,self.mask] = f8_old - tau_x_field[self.mask]  # f[10] = f[8]  - τ_x
+
+        elif self.wall == 'top':
+            f[17,self.mask] = f15_old + tau_z_field[self.mask]  # f[16] = f[15] + τ_z
+            f[16,self.mask] = f18_old - tau_z_field[self.mask]  # f[15] = f[18] - τ_z
+            f[10,self.mask] = f7_old + tau_x_field[self.mask]  # f[10] = f[7]  + τ_x
+            f[8,self.mask]  = f9_old  - tau_x_field[self.mask]  # f[7]  = f[9]  - τ_x
+
         return f
+
 
     def make_no_collision_mask(self, f_shape):
         """
-        Diese Boundary-Methode liefert KEINE "No-Collision"-Maske.
+        Diese Boundary-Methode liefert die Maske der Wandknoten,
+        auf denen der Kollisionsschritt der Hauptsimulation übersprungen werden soll.
+        Diese Klasse operiert auf diesen Wandknoten selbst.
         """
-        # HIER BEHEBUNG von FEHLER 6: Korrekte Rückgabe für "keine Kollisionsmaske".
-        return torch.zeros(f_shape[1:], dtype=torch.bool, device=self.lattice.device)
+        assert self.mask.shape == f_shape[1:]
+        # KORREKTUR: Muss die Maske der eigenen Wandknoten (self.mask) zurückgeben.
+        return self.mask
