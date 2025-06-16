@@ -588,30 +588,6 @@ class WallFunctionBoundary:
         self.apply_wfb_correction = apply_wfb_correction
 
         self.normal_axis = 1 # Für Wände normal zur Y-Achse
-        self.free_slip_map = self._precompute_free_slip_map()
-
-
-    def _precompute_free_slip_map(self):
-        c_vectors = self.lattice.stencil.e
-        free_slip_map = {}
-
-        # KORREKTUR HIER: Aufruf von Q, falls es eine Methode ist.
-        # Im Lettuce-Framework ist Q normalerweise ein Attribut, aber in Ihrem Test-Setup könnte es anders sein.
-        # Sicherer Weg: Überprüfen Sie den Typ oder rufen Sie es auf.
-        # Wenn Q ein Attribut ist: self.lattice.stencil.Q
-        # Wenn Q eine Methode ist: self.lattice.stencil.Q()
-        # Basierend auf dem Fehler, ist es eine Methode.
-        for i in range(self.lattice.stencil.Q()):  # <-- HIER IST DIE ANPASSUNG
-            current_vec = c_vectors[i]
-            free_slip_vec = np.copy(current_vec)
-            free_slip_vec[self.normal_axis] *= -1
-
-            idx_free_slip_partner = int(np.where(np.all(c_vectors == free_slip_vec, axis=1))[0].item())
-
-            free_slip_map[i] = idx_free_slip_partner
-
-        free_slip_map_array = np.array([free_slip_map[i] for i in range(self.lattice.stencil.Q())])  # <-- HIER AUCH
-        return torch.tensor(free_slip_map_array, device=self.lattice.device)
 
     def spalding_law(self, y_plus):
         u_plus = y_plus.clone()
@@ -746,20 +722,34 @@ class WallFunctionBoundary:
         tau_x_field, tau_z_field = self._calculate_wfb_shear_terms(f)  # ⬅️ vor dem Free-Slip!
 
         # --- 3. Free-Slip anwenden ---
-        f[:, self.mask] = f[self.free_slip_map][:, self.mask]
+        f = torch.where(self.mask, f[self.lattice.stencil.opposite], f)  # "Punkte an denen self.mask, also randpunkte liegen, werden mit f[] bezogen und andere mit f"
 
         # --- 4. Additive Korrektur mit geklonten Originalwerten ---
         if self.wall == 'bottom':
             f[15,self.mask] = f17_old + tau_z_field[self.mask]  # f[15] = f[17] + τ_z
+            f[16,self.mask] = f17_old + tau_z_field[self.mask]  # f[15] = f[17] + τ_z
+
             f[18,self.mask] = f16_old - tau_z_field[self.mask]  # f[16] = f[16] - τ_z
+            f[8,self.mask] = f16_old - tau_z_field[self.mask]  # f[16] = f[16] - τ_z
+
             f[7,self.mask]  = f10_old + tau_x_field[self.mask]  # f[7]  = f[10] + τ_x
+            f[17,self.mask]  = f10_old + tau_x_field[self.mask]  # f[7]  = f[10] + τ_x
+
             f[9,self.mask] = f8_old - tau_x_field[self.mask]  # f[10] = f[8]  - τ_x
+            f[10,self.mask] = f8_old - tau_x_field[self.mask]  # f[10] = f[8]  - τ_x
 
         elif self.wall == 'top':
             f[17,self.mask] = f15_old + tau_z_field[self.mask]  # f[16] = f[15] + τ_z
+            f[18,self.mask] = f15_old + tau_z_field[self.mask]  # f[16] = f[15] + τ_z
+
             f[16,self.mask] = f18_old - tau_z_field[self.mask]  # f[15] = f[18] - τ_z
+            f[9,self.mask] = f18_old - tau_z_field[self.mask]  # f[15] = f[18] - τ_z
+
             f[10,self.mask] = f7_old + tau_x_field[self.mask]  # f[10] = f[7]  + τ_x
+            f[15,self.mask] = f7_old + tau_x_field[self.mask]  # f[10] = f[7]  + τ_x
+
             f[8,self.mask]  = f9_old  - tau_x_field[self.mask]  # f[7]  = f[9]  - τ_x
+            f[7,self.mask]  = f9_old  - tau_x_field[self.mask]  # f[7]  = f[9]  - τ_x
 
         return f
 
