@@ -536,8 +536,6 @@ class WallQuantities(Observable):
             avg_re_tau = np.mean(self.re_tau_history)
             avg_y_plus = np.mean(self.y_plus_history)
 
-            print(f"[WallQuantities - {self.wall}] Avg Re_tau: {avg_re_tau:.2f}, y+_avg: {avg_y_plus:.2f}")
-
             self.u_tau_history.clear()
             self.re_tau_history.clear()
             self.y_plus_history.clear()
