@@ -296,7 +296,13 @@ class SmagorinskyCollision:
             nu_t = self.constant ** 2 * S
             nu_eff = nu + nu_t
             self.tau_eff = nu_eff * 3.0 + 0.5
-        Si = 0 if self.force is None else self.force.source_term(u)
+        Si = 0
+        if self.force is not None:
+            # adaptiv berechnen basierend auf momentanen Geschwindigkeiten
+            if callable(self.force):
+                Si = self.force(u, f)  # adaptives Verhalten
+            else:
+                Si = self.force.source_term(u)  # klassisches Verhalten
         return f - 1.0 / self.tau_eff * (f - feq) + Si
 
 

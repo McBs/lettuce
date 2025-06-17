@@ -11,7 +11,7 @@ from packaging import version
 
 __all__ = ["Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
            "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter","EnergySpectrum2",
-           "SymmetryTopPercentageReporter","WallQuantities"]
+           "SymmetryTopPercentageReporter","WallQuantities", "GlobalMeanUXReporter"]
 
 
 class Observable:
@@ -438,10 +438,9 @@ class SymmetryTopPercentageReporter(Observable):
 
         return all_coords  # Jetzt gibt die Methode einen Tensor zurück
 
-
 class WallQuantities(Observable):
     def __init__(self, lattice, flow, averaging_steps=100, distance_to_wall=1.0,
-                 smagorinsky_constant=0.17, delta_x=1.0, normal_axis=1):
+                 smagorinsky_constant=0.17, delta_x=1.0, normal_axis=1, wall: str = 'bottom'):
         super().__init__(lattice, flow)
         self.rho_lu = 1.0
         self.molecular_nu_lu = flow.units.viscosity_lu
@@ -450,40 +449,48 @@ class WallQuantities(Observable):
         self.smagorinsky_constant = smagorinsky_constant
         self.delta_x = delta_x
         self.normal_axis = normal_axis
-        self.distance_to_wall = distance_to_wall
+        self.wall = wall
 
+        if self.wall == 'bottom':
+            self.fluid_layer_idx = 1
+            self.wall_layer_idx = 0
+        elif self.wall == 'top':
+            self.fluid_layer_idx = flow.resolution_y - 2
+            self.wall_layer_idx = flow.resolution_y - 1
+        else:
+            raise ValueError(f"Unsupported wall type: {self.wall}. Must be 'bottom' or 'top'.")
+
+        self.distance_to_wall = distance_to_wall
         self.averaging_steps = averaging_steps
         self.current_step = 0
+
+        self.u_tau_history = []
+        self.re_tau_history = []
+        self.y_plus_history = []
+
         self.ndim = len(flow.grid)
 
-        self.histories = {
-            "bottom": {"u_tau": [], "re_tau": [], "y_plus": []},
-            "top": {"u_tau": [], "re_tau": [], "y_plus": []},
-        }
+        # Init last u_tau mean to 0.0
+        self.last_u_tau_spatial_mean = 0.0
 
-        self.wall_indices = {
-            "bottom": 1,
-            "top": flow.resolution_y - 2,
-        }
-
-    def _evaluate_wall(self, f, wall: str):
+    def __call__(self, f):
         u = self.lattice.u(f)
         rho = self.lattice.rho(f).squeeze()
         u_x = u[0].squeeze()
         u_z = u[2].squeeze() if self.ndim == 3 else torch.zeros_like(u_x)
 
-        idx = self.wall_indices[wall]
         dims = u_x.ndim
-        mask = torch.zeros_like(u_x, dtype=torch.bool)
-        slices = [slice(None)] * dims
-        slices[self.normal_axis] = idx
-        mask[tuple(slices)] = True
+        fluid_slice_indices = [slice(None)] * dims
+        fluid_slice_indices[self.normal_axis] = self.fluid_layer_idx
+
+        mask = torch.zeros_like(u_x, dtype=torch.bool, device=u_x.device)
+        mask[tuple(fluid_slice_indices)] = True
 
         rho_f = rho[mask]
         u_x_f = u_x[mask]
         u_z_f = u_z[mask]
 
-        sign = 1.0 if wall == "bottom" else -1.0
+        sign = 1.0 if self.wall == 'bottom' else -1.0
         du_dn = sign * u_x_f / self.distance_to_wall
 
         magnitude_of_gradient = torch.abs(du_dn)
@@ -494,51 +501,68 @@ class WallQuantities(Observable):
         tau_w_magnitude = rho_f * u_tau_from_gradient ** 2
 
         u_mag_f = torch.sqrt(u_x_f ** 2 + u_z_f ** 2)
-        dir_x = torch.where(u_mag_f > 1e-10, u_x_f / u_mag_f, torch.tensor(0.0, device=u_x_f.device))
-        dir_z = torch.where(u_mag_f > 1e-10, u_z_f / u_mag_f, torch.tensor(0.0, device=u_z_f.device))
+        dir_x = torch.where(u_mag_f > 1e-10, u_x_f / u_mag_f, torch.tensor(0.0, device=u_mag_f.device))
+        dir_z = torch.where(u_mag_f > 1e-10, u_z_f / u_mag_f, torch.tensor(0.0, device=u_mag_f.device))
 
-        tau_x = -dir_x * tau_w_magnitude
-        tau_z = -dir_z * tau_w_magnitude
+        tau_w_x = - dir_x * tau_w_magnitude
+        tau_w_z = - dir_z * tau_w_magnitude
 
         if self.ndim == 2:
-            tau = tau_x
+            tau_mag = tau_w_x
+        elif self.ndim == 3:
+            tau_mag = torch.sqrt(tau_w_x ** 2 + tau_w_z ** 2)
         else:
-            tau = torch.sqrt(tau_x ** 2 + tau_z ** 2)
+            raise ValueError(f"Unsupported dimensionality: {self.ndim}")
 
-        u_tau = torch.sqrt(torch.abs(tau) / self.rho_lu)
-        mean_nu = torch.mean(nu_effective).item()
-        mean_nu = max(mean_nu, 1e-10)
+        u_tau_current = torch.sqrt(torch.abs(tau_mag) / self.rho_lu)
 
-        re_tau = u_tau * self.half_channel_height_lu / mean_nu
-        y_plus = self.distance_to_wall * u_tau / mean_nu
+        mean_nu_eff = torch.mean(nu_effective).item()
+        mean_nu_eff = max(mean_nu_eff, 1e-10)
 
-        return torch.mean(u_tau).item(), torch.mean(re_tau).item(), torch.mean(y_plus).item()
+        re_tau = u_tau_current * self.half_channel_height_lu / mean_nu_eff
+        y_plus = self.distance_to_wall * u_tau_current / mean_nu_eff
 
-    def __call__(self, f):
-        for wall in ["bottom", "top"]:
-            u_tau, re_tau, y_plus = self._evaluate_wall(f, wall)
-            self.histories[wall]["u_tau"].append(u_tau)
-            self.histories[wall]["re_tau"].append(re_tau)
-            self.histories[wall]["y_plus"].append(y_plus)
+        self.u_tau_history.append(torch.mean(u_tau_current).item())
+        self.re_tau_history.append(torch.mean(re_tau).item())
+        self.y_plus_history.append(torch.mean(y_plus).item())
 
         self.current_step += 1
 
+        # Speichere IMMER den letzten Wert – für AdaptiveForce wichtig
+        self.last_u_tau_spatial_mean = torch.mean(u_tau_current).item()
+
         if self.current_step >= self.averaging_steps:
-            avg = {}
-            for wall in ["bottom", "top"]:
-                avg[f"re_tau_{wall}"] = np.mean(self.histories[wall]["re_tau"])
-                avg[f"y_plus_{wall}"] = np.mean(self.histories[wall]["y_plus"])
-                self.histories[wall]["u_tau"].clear()
-                self.histories[wall]["re_tau"].clear()
-                self.histories[wall]["y_plus"].clear()
+            avg_u_tau = np.mean(self.u_tau_history)
+            avg_re_tau = np.mean(self.re_tau_history)
+            avg_y_plus = np.mean(self.y_plus_history)
 
+            print(f"[WallQuantities - {self.wall}] Avg Re_tau: {avg_re_tau:.2f}, y+_avg: {avg_y_plus:.2f}")
+
+            self.u_tau_history.clear()
+            self.re_tau_history.clear()
+            self.y_plus_history.clear()
             self.current_step = 0
-            print(f"[WallQuantities] Avg Re_tau_bottom: {avg['re_tau_bottom']:.2f}, y+_bottom: {avg['y_plus_bottom']:.2f}")
-            print(f"[WallQuantities] Avg Re_tau_top:    {avg['re_tau_top']:.2f}, y+_top:    {avg['y_plus_top']:.2f}")
 
-            return torch.tensor([
-                avg["re_tau_bottom"], avg["y_plus_bottom"],
-                avg["re_tau_top"], avg["y_plus_top"]
-            ], device=self.lattice.device)
+            return torch.tensor([avg_re_tau, avg_y_plus], device=self.lattice.device)
+        else:
+            return torch.zeros(2, device=self.lattice.device)
 
-        return torch.zeros(4, device=self.lattice.device)
+    def utau(self):
+        """
+        Gibt den zuletzt gemittelten u_tau-Wert zurück.
+        """
+        return self.last_u_tau_spatial_mean
+
+class GlobalMeanUXReporter(Observable):
+    def __init__(self, lattice, flow):
+        super().__init__(lattice, flow)
+        self.current_mean_ux_lu = torch.tensor(0.0, device=self.lattice.device)
+
+    def __call__(self, f):
+        u_field_lu = self.lattice.u(f)  # u_field_lu: shape (3, Nx, Ny, Nz)
+        u_x_spatial = u_field_lu[0]     # Nur die x-Komponente
+        self.current_mean_ux_lu = torch.mean(u_x_spatial)
+        return self.current_mean_ux_lu
+
+    def value(self):
+        return self.current_mean_ux_lu

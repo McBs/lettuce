@@ -568,7 +568,7 @@ class WallFunctionBoundary:
     def __init__(
         self, mask, lattice, viscosity, y_lattice=1.0, # y_lattice=0.5 für Halfway BB
         kappa=0.41, B=5.2, switch_yplus=30,
-        max_iter=20, tol=1e-6, wall='bottom', # 'bottom' oder 'top'
+        max_iter=50, tol=1e-8, wall='bottom', # 'bottom' oder 'top'
         smagorinsky_constant=0.17, delta_x=1.0, # Parameter für interne Eddy-Viskosität
         apply_wfb_correction=True # Flag, um die WFB-Korrektur zu aktivieren
     ):

@@ -209,7 +209,7 @@ class ChannelFlow3D(object):
         u[0] = u_base * (1 - self.mask.astype(float))  # u_x = Basisströmung
 
         # --- 🎛️ Sinusmoden-Störung (3D) ---
-        A_sin = 1  # 5% Amplitude
+        A_sin = 0.5  # 5% Amplitude
         Lx, Ly, Lz = xg.max(), yg.max(), zg.max()
         sinus_modes = [(1, 1, 1), (2, 2, 3), (3, 2, 1)]
 
@@ -316,3 +316,194 @@ class ChannelFlow3D(object):
         # mit dem 'collision_model' aktualisiert werden, wie wir es besprochen haben.
         return bb
 
+
+class ChannelFlow3DV2(object):
+    # ... (Ihre __init__, mask Property und grid Property bleiben unverändert) ...
+
+    def __init__(self, resolution_x, resolution_y, resolution_z, reynolds_number, mach_number, lattice, char_length_lu,
+                 boundary):
+        self.resolution_x = resolution_x
+        self.resolution_y = resolution_y
+        self.resolution_z = resolution_z
+
+        self.units = UnitConversion(
+            lattice,
+            reynolds_number=reynolds_number,
+            mach_number=mach_number,
+            characteristic_length_lu=char_length_lu,
+            characteristic_length_pu=1,
+            characteristic_velocity_pu=1)
+
+        self._mask = np.zeros(shape=(self.resolution_x, self.resolution_y, self.resolution_z), dtype=bool)
+        self._boundary = boundary
+
+        # KORREKTUR HIER: self.ndim definieren
+        # Die Dimension (2 oder 3) ist im Lattice-Objekt als Attribut D verfügbar.
+        self.ndim = lattice.D
+
+    @property
+    def mask(self):
+        return self._mask
+
+    @mask.setter
+    def mask(self, m):
+        assert isinstance(m, np.ndarray) and m.shape == (self.resolution_x, self.resolution_y, self.resolution_z)
+        self._mask = m.astype(bool)
+
+    def initial_solution(self, grid):
+        xg, yg, zg = grid
+        p = np.ones_like(xg)[None, ...]
+        nx, ny, nz = self.resolution_x, self.resolution_y, self.resolution_z
+
+        u = np.zeros((3, nx, ny, nz))
+
+        # --- 📐 Power-law Profil (in x-Richtung) für turbulente Kanalströmung ---
+        # Umrechnung von y in y+
+        # y_coords (physical units) von yg (shape: Nx, Ny, Nz) -> y_pu (Ny,)
+        # Wir brauchen nur die y-Achse als 1D-Array, also z.B. yg[0, :, 0]
+        # self.ndim ist jetzt im __init__ definiert.
+        y_coords_pu = yg[0, :, 0] if self.ndim == 3 else yg[0, :]
+
+        # Holen der molekularen Viskosität in PU
+        nu_pu = self.units.viscosity_pu
+
+        # Ziel-Reibgeschwindigkeit aus dem Paper (m/s)
+        u_tau_target_pu = 0.0509
+
+        # Umrechnung der y-Koordinaten in y+
+        y_plus_coords = (y_coords_pu * u_tau_target_pu) / nu_pu
+
+        # Implementierung des Power-law Profils
+        u_x_profile_pu = np.zeros_like(y_plus_coords)
+
+        # Parameter für Power-law (Werner and Wengle)
+        y_c_plus = 11.81
+        m_exponent = 1 / 7
+        C_m_constant = 8.3
+
+        # Wenden Sie das Power-law Profil auf y_plus_coords an
+        for i, yp_val in enumerate(y_plus_coords):
+            if yp_val < y_c_plus:
+                u_x_profile_pu[i] = yp_val
+            else:
+                u_x_profile_pu[i] = C_m_constant * (yp_val ** m_exponent)
+
+                # Skalieren zu tatsächlicher Geschwindigkeit in LU
+        u_base_pu = u_x_profile_pu * u_tau_target_pu
+        u_base_lu = self.units.convert_velocity_to_lu(u_base_pu)
+
+        # Setzen der Basis-Geschwindigkeit für u_x-Komponente
+        # u_base_lu hat Form (Ny,). Wir müssen es auf (Nx, Ny, Nz) erweitern.
+        if self.ndim == 3:
+            # u[0] hat (Ny,) -> np.newaxis macht es (1,Ny) -> np.newaxis macht es (1,Ny,1)
+            # Dann tile auf (Nx, 1, Nz)
+            u[0] = u_base_lu[np.newaxis, :, np.newaxis] * np.ones((nx, ny, nz), dtype=np.float64)
+            # Alternativ: Broadcast mit unsqueeze in torch, dann zu numpy
+            # u_base_lu_3d = u_base_lu.reshape(1, ny, 1).repeat(nx, 1, nz)
+            # u[0] = u_base_lu_3d.numpy() * (1 - self.mask.astype(float))
+            # ODER den broadcast so nutzen:
+            # u[0] = (u_base_lu[np.newaxis, :, np.newaxis] * (1 - self.mask.astype(float))) # Original
+            # Der Fehler war hier, dass u[0] schon (nx,ny,nz) ist.
+            # Richtig so: u[0][:,:,:] = u_base_lu[np.newaxis, :, np.newaxis] * (1 - self.mask.astype(float))
+            u[0][:, :, :] = u_base_lu[np.newaxis, :, np.newaxis]  # broadcast to (nx, ny, nz)
+            u[0] *= (1 - self.mask.astype(float))  # Apply mask
+        elif self.ndim == 2:
+            u[0][:, :] = u_base_lu[np.newaxis, :]  # broadcast to (nx, ny)
+            u[0] *= (1 - self.mask.astype(float))  # Apply mask
+
+        # --- 🎛️ Sinusmoden-Störung (3D, 15% Zufallsfluktuationen) ---
+        rand_noise_amplitude = 0.15 * np.max(u_base_lu)
+        random_perturbation = (np.random.rand(3, nx, ny, nz) - 0.5) * 2 * rand_noise_amplitude
+
+        # Wandgewichtung anwenden (wie in Ihrem Code)
+        y_normalized = yg / yg.max()
+        z_normalized = zg / zg.max()
+        y_weight = np.exp(-((y_normalized - 0.0) / 0.2) ** 2) + np.exp(-((y_normalized - 1.0) / 0.2) ** 2)
+        y_weight /= np.maximum(y_weight.max(), 1e-10)
+        z_weight = np.exp(-((z_normalized - 0.5) / 0.3) ** 2)
+        z_weight /= np.maximum(z_weight.max(), 1e-10)
+        weight = y_weight * z_weight
+        random_perturbation *= weight[None, :, :, :]
+
+        # FFT-Filterung (wie Ihr Code es tut)
+        k0 = np.sqrt(nx ** 2 + ny ** 2 + nz ** 2)
+        psi_filtered = np.empty_like(random_perturbation)
+        for d in range(3):
+            psi_hat = np.fft.fftn(random_perturbation[d])
+            kx = np.fft.fftfreq(nx).reshape(-1, 1, 1)
+            ky = np.fft.fftfreq(ny).reshape(1, -1, 1)
+            kz = np.fft.fftfreq(nz).reshape(1, 1, -1)
+            kabs = np.sqrt((kx * nx) ** 2 + (ky * ny) ** 2 + (kz * nz) ** 2)
+            filter_mask = np.exp(-kabs / (0.3 * k0))
+            psi_hat *= filter_mask
+            psi_hat[0, 0, 0] = 0
+            psi_filtered[d] = np.real(np.fft.ifftn(psi_hat))
+
+        u_psi_turbulent_like = np.zeros_like(u)
+        u_psi_turbulent_like[0] = np.gradient(psi_filtered[2], axis=1) - np.gradient(psi_filtered[1], axis=2)
+        u_psi_turbulent_like[1] = np.gradient(psi_filtered[0], axis=2) - np.gradient(psi_filtered[2], axis=0)
+        u_psi_turbulent_like[2] = np.gradient(psi_filtered[1], axis=0) - np.gradient(psi_filtered[0], axis=1)
+
+        # Normierung der Störung
+        umax_psi = np.max(np.sqrt(np.sum(u_psi_turbulent_like ** 2, axis=0)))
+        if umax_psi > 1e-10:
+            u_psi_turbulent_like *= (rand_noise_amplitude / umax_psi)
+
+        u += u_psi_turbulent_like
+
+        # --- Nullsetzen der Wandgeschwindigkeiten (No-Slip für die Initialisierung) ---
+        u[:, :, 0, :] = 0.0  # untere Wand (y=0)
+        u[:, :, -1, :] = 0.0  # obere Wand (y=Ny-1)
+
+        return p, u
+
+    @property
+    def grid(self):
+        # ... (bleibt unverändert) ...
+        stop_x = self.resolution_x / self.units.characteristic_length_lu
+        stop_y = self.resolution_y / self.units.characteristic_length_lu
+        stop_z = self.resolution_z / self.units.characteristic_length_lu
+
+        x = np.linspace(0, stop_x, num=self.resolution_x, endpoint=False)
+        y = np.linspace(0, stop_y, num=self.resolution_y, endpoint=False)
+        z = np.linspace(0, stop_z, num=self.resolution_z, endpoint=False)
+
+        return np.meshgrid(x, y, z, indexing='ij')
+    @property
+    def boundaries(self):
+        # ... (bleibt unverändert) ...
+        x, y, z = self.grid
+        Ny = y.shape[1]
+
+        mask_bottom_wall = np.zeros_like(x, dtype=bool)
+        mask_bottom_wall[:, 0, :] = True
+
+        mask_top_wall = np.zeros_like(x, dtype=bool)
+        mask_top_wall[:, Ny - 1, :] = True
+
+        smagorinsky_constant = 0.17
+        delta_x = 1.0
+
+        wffsb_bottom = WallFunctionBoundary(  # Class name as you use it
+            mask=mask_bottom_wall,
+            lattice=self.units.lattice,
+            viscosity=self.units.viscosity_lu,
+            y_lattice=1.0,  # Fullway BB base
+            wall='bottom',
+            smagorinsky_constant=smagorinsky_constant,
+            delta_x=delta_x,
+            apply_wfb_correction=True
+        )
+
+        wffsb_top = WallFunctionBoundary(  # Class name as you use it
+            mask=mask_top_wall,
+            lattice=self.units.lattice,
+            viscosity=self.units.viscosity_lu,
+            y_lattice=1.0,  # Fullway BB base
+            wall='top',
+            smagorinsky_constant=smagorinsky_constant,
+            delta_x=delta_x,
+            apply_wfb_correction=True
+        )
+
+        return [wffsb_bottom, wffsb_top]
