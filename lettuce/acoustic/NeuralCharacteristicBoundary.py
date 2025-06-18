@@ -13,7 +13,7 @@ from plot import *
 from torch.cuda.amp import GradScaler
 from torch.amp import autocast
 import torch.optim as optim
-from simulation_nbc import *
+from types import MethodType
 
 
 
@@ -27,7 +27,8 @@ def run(context, config, K, dataset, dataset_nr, t_lu):
                     xc=config["xc"],
                     distanceFromRight=200+config["extension"])
     collision = lt.BGKCollision(tau=flow.units.relaxation_parameter_lu)
-    simulation = SimulationNBC(flow=flow, collision=collision, reporter=[])
+    simulation = lt.Simulation(flow=flow, collision=collision, reporter=[])
+    simulation._collide = MethodType(_collide, simulation)
     if config["reporter"]:
         # TotalPressureReporter = TotalPressure(context=context, interval=int(flow.units.convert_time_to_lu(0.05)), slices=slices_2)
         # simulation.reporter.append(TotalPressureReporter)
@@ -158,7 +159,7 @@ if __name__ == "__main__":
     parser.add_argument("--Ma", type=float, default=0.3, help="")
     parser.add_argument("--xc", type=int, default=150)
     parser.add_argument("--t_lu", type=int, default=500)
-    parser.add_argument("--load_dataset", action="store_true", default=True)
+    parser.add_argument("--load_dataset", action="store_true", default=False)
     parser.add_argument("--load_dataset_idx", type=int, default=0)
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-55.00_000055.pt")
     # parser.add_argument("--load_dataset_path", type=str, default="datasets/dataset_mach-0.30_interv-210.00_000210.pt")

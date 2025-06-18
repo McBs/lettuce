@@ -12,12 +12,14 @@ from matplotlib.patches import Rectangle
 from typing import List, Optional, Any, Tuple, Union, Callable # For type hinting
 import glob # For finding files
 import re   # For parsing filenames (optional, can use string splitting too)
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import plopy
 
 
 __all__ = [
     "Transform", "D2Q9Dellar", "ShiftedSigmoid", "HDF5Reporter", "LettuceDataset", "WVelocity", "TotalPressure",
     "Acoustic", "CharacteristicBoundary", "plotU", "plotRho", "TensorReporter", "TensorDataset", "plot_velocity_density",
-    "Reflection"
+    "Reflection", "ZouAndHe", "PlotNeuralNetwork", "_collide"
 ]
 
 class Transform:
@@ -465,7 +467,61 @@ class Acoustic(ExtFlow):
                                   velocity=[self.units.convert_velocity_to_lu(self.velocity_init), 0],
                                   K=self.K,
                                   mach=self.units.mach_number)
+        # Outlet = ZouAndHe(context=self.context,
+        #                   mask=mask_outlet,
+        #                   velocity=[self.units.convert_velocity_to_lu(self.velocity_init), 0],
+        #                   K=self.K,
+        #                   mach=self.units.mach_number)
         return [Inlet, Outlet]
+
+
+class ZouAndHe(lt.Boundary):
+    """Sets distributions on this boundary to equilibrium with predefined
+    velocity and pressure.
+    Note that this behavior is generally not compatible with the Navier-Stokes
+    equations. This boundary condition should only be used if no better
+    options are available.
+    """
+
+    def __init__(self, context: 'Context', mask, velocity, pressure=0, K=0, mach=None):
+        velocity = [velocity] if not hasattr(velocity, '__len__') else velocity
+        self.velocity = context.convert_to_tensor(velocity)
+        self.pressure = context.convert_to_tensor(pressure)
+        self._mask = mask
+        self.mach = mach
+        self.cs = context.convert_to_tensor(np.sqrt(1 / 3))
+        self.cs2 = context.convert_to_tensor(1 / 3)
+        self.Rc_inv = 1/torch.sqrt(context.convert_to_tensor(10))
+        self._inv_two_cs2 = context.convert_to_tensor(1 / (2 * self.cs2))
+        self._three_half = context.convert_to_tensor(1.5)
+        self.init = True
+
+    def __call__(self, flow: 'Flow'):
+        f_local = flow.f[:,-1,:]
+        rho = 1
+        ux0 = -1 + (f_local[0]+f_local[2]+f_local[4]+2*(f_local[1]+f_local[5]+f_local[8])) / rho
+        ru = rho * ux0
+        f_local[6] = f_local[8] - (1/6) * ru + (1/2)*(f_local[4]-f_local[2])
+        f_local[3] = f_local[1] - (2/3) * ru
+        f_local[7] = f_local[5] - (1/6) * ru + (1/2)*(f_local[2]-f_local[4])
+
+        f_out = flow.f.clone()
+        f_out[:, -1, :] = f_local
+        return f_out
+
+    def make_no_collision_mask(self, shape: List[int], context: 'Context'
+                               ) -> Optional[torch.Tensor]:
+        pass
+
+    def make_no_streaming_mask(self, shape: List[int], context: 'Context'
+                               ) -> Optional[torch.Tensor]:
+        pass
+
+    def native_available(self) -> bool:
+        return False
+
+    def native_generator(self, index: int) -> 'NativeBoundary':
+        return None
 
 class CharacteristicBoundary(lt.Boundary):
     """Sets distributions on this boundary to equilibrium with predefined
@@ -1076,3 +1132,36 @@ def plot_velocity_density(f, flow, config, slices=[slice(None, None), slice(None
 # Example Usage (replace with your actual objects):
 # Assuming you have f, flow, slices, config defined
 # plot_velocity_density(f_tensor, your_flow_object, your_slices, your_config, rectangle=True)
+
+class PlotNeuralNetwork(plopy.Plot):
+
+    def loss_function(self, loss=None, epochs=None, name="loss_function"):
+        fig, ax1 = plt.subplots()
+        ax1.grid(visible=True, which='major', axis='y')
+        ax1.tick_params(axis="y", direction="in", pad=0)
+        ax1.set_title(r"\noindent\footnotesize{$L$}", ha='right')
+        ax1.set_title(r"\noindent\textbf{Loss} \textendash{} \footnotesize{TGV3D}", loc='left', )
+        ax1.set_title("L", ha='right')
+        ax1.set_title("Loss", loc='left', )
+        ax1.set_xlabel("Epochs", style='italic', color='#525254')
+
+        DarkGray = "#222222"
+        epochs = np.arange(1,len(loss)+1) if epochs is None else epochs
+        plt.plot(epochs, loss, linewidth=1.5, color=DarkGray, label=r'Loss')
+
+        self.standard_export(name=name,
+                             png=False,
+                             pdf=True)
+        export = False
+        if export:
+            return fig, ax1
+
+def _collide(self):
+    # for i, boundary in enumerate(self.boundaries[1:], start=1):
+    #     torch.where(torch.eq(self.no_collision_mask, i),
+    #                 boundary(self.flow), self.flow.f, out=self.flow.f)
+
+    for boundary in self.boundaries[1:]:
+        self.flow.f = boundary(self.flow)
+    self.flow.f = self.collision(self.flow)
+    return self.flow.f
