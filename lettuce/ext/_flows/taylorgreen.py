@@ -60,7 +60,7 @@ class TaylorGreenVortex(ExtFlow):
             print("Multi node function")
             print(self.stencil.d)
             
-            endpoints = [torch.pi * (1 - 1 / n ) for n in
+            endpoints = [2 * torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
             #create linspace for x-axis
             x_axis = torch.linspace(0, endpoints[0],
