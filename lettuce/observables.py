@@ -535,7 +535,7 @@ class WallQuantities(Observable):
             avg_u_tau = np.mean(self.u_tau_history)
             avg_re_tau = np.mean(self.re_tau_history)
             avg_y_plus = np.mean(self.y_plus_history)
-
+            print(self.wall + ":Retau:"+ str(avg_re_tau) + "y+:" + str(avg_y_plus))
             self.u_tau_history.clear()
             self.re_tau_history.clear()
             self.y_plus_history.clear()
@@ -564,3 +564,5 @@ class GlobalMeanUXReporter(Observable):
 
     def value(self):
         return self.current_mean_ux_lu
+
+

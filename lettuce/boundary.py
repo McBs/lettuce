@@ -630,10 +630,10 @@ class WallFunctionBoundary:
 
     def _calculate_wfb_shear_terms(self, f):
         """
-        Berechne die Schubspannungsterme τ_x und τ_z an Wandknoten gemäß Han et al. (2020).
-        Nutzt nur die erste Fluid-Schicht neben der Wand für du/dy.
+        Berechnet die Wand-Schubspannungsterme tau_x und tau_z auf Basis von Spalding's Law.
+        Diese Version folgt exakt Han et al. (2020) und löst u_tau iterativ.
         """
-        # Stellen Sie sicher, dass rho, u_x, u_z die korrekte räumliche Form haben (gesqueezt)
+        # Lokale Felder extrahieren
         rho = self.lattice.rho(f).squeeze()
         u = self.lattice.u(f)
         u_x = u[0].squeeze()
@@ -643,65 +643,60 @@ class WallFunctionBoundary:
         fluid_slice_indices = [slice(None)] * dims
 
         if self.wall == "bottom":
-            idx_wall = 0
             fluid_slice_indices[self.normal_axis] = 1  # erste Fluidzelle über Wand
         elif self.wall == "top":
-            idx_wall = -1
             fluid_slice_indices[self.normal_axis] = -2  # erste Fluidzelle unterhalb der Wand
+        else:
+            raise ValueError("wall must be 'bottom' or 'top'")
 
-        # Extrahiere nur Fluidzellen direkt neben der Wand und FLATTEN SIE DIESE SOFORT
-        u_x_f = u_x[tuple(fluid_slice_indices)].flatten()  # <--- HIER .flatten()
-        u_z_f = u_z[tuple(fluid_slice_indices)].flatten()  # <--- HIER .flatten()
-        rho_f = rho[tuple(fluid_slice_indices)].flatten()  # <--- HIER .flatten()
+        # Geschwindigkeit und Dichte in erster Fluidzelle neben Wand
+        u_x_f = u_x[tuple(fluid_slice_indices)].flatten()
+        u_z_f = u_z[tuple(fluid_slice_indices)].flatten()
+        rho_f = rho[tuple(fluid_slice_indices)].flatten()
 
-        # du/dy ≈ u_x / dy (du_dy wird automatisch 1D, da u_x_f jetzt 1D ist)
-        du_dy = u_x_f / self.y_lattice
+        # Betrag der Geschwindigkeit
+        u_mag = torch.sqrt(u_x_f ** 2 + u_z_f ** 2).clamp(min=1e-10)
 
-        # Eddy-Viscosity (Smagorinsky)
-        magnitude_of_gradient = torch.abs(du_dy)  # du_dy ist jetzt 1D
-        nu_turbulent = (self.smagorinsky_constant * self.delta_x) ** 2 * magnitude_of_gradient
-        nu_eff = torch.clamp(self.molecular_viscosity + nu_turbulent, min=self.molecular_viscosity)  # nu_eff ist 1D
+        # Geschätztes y_plus für initiale u_tau
+        y = self.y_lattice
+        nu = self.molecular_viscosity
+        y_plus_est = y * u_mag / nu
 
-        # Reibungsgeschwindigkeit und Schubspannung
-        # u_tau ist jetzt 1D, da nu_eff und du_dy 1D sind
-        u_tau = torch.sqrt(torch.abs(nu_eff * du_dy))
-        tau_mag = rho_f * u_tau ** 2  # <--- DIESE ZEILE SOLLTE JETZT FUNKTIONIEREN (alle sind 1D)!
+        # Iterativer Aufruf der Spalding-Gleichung
+        u_plus = self.spalding_law(y_plus_est)  # ergibt u^+ (nicht u_tau!)
+        u_tau = (u_mag / u_plus).clamp(min=1e-8)
 
-        # u_mag ist jetzt 1D
-        u_mag = torch.sqrt(u_x_f ** 2 + u_z_f ** 2)
-        u_mag = torch.clamp(u_mag, min=1e-10)
+        # tau_w = rho * u_tau^2
+        tau_mag = rho_f * u_tau ** 2
 
-        # tau_x und tau_z sind jetzt 1D
+        # Richtungsgerechte Aufspaltung
         tau_x = - (u_x_f / u_mag) * tau_mag
         tau_z = - (u_z_f / u_mag) * tau_mag
 
-        # Erstelle volle Felder für Projektion auf Wand
-        # Diese müssen jetzt von 1D-Daten gefüllt werden, die an die 2D/3D-Ebene angepasst werden.
-        tau_x_full = torch.zeros_like(u_x, device=u_x.device)  # u_x hier hat die (Nx,Ny,Nz) Form
+        # Erstelle vollständige Felder für Projektion auf die Wand
+        tau_x_full = torch.zeros_like(u_x, device=u_x.device)
         tau_z_full = torch.zeros_like(u_z, device=u_z.device)
 
-        # Schreibe auf Wandposition (Hier müssen die 1D-Werte korrekt in die 2D/3D Ebene geschrieben werden)
         if self.lattice.D == 3:
             if self.wall == "bottom":
-                tau_x_full[:, 0, :] = tau_x.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
-                tau_z_full[:, 0, :] = tau_z.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
-            else:  # top
-                tau_x_full[:, -1, :] = tau_x.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
-                tau_z_full[:, -1, :] = tau_z.reshape(u_x.shape[0], u_x.shape[2])  # <-- .reshape() hier
+                tau_x_full[:, 0, :] = tau_x.reshape(u_x.shape[0], u_x.shape[2])
+                tau_z_full[:, 0, :] = tau_z.reshape(u_x.shape[0], u_x.shape[2])
+            else:
+                tau_x_full[:, -1, :] = tau_x.reshape(u_x.shape[0], u_x.shape[2])
+                tau_z_full[:, -1, :] = tau_z.reshape(u_x.shape[0], u_x.shape[2])
         elif self.lattice.D == 2:
             if self.wall == "bottom":
-                tau_x_full[:, 0] = tau_x.reshape(u_x.shape[0])  # <-- .reshape() hier
-                tau_z_full[:, 0] = tau_z.reshape(u_x.shape[0])  # <-- .reshape() hier
-            else:  # top
-                tau_x_full[:, -1] = tau_x.reshape(u_x.shape[0])  # <-- .reshape() hier
-                tau_z_full[:, -1] = tau_z.reshape(u_x.shape[0])  # <-- .reshape() hier
+                tau_x_full[:, 0] = tau_x.reshape(u_x.shape[0])
+                tau_z_full[:, 0] = tau_z.reshape(u_x.shape[0])
+            else:
+                tau_x_full[:, -1] = tau_x.reshape(u_x.shape[0])
+                tau_z_full[:, -1] = tau_z.reshape(u_x.shape[0])
         else:
             raise ValueError("Only 2D and 3D supported.")
 
-        # Korrekturterme (Gleichung 14 aus Han et al.)
-        dt_over_2dy = 1 / (2.0 * self.y_lattice)
+        # Korrekturterm wie in Gleichung (14): dt/2dy * tau
+        dt_over_2dy = 1.0 / (2.0 * y)
         return dt_over_2dy * tau_x_full, dt_over_2dy * tau_z_full
-
 
     def __call__(self, f):
         # --- 1. Klonen der Originalverteilungen für spätere Korrektur ---
