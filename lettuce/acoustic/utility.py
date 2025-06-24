@@ -603,13 +603,13 @@ class CharacteristicBoundary(lt.Boundary):
         T3 = - (v_local * v_dy + 1/(rho_local)*p_dy)
         T5 = - (v_local * p_dy + self.cs2 * rho_local * v_dy + rho_local * self.cs * v_local * u_dy)
 
-        L1 = -K[:, 0] * (1 - self.mach ** 2) * self.cs * self.Rc_inv * self.cs2 * (rho_local - 1.0) - K[:, 1] * (T1 - 0) + T1
+        L1 = K[:, 0] * (1 - self.mach ** 2) * self.cs * self.Rc_inv * self.cs2 * (rho_local - 1.0) - K[:, 1] * (T1 - 0) + T1
         # T1 = 0
         # T3 = 0
         # T5 = 0
 
         rho_dt = self._inv_two_cs2 * (-L5 - L1 + T5 + T1)
-        u_dt = 1/(2 * rho_local * self.cs) * (-L5 - L1 + T5 - T1)
+        u_dt = 1/(2 * rho_local * self.cs) * (-L5 + L1 + T5 - T1)
         v_dt = -L3 + T3
 
         # self.rho_t1 = rho_local + 1.5 * rho_dt - 0.5 * self.rho_dt_old
@@ -654,16 +654,90 @@ def plotU(f, flow, slices, config, rectangle = False):
     plt.tight_layout()
     plt.show()
 
-def plotRho(f, flow, slices, config, rectangle = False):
+def plotRho(f, flow, config, slices=[slice(None, None), slice(None, None)], rectangle=False, title=None, figsize=(5, 5), savename="out"):
+    """
+    Plots velocity magnitude and density side-by-side.
+
+    Args:
+        f: Input tensor containing distribution functions.
+        flow: Flow object with methods u(), rho(), and units conversion.
+        slices: Tuple of slices to apply to the spatial dimensions for plotting.
+        config: Dictionary containing configuration like "nx", "ny".
+        rectangle (bool): If True, draws a rectangle on both plots.
+        figsize (tuple): Figure size for the combined plot.
+    """
+    # Create a figure and a set of subplots (1 row, 2 columns)
+    fig, axes = plt.subplots(1, 1, figsize=figsize)
+
+    # --- Plot 2: Density ---
+    ax_rho = axes # Right subplot
     rho = flow.units.convert_density_to_pu(flow.rho(f)).cpu()[0]
-    plt.imshow(rho[slices[0], slices[1]].detach().numpy().transpose(), vmin=-1e-4 + 1, vmax=1e-4 + 1, origin='lower')
+
+    # Display the density image on the right axes
+    im_rho = ax_rho.imshow(rho[slices[0], slices[1]].detach().numpy().transpose(),
+                           vmin=-3e-4 + 1, # Use vmin/vmax from original plotRho
+                           vmax=3e-4 + 1,
+                           origin='lower',
+                           aspect='auto',
+                           cmap="grey") # Match aspect ratio if desired
+    # fig.colorbar(im_rho, ax=ax_rho, loc=1)
+
+    # # Erzeuge das Divider-Objekt für ax_rho
+    # divider = make_axes_locatable(ax_rho)
+    #
+    # # Füge einen neuen Bereich oberhalb des Plots hinzu (oben = "top")
+    # cax = divider.append_axes("top", size="5%", pad=0.2)
+    #
+    # # Erzeuge die Colorbar im neuen Bereich
+    # cbar = fig.colorbar(im_rho, cax=cax, orientation='horizontal')
+    # cbar.set_ticks([0.9997, 0.99985, 1, 1.00015, 1.0003])
+    # cbar.set_ticklabels(["0.9997", "0.99985", "1.0000", "0.00015", "1.0003"])
+    #
+    #
+    # # Optional: Ticklabels unter die Colorbar verschieben (Standard ist oberhalb)
+    # cax.xaxis.set_ticks_position('top')
+    # cax.xaxis.set_label_position('top')  # falls du ein Label setzen willst
+
+
+    if title is not None:
+        ax_rho.set_title(title)
+    ax_rho.axes.get_xaxis().set_ticks([])
+    ax_rho.axes.get_yaxis().set_ticks([])
+    # plt.savefig(savename+".png", bbox_inches='tight',dpi=600)
+    plt.savefig("colorbar.pdf", bbox_inches='tight', transparent=True)
+    # fig.colorbar(im_rho, ax=ax_rho) # Add colorbar associated with the right axes
+
     if rectangle:
-        currentAxis = plt.gca()
-        currentAxis.add_patch(Rectangle((config["nx"] - 200, config["ny"] // 2 - 100), 200, 200, fill=None, alpha=1))
-    plt.title('Density Simulation')
-    plt.colorbar()
-    plt.tight_layout()
-    plt.show()
+        # Add rectangle to the right axes
+        rect_rho = Rectangle((config["nx"] - 200, config["ny"] // 2 - 100),
+                             200, 200, fill=None, alpha=1, edgecolor='red') # Added edgecolor for visibility
+        ax_rho.add_patch(rect_rho)
+
+    # --- Final Adjustments ---
+    plt.tight_layout() # Adjust layout to prevent overlapping titles/labels
+    if False:
+        plt.plot([200, 200], [0, 199], 'k--')
+    if False:
+        nt = 50
+        rect_rho = Rectangle((200-nt, 50),
+                             nt-2, 100, fill=None, alpha=1, edgecolor='cyan') # Added edgecolor for visibility
+        ax_rho.add_patch(rect_rho)
+        plt.annotate(r"$\Omega_{S, ref}$", (200-nt-10,35), xytext=None, xycoords='data', textcoords=None, arrowprops=None, annotation_clip=None, color="cyan")
+        plt.annotate(
+            "",  # No text label for the arrow itself
+            xy=(200, 160),  # Point where the arrow 'points' to (one head)
+            xytext=(200-nt, 160),  # Point where the arrow 'starts' from (other head)
+            arrowprops=dict(arrowstyle='<->', shrinkA=0, shrinkB=0, color='cyan', lw=1),
+            # shrinkA and shrinkB control the gap from the points, 0 means no gap
+            # lw is line width
+        )
+        plt.annotate(r"$n_t$", (200-nt+22,165), xytext=None, xycoords='data', textcoords=None, arrowprops=None, annotation_clip=None, color="cyan")
+
+
+    plt.savefig("nn_500.pdf", bbox_inches='tight')
+    # plt.savefig("zou500.png", bbox_inches='tight',dpi=600)
+
+    plt.show()       # Show the entire figure with both plots
 
 
 

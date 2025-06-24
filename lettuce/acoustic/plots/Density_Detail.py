@@ -20,7 +20,7 @@ class Plot(ABC):
         self.add_legend(ax)
         # self.plot_annotations(ax)
 
-        self.standard_export(name="Density_L2_detail", png=False, pdf=True)
+        self.standard_export(name="Density_L2_v4", png=False, pdf=True)
 
 
     def setup_plot(self, ax):
@@ -28,7 +28,7 @@ class Plot(ABC):
         ax.tick_params(axis="y", direction="in", pad=0)
         ax.set_title(r"\noindent\footnotesize{L$^2$}", ha='right')
         ax.set_title(r"\noindent\textbf{Density Error} \textendash{} \footnotesize{Convected Vortex}", loc='left')
-        ax.set_xlabel(r"\textit{Time}", style='italic', color='#525254')
+        ax.set_xlabel(r"\textit{Time steps}", style='italic', color='#525254')
         ax.set_ylim([0, 0.0145])
         ax.annotate(r"\footnotesize{"+r"$\times$"+"1e$^{-5}$}",(4.85,14.5e-5))
         # plt.yscale("log")
@@ -39,16 +39,23 @@ class Plot(ABC):
         ax.set_yticks(ylabels_idx)
         ax.set_yticklabels(ylabels_str, ha='right')
         ax.axis([-0.2,5.5,1e-7,1.5e-4])
+        t_pu = 5.196152422706632
+        t_lu = 600
+        char = t_pu/t_lu
+        ax.set_xticks([char*0, char*100, char*200, char*300, char*400, char*500, char*600])
+        ax.set_xticklabels(["0","100","200","300","400","500","600"])
 
     def add_legend(self, ax):
         ax.plot([-1, 1.65],2*[13e-5],color="white",)
         ax.plot([-1, 1.65],2*[9e-5],color="white",)
-        ax.plot([-1, 1.65],2*[5e-5],color="white",)
+        # ax.plot([-1, 1.65],2*[5e-5],color="white",)
+        ax.plot([3, 5],2*[9e-5],color="white",)
+        ax.plot([3, 4.6],2*[13e-5],color="white",)
         handles, labels = ax.get_legend_handles_labels()
         order = np.arange(len(handles))
 
         legend = ax.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
-                            loc=2, bbox_to_anchor=(0.0, 1.0), frameon=False, ncol=1, columnspacing=.5, fontsize=6);
+                            loc=1, bbox_to_anchor=(0.93, 1.0), frameon=False, ncol=1, columnspacing=.5, fontsize=6);
 
         frame = legend.get_frame()
         frame.set_facecolor('white')
@@ -64,46 +71,58 @@ class Plot(ABC):
         result_k11_k23 = np.load('result_k11_k23.npy')
         result_k10_k22 = np.load('result_k10_k22.npy')
         result_k10_k23 = np.load('result_k10_k23.npy')
+        result_zou = np.load('result_zou.npy')
         result_n1 = np.load('result_model_training_v1_18_553854.npy')
         result_n2 = np.load('result_model_training_v1_18_553848.npy')
         result_n3 = np.load('result_model_training_v1_17.npy')
         result_n4 = np.load('result_model_training_v1_18_553866.npy')
 
 
-
+        t_pu = result_k11_k23[0][-1]
+        t_lu = 600
         # ax.plot(result_k10_k20[0], result_k10_k20[1], color="black", marker='', linestyle=':', linewidth=1, label="K1=0, K2=0")
         # ax.plot(result_k10_k21[0], result_k10_k21[1], color="black", marker='', linestyle='-', linewidth=1, label="K1=0, K2=1")
         # ax.plot(result_k11_k20[0], result_k11_k20[1], color="black", marker='', linestyle='--', linewidth=1, label="K1=1, K2=0")
         # ax.plot(result_k10_k25[0], result_k10_k25[1], color="black", marker='', linestyle='-.', linewidth=1, label="K1=0, K2=5")
         # ax.plot(result_k11_k21[0], result_k11_k21[1], color="black", marker='', linestyle='-', linewidth=1, label="K1=1, K2=1")
         # ax.plot(result_k11_k22[0], result_k11_k22[1], color="black", marker='', linestyle='-', linewidth=1, label="K1=1, K2=2")
-        ax.plot(result_k11_k23[0], result_k11_k23[1], color="black", marker='', linestyle='--', linewidth=.75, label=r"$\sigma=1$, $K_2=3$")
         # ax.plot(result_k10_k22[0], result_k10_k22[1], color="black", marker='', linestyle=(5, (10, 3)), linewidth=1, label="K1=0, K2=2")
-        ax.plot(result_k10_k23[0], result_k10_k23[1], color="black", marker='', linestyle='-', linewidth=.75, label=r"$\sigma=0$, $K_2=3$")
+        ax.plot(result_k11_k23[0], result_k11_k23[1], color="black", marker='', linestyle='--', linewidth=.75, label=r"$\sigma=1$, $\kappa_2=3$")
+        ax.plot(result_k10_k23[0], result_k10_k23[1], color="black", marker='', linestyle='-', linewidth=.75, label=r"$\sigma=0$, $\kappa_2=3$")
+        ax.plot(result_zou[0], result_zou[1], color="#0ba1e2", marker='', linestyle='-', linewidth=1, label=r"Zou \& He")
 
-        # ax.plot(result_n1[0], result_n1[1], color="green", marker='', linestyle="-", linewidth=.75, label="Neural Network")
-        # ax.plot(result_n2[0], result_n2[1], color="red", marker='', linestyle="-", linewidth=1, label="Neural Network")
-        ax.plot(result_n4[0], result_n4[1], color="red", marker='', linestyle="-", linewidth=1, label="Neural Network")
+        ax.plot(result_n1[0], result_n1[1], color="orange", marker='', linestyle="-", linewidth=.75, label="Neural Network V1")
+        ax.plot(result_n2[0], result_n2[1], color="green", marker='', linestyle="-", linewidth=1, label="Neural Network V2")
         # ax.plot(result_n3[0], result_n3[1], color="red", marker='', linestyle="-", linewidth=.75, label="Neural Network")
+        ax.plot(result_n4[0], result_n4[1], color="red", marker='', linestyle="-", linewidth=1, label="Neural Network V3")
 
+        ax.plot([-1, 1.8],2*[9e-5],color="white",alpha=.85)
         # --- ZOOM-INSET ANLEGEN ---
         # 1. Inset-Achse erzeugen: zoom=Faktor, loc=Position (1=oben rechts, 2=oben links, ...)
-        axins = zoomed_inset_axes(ax, zoom=8.5, loc=6, axes_kwargs=dict(facecolor="#eeeeee",
+        axins = zoomed_inset_axes(ax, zoom=8.5, loc=2, axes_kwargs=dict(facecolor="#eeeeee",
                                                                                                  alpha=0.6,
                                                                                                  frame_on=True,
-                                                                                                 yticks=[])
+                                                                                                 yticks=[],
+                                                                                                 xticks=[])
                                   )
 
         # 2. Gewünschte Daten in der Inset-Achse plotten
         #    Entweder mit den gleichen Arrays wie im Hauptplot …
-
+        t_pu = 5.196152422706632
+        t_lu = 600
+        char = t_pu / t_lu
+        axins.set_xticks([char*60, char*65, char*70, char*75])
+        axins.set_xticklabels(["60", "65", "70", "75"], fontsize=6)
         axins.plot(result_k11_k23[0], result_k11_k23[1], color="black", marker='', linestyle='--', linewidth=.75, label="K1=1, K2=3")
         axins.plot(result_k10_k23[0], result_k10_k23[1], color="black", marker='', linestyle='-', linewidth=.75, label="K1=0, K2=3")
+        axins.plot(result_zou[0], result_zou[1], color="#0ba1e2", marker='', linestyle='-', linewidth=1, label=r"Zou \& He")
 
+        axins.plot(result_n1[0], result_n1[1], color="orange", marker='', linestyle="-", linewidth=1, label="K1=0, K2=2")
+        axins.plot(result_n2[0], result_n2[1], color="green", marker='', linestyle="-", linewidth=1, label="K1=0, K2=2")
         axins.plot(result_n4[0], result_n4[1], color="red", marker='', linestyle="-", linewidth=1, label="K1=0, K2=2")
 
         # 3. Achsengrenzen für den Zoom-Bereich setzen (x1, x2, y1, y2 nach Bedarf anpassen)
-        x1, x2 = .5, .7
+        x1, x2 = .48, .7
         y1, y2 = 0, 5e-6
         axins.set_xlim(x1, x2)
         axins.set_ylim(y1, y2)
