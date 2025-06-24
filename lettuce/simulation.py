@@ -56,7 +56,7 @@ class Simulation:
         no_stream_mask = lattice.convert_to_tensor(np.zeros(self.f.shape, dtype=bool))
 
         # Apply boundaries
-        self._boundaries = deepcopy(self.flow.boundaries)  # store locally to keep the flow free from the boundary state
+        self._boundaries = self.flow.boundaries # store locally to keep the flow free from the boundary state !!ANGEPASSST
         for boundary in self._boundaries:
             if hasattr(boundary, "make_no_collision_mask"):
                 self.no_collision_mask = self.no_collision_mask | boundary.make_no_collision_mask(self.f.shape)
@@ -82,7 +82,6 @@ class Simulation:
 
             for boundary in self._boundaries:
                 self.f = boundary(self.f)
-
             self._report()
 
 

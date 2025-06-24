@@ -44,64 +44,48 @@ class ShanChen:
         return self.tau * 1
 
 
-import numpy as np
 
 class AdaptiveForce:
     def __init__(self, lattice, flow, target_u_m_lu,
-                 wall_bottom,
-                 wall_top,
+                 wall_bottom, wall_top,
                  global_ux_reporter,
                  base_lbm_tau_lu):
-
         self.lattice = lattice
         self.u_m = target_u_m_lu
         self.wall_bottom = wall_bottom
         self.wall_top = wall_top
         self.global_ux = global_ux_reporter
-        self.H = flow.resolution_y / 2.0  # Halbkanalhöhe in LU
+        self.H = flow.resolution_y / 2.0
         self.base_lbm_tau = base_lbm_tau_lu
         self.ueq_scaling_factor = 0.5
         self.last_force_lu = lattice.convert_to_tensor([0.0] * lattice.D)
 
     def compute_force(self):
-        utau_b_lu = self.wall_bottom.u_tau_mean
-        utau_t_lu = self.wall_top.u_tau_mean
+        utau_b_lu = getattr(self.wall_bottom, "previous_u_tau_mean", None)
+        utau_t_lu = getattr(self.wall_top, "previous_u_tau_mean", None)
 
-        # 🔐 Schutz gegen None
         if utau_b_lu is None or utau_t_lu is None:
-            print("⚠️ u_tau_mean nicht verfügbar. AdaptiveForce überspringt Kraftberechnung.")
-            return self.last_force_lu  # oder return torch.zeros_like(self.last_force_lu)
+            return self.last_force_lu
 
         utau_mean_lu = 0.5 * (utau_b_lu + utau_t_lu)
         ux_mean_lu = self.global_ux.value()
 
         Fx_lu = (utau_mean_lu ** 2) / self.H + (self.u_m - ux_mean_lu) * (self.u_m / self.H)
-
-        if torch.isnan(Fx_lu) or torch.isinf(Fx_lu):
-            print("⚠️ Warnung: Fx_lu enthält NaN oder Inf.")
-            print(
-                f"Terme: utau²/H = {(utau_mean_lu ** 2) / self.H}, Korrekturterm = {(self.u_m - ux_mean_lu) * (self.u_m / self.H)}")
-
         self.last_force_lu = self.lattice.convert_to_tensor([Fx_lu] + [0.0] * (self.lattice.D - 1))
         return self.last_force_lu
 
     def __call__(self, u_field_lu, f):
-        """
-        Wird von SmagorinskyCollision (als Forcing) aufgerufen.
-        """
-        # Aktualisiere Kraft
         self.compute_force()
-
-        # Berechne Guo-Source-Term auf Basis der aktuellen Kraft
         guo_force = Guo(self.lattice, tau=self.base_lbm_tau, acceleration=self.last_force_lu)
         return guo_force.source_term(u_field_lu)
 
+    def source_term(self, u_field_lu):
+        return self.__call__(u_field_lu, None)
+
     def u_eq(self, f):
         rho = self.lattice.rho(f)
-
         index = [Ellipsis] + [None] * self.lattice.D
-        # Stellen Sie sicher, dass keine Division durch Null durch rho erfolgt
         denom = torch.where(rho < 1e-10, torch.tensor(1e-10, device=rho.device, dtype=rho.dtype), rho)
-
         return self.ueq_scaling_factor * self.last_force_lu[index] / denom
+
 

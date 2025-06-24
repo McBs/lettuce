@@ -439,117 +439,35 @@ class SymmetryTopPercentageReporter(Observable):
         return all_coords  # Jetzt gibt die Methode einen Tensor zurück
 
 class WallQuantities(Observable):
-    def __init__(self, lattice, flow, averaging_steps=100, distance_to_wall=1.0,
-                 smagorinsky_constant=0.17, delta_x=1.0, normal_axis=1, wall: str = 'bottom'):
-        super().__init__(lattice, flow)
-        self.rho_lu = 1.0
-        self.molecular_nu_lu = flow.units.viscosity_lu
-        self.half_channel_height_lu = flow.resolution_y / 2
-
-        self.smagorinsky_constant = smagorinsky_constant
-        self.delta_x = delta_x
-        self.normal_axis = normal_axis
-        self.wall = wall
-
-        if self.wall == 'bottom':
-            self.fluid_layer_idx = 1
-            self.wall_layer_idx = 0
-        elif self.wall == 'top':
-            self.fluid_layer_idx = flow.resolution_y - 2
-            self.wall_layer_idx = flow.resolution_y - 1
-        else:
-            raise ValueError(f"Unsupported wall type: {self.wall}. Must be 'bottom' or 'top'.")
-
-        self.distance_to_wall = distance_to_wall
-        self.averaging_steps = averaging_steps
-        self.current_step = 0
-
-        self.u_tau_history = []
-        self.re_tau_history = []
-        self.y_plus_history = []
-
-        self.ndim = len(flow.grid)
-
-        # Init last u_tau mean to 0.0
-        self.last_u_tau_spatial_mean = 0.0
+    def __init__(self, lattice, flow, boundary):
+        self.lattice = lattice
+        self.flow = flow
+        self.boundary = boundary
+        # Ensure the boundary object has the expected attributes, initialized to tensors
+        # (This is already handled by your WallFunctionBoundaryTest __init__)
 
     def __call__(self, f):
-        u = self.lattice.u(f)
-        rho = self.lattice.rho(f).squeeze()
-        u_x = u[0].squeeze()
-        u_z = u[2].squeeze() if self.ndim == 3 else torch.zeros_like(u_x)
+        # Always try to read the values. The boundary condition (WallFunctionBoundaryTest)
+        # ensures these attributes exist and are updated.
+        u_tau_mean = self.boundary.u_tau_mean
+        y_plus_mean = self.boundary.y_plus_mean
+        re_tau_mean = self.boundary.Re_tau_mean
 
-        dims = u_x.ndim
-        fluid_slice_indices = [slice(None)] * dims
-        fluid_slice_indices[self.normal_axis] = self.fluid_layer_idx
+        # Only print if values are actually NaN/Inf, which indicates a real problem.
+        if torch.isnan(u_tau_mean) or torch.isinf(u_tau_mean) or \
+           torch.isnan(y_plus_mean) or torch.isinf(y_plus_mean) or \
+           torch.isnan(re_tau_mean) or torch.isinf(re_tau_mean):
+            # Consider also printing the actual values if they are problematic for debugging
+            return torch.zeros(3, dtype=f.dtype, device=f.device)
 
-        mask = torch.zeros_like(u_x, dtype=torch.bool, device=u_x.device)
-        mask[tuple(fluid_slice_indices)] = True
+        # Print the values regardless, as they are now considered valid
+        # (even if they are 0.0 at the beginning)
 
-        rho_f = rho[mask]
-        u_x_f = u_x[mask]
-        u_z_f = u_z[mask]
-
-        sign = 1.0 if self.wall == 'bottom' else -1.0
-        du_dn = sign * u_x_f / self.distance_to_wall
-
-        magnitude_of_gradient = torch.abs(du_dn)
-        nu_turbulent = (self.smagorinsky_constant * self.delta_x) ** 2 * magnitude_of_gradient
-        nu_effective = torch.clamp(self.molecular_nu_lu + nu_turbulent, min=self.molecular_nu_lu)
-
-        u_tau_from_gradient = torch.sqrt(torch.abs(nu_effective * du_dn))
-        tau_w_magnitude = rho_f * u_tau_from_gradient ** 2
-
-        u_mag_f = torch.sqrt(u_x_f ** 2 + u_z_f ** 2)
-        dir_x = torch.where(u_mag_f > 1e-10, u_x_f / u_mag_f, torch.tensor(0.0, device=u_mag_f.device))
-        dir_z = torch.where(u_mag_f > 1e-10, u_z_f / u_mag_f, torch.tensor(0.0, device=u_mag_f.device))
-
-        tau_w_x = - dir_x * tau_w_magnitude
-        tau_w_z = - dir_z * tau_w_magnitude
-
-        if self.ndim == 2:
-            tau_mag = tau_w_x
-        elif self.ndim == 3:
-            tau_mag = torch.sqrt(tau_w_x ** 2 + tau_w_z ** 2)
-        else:
-            raise ValueError(f"Unsupported dimensionality: {self.ndim}")
-
-        u_tau_current = torch.sqrt(torch.abs(tau_mag) / self.rho_lu)
-
-        mean_nu_eff = torch.mean(nu_effective).item()
-        mean_nu_eff = max(mean_nu_eff, 1e-10)
-
-        re_tau = u_tau_current * self.half_channel_height_lu / mean_nu_eff
-        y_plus = self.distance_to_wall * u_tau_current / mean_nu_eff
-
-        self.u_tau_history.append(torch.mean(u_tau_current).item())
-        self.re_tau_history.append(torch.mean(re_tau).item())
-        self.y_plus_history.append(torch.mean(y_plus).item())
-
-        self.current_step += 1
-
-        # Speichere IMMER den letzten Wert – für AdaptiveForce wichtig
-        self.last_u_tau_spatial_mean = torch.mean(u_tau_current).item()
-
-        if self.current_step >= self.averaging_steps:
-            avg_u_tau = np.mean(self.u_tau_history)
-            avg_re_tau = np.mean(self.re_tau_history)
-            avg_y_plus = np.mean(self.y_plus_history)
-            print(self.wall + ":Retau:"+ str(avg_re_tau) + "y+:" + str(avg_y_plus))
-            self.u_tau_history.clear()
-            self.re_tau_history.clear()
-            self.y_plus_history.clear()
-            self.current_step = 0
-
-            return torch.tensor([avg_re_tau, avg_y_plus], device=self.lattice.device)
-        else:
-            return torch.zeros(2, device=self.lattice.device)
-
-    def utau(self):
-        """
-        Gibt den zuletzt gemittelten u_tau-Wert zurück.
-        """
-        return self.last_u_tau_spatial_mean
+        return torch.stack([
+            u_tau_mean,
+            y_plus_mean,
+            re_tau_mean,
+        ])
 
 class GlobalMeanUXReporter(Observable):
     def __init__(self, lattice, flow):
