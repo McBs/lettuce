@@ -98,7 +98,6 @@ class TaylorGreenVortex(ExtFlow):
 
                     extended_split = torch.cat([left_neighbor, bigsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
-                    print(extended_splits.shape)
 
 
                 for i in range(len(range(remainder, dist.get_world_size()))):
@@ -107,7 +106,8 @@ class TaylorGreenVortex(ExtFlow):
 
                     extended_split = torch.cat([left_neighbor, smallsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
-                    print(extended_splits.shape)
+                
+                print(extended_splits)
 
                 return extended_splits
             else:
@@ -121,7 +121,7 @@ class TaylorGreenVortex(ExtFlow):
 
                     extended_split = torch.cat([left_neighbor, splits[i], right_neighbor])
                     extended_splits.append(extended_split)
-
+                    
             
             yz =  tuple(torch.linspace(0, endpoints[n],
                                 steps=self.resolution[n],
@@ -136,6 +136,7 @@ class TaylorGreenVortex(ExtFlow):
             print(xyz)
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
+            print(torch.meshgrid(*xyz, indexing='ij')).shape
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
             print("singel node function")
