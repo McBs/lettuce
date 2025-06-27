@@ -139,7 +139,6 @@ class TaylorGreenVortex(ExtFlow):
             print(xyz)
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
-            print(torch.meshgrid(*xyz, indexing='ij')).shape
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
             print("singel node function")
