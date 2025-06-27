@@ -107,7 +107,10 @@ class TaylorGreenVortex(ExtFlow):
                     extended_split = torch.cat([left_neighbor, smallsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
                 
-                print(extended_splits)
+                print(extended_splits[0].shape)
+                print(extended_split[1].shape)
+                print(extended_split[3].shape)
+
 
                 #return extended_splits
             else:
