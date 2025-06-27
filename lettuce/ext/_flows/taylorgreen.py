@@ -109,7 +109,7 @@ class TaylorGreenVortex(ExtFlow):
                 
                 print(extended_splits)
 
-                return extended_splits
+                #return extended_splits
             else:
                 splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
                 filename = "/home/mbecke3g/data/split" + str(dist.get_rank()) + ".pt"
