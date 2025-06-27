@@ -210,7 +210,7 @@ class Simulation:
         
         send_slice_right = self.flow.f[:,:-8:, :].clone()
         filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
-        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(self.flow.f.shape))
+        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
         torch.save(send_slice_right, filename)
 
         recv_slice_right = torch.empty_like(send_slice_right)
@@ -239,6 +239,7 @@ class Simulation:
         
         for i in range(1, 9):
             self.flow.f[i,-8,:]=recv_slice_left[i,-8,:]
+            print(recv_slice_left.shape)
 
 
 
