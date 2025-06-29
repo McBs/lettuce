@@ -229,13 +229,7 @@ class Simulation:
         recv_req_left.wait()
 
         for i in range(0, 9):
-            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[i,0:8,:]))
-            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow shape: " + str(self.flow.f[i,0:8,:].shape))
-            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow shape: " + str(recv_slice_left[i,0:8,:].shape))
-
-
             self.flow.f[i,0:8,:]=recv_slice_left[i,0:8,:]
-            print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[i,0:8,:]))
         
         for i in range(1, 9):
             self.flow.f[i,-8,:]=recv_slice_left[i,-8,:]
