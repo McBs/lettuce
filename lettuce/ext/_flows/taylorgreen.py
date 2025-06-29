@@ -106,10 +106,6 @@ class TaylorGreenVortex(ExtFlow):
 
                     extended_split = torch.cat([left_neighbor, smallsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
-                
-                print(extended_splits[0].shape)
-                print(extended_split[1].shape)
-                print(extended_split[3].shape)
 
 
                 #return extended_splits
@@ -133,10 +129,7 @@ class TaylorGreenVortex(ExtFlow):
                         for n in range(self.stencil.d - 1))
 
             xyz = (extended_splits[dist.get_rank()],) + yz
-            print("-----rank-----")
-            print(dist.get_rank())
-            print("------xyz-----")
-            print(xyz)
+
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')    
