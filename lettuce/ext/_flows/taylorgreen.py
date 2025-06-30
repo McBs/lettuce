@@ -70,6 +70,9 @@ class TaylorGreenVortex(ExtFlow):
             
             #create linspace for x-axisxyz[0]
             x_axis = xyz[0]
+            y_axis = xyz[1]
+            if self.resolution == 3:
+                z_axis = xyz[2]
             # Split the linspace 
             split_size = self.resolution[0] // dist.get_world_size()
             remainder = self.resolution[0] % dist.get_world_size()
@@ -124,7 +127,10 @@ class TaylorGreenVortex(ExtFlow):
                     extended_splits.append(extended_split)
                     
             
-            xyz[0] = x_axis
+            if self.resolution == 3:
+                xyz = [x_axis, y_axis, z_axis]
+            else:
+                xzy = [x_axis, y_axis, z_axis]
 
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
