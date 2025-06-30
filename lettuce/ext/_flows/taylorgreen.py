@@ -56,17 +56,20 @@ class TaylorGreenVortex(ExtFlow):
 
     @property
     def grid(self):
+
+        endpoints = [2 * torch.pi * (1 - 1 / n) for n in
+                        self.resolution]  # like endpoint=False in np.linspace
+        xyz = tuple(torch.linspace(0, endpoints[n],
+                                steps=self.resolution[n],
+                                device=self.context.device,
+                                dtype=self.context.dtype)
+                    for n in range(self.stencil.d))
         if self.dist == "mpi":
             print("Multi node function")
             print(self.stencil.d)
             
-            endpoints = [2 * torch.pi * (1 - 1 / n ) for n in
-                        self.resolution] 
-            #create linspace for x-axis
-            x_axis = torch.linspace(0, endpoints[0],
-                                        steps=self.resolution[0],
-                                        device=self.context.device,
-                                        dtype=self.context.dtype)
+            #create linspace for x-axisxyz[0]
+            x_axis = xyz[0]
             # Split the linspace 
             split_size = self.resolution[0] // dist.get_world_size()
             remainder = self.resolution[0] % dist.get_world_size()
@@ -121,26 +124,14 @@ class TaylorGreenVortex(ExtFlow):
                     extended_splits.append(extended_split)
                     
             
-            yz =  tuple(torch.linspace(0, endpoints[n],
-                                steps=self.resolution[n],
-                                device=self.context.device,
-                                dtype=self.context.dtype)        
-                        for n in range(self.stencil.d - 1))
-
-            xyz = (extended_splits[dist.get_rank()],) + yz
+            xyz[0] = x_axis
 
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
             print("singel node function")
-            endpoints = [2 * torch.pi * (1 - 1 / n) for n in
-                        self.resolution]  # like endpoint=False in np.linspace
-            xyz = tuple(torch.linspace(0, endpoints[n],
-                                    steps=self.resolution[n],
-                                    device=self.context.device,
-                                    dtype=self.context.dtype)
-                        for n in range(self.stencil.d))
+            
             filename = "/home/mbecke3g/data/xyz_serial.pt"
             torch.save(xyz, filename)
             print("------xyz (single)-----")
