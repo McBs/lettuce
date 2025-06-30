@@ -133,7 +133,7 @@ class TaylorGreenVortex(ExtFlow):
                 xzy = [extended_splits[dist.get_rank()], y_axis]
             
             filename = "/home/mbecke3g/data/x" + str(dist.get_rank()) + ".pt"
-            torch.save(extended_splits, filename)
+            torch.save(extended_splits[dist.get_rank()], filename)
 
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
