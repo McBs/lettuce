@@ -11,7 +11,7 @@ from packaging import version
 
 __all__ = ["Observable", "MaximumVelocity", "IncompressibleKineticEnergy", "Enstrophy", "EnergySpectrum",
            "IncompressibleKineticEnergyBd","Dissipation_sij","Dissipation_TGV","SymmetryReporter","EnergySpectrum2",
-           "SymmetryTopPercentageReporter","WallQuantities", "GlobalMeanUXReporter"]
+           "SymmetryTopPercentageReporter", "GlobalMeanUXReporter"]
 
 
 class Observable:
@@ -437,37 +437,6 @@ class SymmetryTopPercentageReporter(Observable):
         all_coords = torch.cat([coords.flatten() for coords in top_symmetry_coords.values()])
 
         return all_coords  # Jetzt gibt die Methode einen Tensor zurück
-
-class WallQuantities(Observable):
-    def __init__(self, lattice, flow, boundary):
-        self.lattice = lattice
-        self.flow = flow
-        self.boundary = boundary
-        # Ensure the boundary object has the expected attributes, initialized to tensors
-        # (This is already handled by your WallFunctionBoundaryTest __init__)
-
-    def __call__(self, f):
-        # Always try to read the values. The boundary condition (WallFunctionBoundaryTest)
-        # ensures these attributes exist and are updated.
-        u_tau_mean = self.boundary.u_tau_mean
-        y_plus_mean = self.boundary.y_plus_mean
-        re_tau_mean = self.boundary.Re_tau_mean
-
-        # Only print if values are actually NaN/Inf, which indicates a real problem.
-        if torch.isnan(u_tau_mean) or torch.isinf(u_tau_mean) or \
-           torch.isnan(y_plus_mean) or torch.isinf(y_plus_mean) or \
-           torch.isnan(re_tau_mean) or torch.isinf(re_tau_mean):
-            # Consider also printing the actual values if they are problematic for debugging
-            return torch.zeros(3, dtype=f.dtype, device=f.device)
-
-        # Print the values regardless, as they are now considered valid
-        # (even if they are 0.0 at the beginning)
-
-        return torch.stack([
-            u_tau_mean,
-            y_plus_mean,
-            re_tau_mean,
-        ])
 
 class GlobalMeanUXReporter(Observable):
     def __init__(self, lattice, flow):
