@@ -130,7 +130,7 @@ class TaylorGreenVortex(ExtFlow):
             if self.resolution == 3:
                 xyz = [x_axis, y_axis, z_axis]
             else:
-                xzy = [x_axis, y_axis, z_axis]
+                xzy = [x_axis, y_axis]
 
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
