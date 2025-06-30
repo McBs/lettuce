@@ -131,17 +131,20 @@ class TaylorGreenVortex(ExtFlow):
                 xyz = [x_axis, y_axis, z_axis]
             else:
                 xzy = [x_axis, y_axis]
+            
+            filename = "/home/mbecke3g/data/x" + str(dist.get_rank()) + ".pt"
+            torch.save(x_axis, filename)
 
             filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
             print("singel node function")
-            
+            x_axis = xyz[0]
+            filename = "/home/mbecke3g/data/x_serial.pt"
+            torch.save(x_axis, filename)
             filename = "/home/mbecke3g/data/xyz_serial.pt"
             torch.save(xyz, filename)
-            print("------xyz (single)-----")
-            print(xyz)
             filename = "/home/mbecke3g/data/meshgrid_serial.pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')
