@@ -128,9 +128,9 @@ class TaylorGreenVortex(ExtFlow):
                     
             
             if self.resolution == 3:
-                xyz = [extended_splits, y_axis, z_axis]
+                xyz = [extended_splits[dist.get_rank()], y_axis, z_axis]
             else:
-                xzy = [extended_splits, y_axis]
+                xzy = [extended_splits[dist.get_rank()], y_axis]
             
             filename = "/home/mbecke3g/data/x" + str(dist.get_rank()) + ".pt"
             torch.save(extended_splits, filename)
