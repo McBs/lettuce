@@ -81,7 +81,7 @@ class TaylorGreenVortex(ExtFlow):
 
             
                 upperfill_big = int((16 - (split_size + 1) % 16)/2)
-                lowerfill_big = 8 - int(((split_size + 1) % 16)/2)
+                lowerfill_big = 8 - int(((split_size + 1) % 8)/2)
                 upperfill_small = int((16 - split_size % 16)/2)
                 lowerfill_small = 8 - int((split_size % 16)/2)
                 
