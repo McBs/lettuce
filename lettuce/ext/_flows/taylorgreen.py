@@ -59,7 +59,7 @@ class TaylorGreenVortex(ExtFlow):
         if self.dist == "mpi":
             print("Multi node function")
             print(self.stencil.d)
-            
+            print(self.resolution)
             endpoints = [2 * torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
             #create linspace for x-axis
@@ -75,10 +75,14 @@ class TaylorGreenVortex(ExtFlow):
                 warnings.warn("Chunk Size too small,"
                               "size must be at least 16", UserWarning)
             if remainder > 0:
+                # -----------------------
+                # ToDo hier prüfen ob auch gan x abgedeckt ist und nicht doch am ende was verloren geht als 6.135923151542565, 6.1850105367549055 und 6.234097921967246 die im Seriallen da sind.
+                # anschließend prüfen ob die Knicke daruch schon weg sind anderfalls weitersuchen. 
+
                 bigsplits = [x_axis[i*(split_size + 1) : (i+1)*(split_size + 1)] for i in range(remainder)]
 
                 smallsplits = [x_axis[i*split_size : (i+1)*split_size] for i in range(remainder, dist.get_world_size())]
-
+                #------------------------
             
                 upperfill_big = int((16 - (split_size + 1) % 16)/2)
                 lowerfill_big = 8 - int(((split_size + 1) % 16)/2)
