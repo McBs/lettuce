@@ -102,7 +102,7 @@ class TaylorGreenVortex(ExtFlow):
                     extended_split = torch.cat([left_neighbor, bigsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
 
-                print("len(range(remainder, dist.get_world_size())):" + int(len(range(remainder, dist.get_world_size()))))
+                print("len(range(remainder, dist.get_world_size())):" + str(len(range(remainder, dist.get_world_size()))))
                 for i in range(len(range(remainder, dist.get_world_size()))):
                     print(i)
                     left_neighbor = smallsplits[i-1][-lowerfill_small:] if i > 0 else bigsplits[-1][-lowerfill_small:]  # Get last value of previous (or last split for first one)
