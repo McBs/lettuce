@@ -93,7 +93,7 @@ class TaylorGreenVortex(ExtFlow):
         
                 extended_splits = []
 
-                print("range(remainder):" + int(range(remainder)))
+                print("range(remainder):" + str(range(remainder)))
                 for i in range(remainder):
                     print(i)
                     left_neighbor = bigsplits[i-1][-lowerfill_big:] if i > 0 else smallsplits[-1][-lowerfill_big:]  # Get last value of previous (or last split for first one)
