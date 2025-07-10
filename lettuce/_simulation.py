@@ -201,12 +201,6 @@ class Simulation:
         world_size = dist.get_world_size()
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
-        #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " left_neighbor: " + str(left_neighbor) + " right_neighbor " + str(right_neighbor))
-        #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[0]))
-        #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.d: " + str(self.flow.stencil.d))
-        #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.e: " + str(self.flow.stencil.e))
-        #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Sentcil.q: " + str(self.flow.stencil.q))
-        #print("Rank: " + str(rank) + " World Size: " + str(world_size) + " Flow: " + str(self.flow.f[0].shape))
         
         send_slice_right = self.flow.f[:,:-8:, :].clone()
         filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
@@ -216,8 +210,6 @@ class Simulation:
         recv_slice_right = torch.empty_like(send_slice_right)
         send_slice_left = self.flow.f[:,0:8, :].clone()
         recv_slice_left = torch.empty_like(send_slice_left)
-        #dst = (rank + 1) % world_size
-        #src = (rank - 1 + world_size) % world_size
         send_req_right = dist.isend(tensor=send_slice_right, dst=right_neighbor)
         recv_req_right = dist.irecv(tensor=recv_slice_right, src=left_neighbor)
         send_req_left = dist.isend(tensor=send_slice_left, dst=left_neighbor)
