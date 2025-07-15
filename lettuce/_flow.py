@@ -118,6 +118,14 @@ class Flow(ABC):
             filename = "/home/mbecke3g/data/initial_p_serial" + ".pt"
             print("Serial:  initial_p shape: " + str(initial_p.shape))
             torch.save(initial_p, filename)
+        if self.dist == "mpi":
+            filename = "/home/mbecke3g/data/initial_u_" + str(dist.get_rank()) + ".pt"
+            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " initial_u shape: " + str(initial_u.shape))
+            torch.save(initial_u, filename)
+        else:
+            filename = "/home/mbecke3g/data/initial_u_serial" + ".pt"
+            print("Serial:  initial_u shape: " + str(initial_u.shape))
+            torch.save(initial_u, filename)    
         initial_rho = self.context.convert_to_tensor(
             self.units.convert_pressure_pu_to_density_lu(initial_p))
         if self.dist == "mpi":
