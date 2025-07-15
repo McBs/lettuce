@@ -2,6 +2,7 @@ import pickle
 
 import numpy as np
 import torch
+import torch.distributed as dist
 import warnings
 
 from typing import Optional, List, Union, Callable, AnyStr
@@ -105,11 +106,27 @@ class Flow(ABC):
         ...
 
     def initialize(self):
-        #exportire initial_rho, initial_u ausgeben und vergleichen.
+        #exportire initial_rho, initial_u für ranks ausgeben und vergleichen.
         """initializing in equilibrium"""
         initial_p, initial_u = self.initial_pu()
+        if self.dist == "mpi":
+            filename = "/home/mbecke3g/data/initial_p_" + str(dist.get_rank()) + ".pt"
+            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " initial_p shape: " + str(initial_p.shape))
+            torch.save(initial_p, filename)
+        else:
+            filename = "/home/mbecke3g/data/initial_p_serial" + ".pt"
+            print("Serial:  initial_p shape: " + str(initial_p.shape))
+            torch.save(initial_p, filename)
         initial_rho = self.context.convert_to_tensor(
             self.units.convert_pressure_pu_to_density_lu(initial_p))
+        if self.dist == "mpi":
+            filename = "/home/mbecke3g/data/initial_rho_" + str(dist.get_rank()) + ".pt"
+            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " initial_rho shape: " + str(initial_rho.shape))
+            torch.save(initial_rho, filename)
+        else:
+            filename = "/home/mbecke3g/data/initial_rho_serial" + ".pt"
+            print("Serial:  initial_rho shape: " + str(initial_rho.shape))
+            torch.save(initial_rhof, filename)
         initial_u = self.context.convert_to_tensor(
             self.units.convert_velocity_to_lu(initial_u))
         if self.initialize_pressure:
