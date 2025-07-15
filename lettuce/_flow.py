@@ -127,7 +127,7 @@ class Flow(ABC):
         else:
             filename = "/home/mbecke3g/data/initial_rho_serial" + ".pt"
             print("Serial:  initial_rho shape: " + str(initial_rho.shape))
-            torch.save(initial_rhof, filename)
+            torch.save(initial_rho, filename)
         initial_u = self.context.convert_to_tensor(
             self.units.convert_velocity_to_lu(initial_u))
         if self.initialize_pressure:
