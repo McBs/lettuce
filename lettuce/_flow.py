@@ -105,6 +105,7 @@ class Flow(ABC):
         ...
 
     def initialize(self):
+        #exportire initial_rho, initial_u ausgeben und vergleichen.
         """initializing in equilibrium"""
         initial_p, initial_u = self.initial_pu()
         initial_rho = self.context.convert_to_tensor(
@@ -119,8 +120,8 @@ class Flow(ABC):
             )
             self.f = self.equilibrium(self, rho=initial_rho, u=initial_u)
         self.f = self.equilibrium(self, rho=initial_rho, u=initial_u)
-        if self.initialize_fneq:
-            self.f = initialize_f_neq(self)
+#        if self.initialize_fneq:
+#            self.f = initialize_f_neq(self)
 
     @property
     def f_next(self) -> torch.Tensor:
