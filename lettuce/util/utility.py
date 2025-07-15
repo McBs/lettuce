@@ -35,6 +35,7 @@ class ExperimentalWarning(LettuceWarning):
 
 
 def torch_gradient(f, dx=1, order=2):
+    print("---------------------------Gradient Executed---------------------")
     """
     Function to calculate the first derivative of tensors.
     Orders O(h²); O(h⁴); O(h⁶) are implemented.
