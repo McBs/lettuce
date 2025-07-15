@@ -107,6 +107,7 @@ class Flow(ABC):
 
     def initialize(self):
         #exportire initial_rho, initial_u für ranks ausgeben und vergleichen.
+        print("--------------------Flow initalize---------")
         """initializing in equilibrium"""
         initial_p, initial_u = self.initial_pu()
         if self.dist == "mpi":
