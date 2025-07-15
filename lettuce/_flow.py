@@ -112,12 +112,12 @@ class Flow(ABC):
             self.units.convert_pressure_pu_to_density_lu(initial_p))
         initial_u = self.context.convert_to_tensor(
             self.units.convert_velocity_to_lu(initial_u))
-        if self.initialize_pressure:
-            initial_rho = pressure_poisson(
-                self.units,
-                initial_u,
-                initial_rho
-            )
+#        if self.initialize_pressure:
+#            initial_rho = pressure_poisson(
+#                self.units,
+#                initial_u,
+#                initial_rho
+#            )
             self.f = self.equilibrium(self, rho=initial_rho, u=initial_u)
         self.f = self.equilibrium(self, rho=initial_rho, u=initial_u)
 #        if self.initialize_fneq:
