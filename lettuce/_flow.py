@@ -147,8 +147,8 @@ class Flow(ABC):
             self.f = self.equilibrium(self, rho=initial_rho, u=initial_u)
         self.f = self.equilibrium(self, rho=initial_rho, u=initial_u)
         # set initialize_f_neq = flase 
-#        if self.initialize_fneq:
-#            self.f = initialize_f_neq(self)
+        if self.initialize_fneq:
+            self.f = initialize_f_neq(self)
 
     @property
     def f_next(self) -> torch.Tensor:
