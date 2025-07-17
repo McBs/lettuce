@@ -86,7 +86,7 @@ class TaylorGreenVortex(ExtFlow):
 
                 bigsplits = [x_axis[i*(self.split_size + 1) : (i+1)*(self.split_size + 1)] for i in range(self.remainder)]
 
-                smallsplits = [x_axis[(i*self.split_size + remainder) : ((i+1)*self.split_size + self.remainder)] for i in range(self.remainder, dist.get_world_size())]
+                smallsplits = [x_axis[(i*self.split_size + self.remainder) : ((i+1)*self.split_size + self.remainder)] for i in range(self.remainder, dist.get_world_size())]
             
                 self.upperfill_big = int((16 - (self.split_size + 1) % 16)/2)
                 self.lowerfill_big = 8 - int(((self.split_size + 1) % 16)/2)
