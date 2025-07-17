@@ -92,10 +92,10 @@ class TaylorGreenVortex(ExtFlow):
                 self.lowerfill_small = 8 - int((split_size % 16)/2)
                 
                 print("Fills")
-                print("uppsefill_big = " + str(upperfill_big))
-                print("lowerfill_big = " + str(lowerfill_big))
-                print("upperfill_small = " + str(upperfill_small))
-                print("lowerfill_small = " + str(lowerfill_small))
+                print("uppsefill_big = " + str(self.upperfill_big))
+                print("lowerfill_big = " + str(self.lowerfill_big))
+                print("upperfill_small = " + str(self.upperfill_small))
+                print("lowerfill_small = " + str(self.lowerfill_small))
         
                 extended_splits = []
 
