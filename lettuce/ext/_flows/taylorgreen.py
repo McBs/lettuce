@@ -22,7 +22,7 @@ class TaylorGreenVortex(ExtFlow):
                  stencil: Optional['Stencil'] = None,
                  equilibrium: Optional['Equilibrium'] = None,
                  initialize_fneq: bool = True,
-                 dist: Optional['disrtributed'] = None):
+                 disrtributed: Optional['disrtributed'] = None):
         self.initialize_fneq = initialize_fneq
         self.disrtributed = disrtributed 
         if self.dist == "mpi":
