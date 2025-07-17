@@ -26,6 +26,7 @@ class TaylorGreenVortex(ExtFlow):
         self.initialize_fneq = initialize_fneq
         self.dist = dist 
         if self.dist == "mpi":
+            print("-----------------Resolution: " + str(resolution) + "------------------")
             # Split the linspace 
             self.split_size = self.resolution[0] // dist.get_world_size()
             self.remainder = self.resolution[0] % dist.get_world_size()
