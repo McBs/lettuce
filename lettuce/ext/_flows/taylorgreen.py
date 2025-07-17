@@ -28,8 +28,8 @@ class TaylorGreenVortex(ExtFlow):
         if self.dist == "mpi":
             print("-----------------Resolution: " + str(resolution) + "------------------")
             # Split the linspace 
-            self.split_size = self.resolution[0] // dist.get_world_size()
-            self.remainder = self.resolution[0] % dist.get_world_size()
+            self.split_size = resolution // dist.get_world_size()
+            self.remainder = resolution % dist.get_world_size()
 
             self.upperfill_big = 8
             self.lowerfill_big = 8
