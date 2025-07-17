@@ -59,7 +59,7 @@ class Simulation:
         self.reporter = reporter
         self.boundaries = ([None]
                            + sorted(flow.boundaries, key=lambda b: str(b)))
-        self.dist = dist
+        self.disrtributed = disrtributed
 
         # ==================================== #
         # initialise masks based on boundaries #
@@ -260,7 +260,7 @@ class Simulation:
         #        overlap_counter += 1
         #        print(overlap_counter)
             print(dist)
-            if self.dist == "mpi":
+            if self.disrtributed == "mpi":
                 filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + ".pt"
                 print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " Flow.f shape: " + str(self.flow.f.shape))
                 torch.save(self.flow.f, filename)
