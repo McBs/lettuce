@@ -26,6 +26,10 @@ class TaylorGreenVortex(ExtFlow):
         self.initialize_fneq = initialize_fneq
         self.dist = dist 
         if self.dist == "mpi":
+            # Split the linspace 
+            self.split_size = self.resolution[0] // dist.get_world_size()
+            self.remainder = self.resolution[0] % dist.get_world_size()
+
             self.upperfill_big = 8
             self.lowerfill_big = 8
             self.upperfill_small = 8
@@ -72,24 +76,21 @@ class TaylorGreenVortex(ExtFlow):
                                         steps=self.resolution[0],
                                         device=self.context.device,
                                         dtype=self.context.dtype)
-            # Split the linspace 
-            split_size = self.resolution[0] // dist.get_world_size()
-            remainder = self.resolution[0] % dist.get_world_size()
 
-            if split_size < 16:
+            if self.split_size < 16:
                 warnings.warn("Chunk Size too small,"
                               "size must be at least 16", UserWarning)
-            if remainder > 0:
+            if self.remainder > 0:
                 
 
-                bigsplits = [x_axis[i*(split_size + 1) : (i+1)*(split_size + 1)] for i in range(remainder)]
+                bigsplits = [x_axis[i*(self.split_size + 1) : (i+1)*(self.split_size + 1)] for i in range(self.remainder)]
 
-                smallsplits = [x_axis[(i*split_size + remainder) : ((i+1)*split_size + remainder)] for i in range(remainder, dist.get_world_size())]
+                smallsplits = [x_axis[(i*self.split_size + remainder) : ((i+1)*self.split_size + self.remainder)] for i in range(self.remainder, dist.get_world_size())]
             
-                self.upperfill_big = int((16 - (split_size + 1) % 16)/2)
-                self.lowerfill_big = 8 - int(((split_size + 1) % 16)/2)
-                self.upperfill_small = int((16 - split_size % 16)/2)
-                self.lowerfill_small = 8 - int((split_size % 16)/2)
+                self.upperfill_big = int((16 - (self.split_size + 1) % 16)/2)
+                self.lowerfill_big = 8 - int(((self.split_size + 1) % 16)/2)
+                self.upperfill_small = int((16 - self.split_size % 16)/2)
+                self.lowerfill_small = 8 - int((self.split_size % 16)/2)
                 
                 print("Fills")
                 print("uppsefill_big = " + str(self.upperfill_big))
@@ -99,25 +100,25 @@ class TaylorGreenVortex(ExtFlow):
         
                 extended_splits = []
 
-                print("range(remainder):" + str(range(remainder)))
-                for i in range(remainder):
+                print("range(remainder):" + str(range(self.remainder)))
+                for i in range(self.remainder):
                     left_neighbor = bigsplits[i-1][-self.lowerfill_big:] if i > 0 else smallsplits[-1][-self.lowerfill_big:]  # Get last value of previous (or last split for first one)
-                    right_neighbor = bigsplits[i+1][:self.upperfill_big] if i < remainder - 1 else smallsplits[0][:self.upperfill_big]  # Get first value of next (or first split for last one)
+                    right_neighbor = bigsplits[i+1][:self.upperfill_big] if i < self.remainder - 1 else smallsplits[0][:self.upperfill_big]  # Get first value of next (or first split for last one)
 
                     extended_split = torch.cat([left_neighbor, bigsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
 
-                print("len(range(remainder, dist.get_world_size())):" + str(len(range(remainder, dist.get_world_size()))))
-                for i in range(len(range(remainder, dist.get_world_size()))):
+                print("len(range(remainder, dist.get_world_size())):" + str(len(range(self.remainder, dist.get_world_size()))))
+                for i in range(len(range(self.remainder, dist.get_world_size()))):
                     left_neighbor = smallsplits[i-1][-self.lowerfill_small:] if i > 0 else bigsplits[-1][-self.lowerfill_small:]  # Get last value of previous (or last split for first one)
-                    right_neighbor = smallsplits[i+1][:self.upperfill_small] if i < len(range(remainder, dist.get_world_size())) - 1 else bigsplits[0][:self.upperfill_small]  # Get first value of next (or first split for last one)
+                    right_neighbor = smallsplits[i+1][:self.upperfill_small] if i < len(range(self.remainder, dist.get_world_size())) - 1 else bigsplits[0][:self.upperfill_small]  # Get first value of next (or first split for last one)
 
                     extended_split = torch.cat([left_neighbor, smallsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
 
 
             else:
-                splits = [x_axis[i*split_size : (i+1)*split_size] for i in range(dist.get_world_size())]
+                splits = [x_axis[i*self.split_size : (i+1)*self.split_size] for i in range(dist.get_world_size())]
                 filename = "/home/mbecke3g/data/split" + str(dist.get_rank()) + ".pt"
                 torch.save(splits, filename)
                 extended_splits = []
