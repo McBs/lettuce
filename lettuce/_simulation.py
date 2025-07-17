@@ -237,7 +237,7 @@ class Simulation:
         if self.flow.i == 0:
             self._report()
 
-        if self.dist == "mpi":
+        if self.disrtributed == "mpi":
             filename = "/home/mbecke3g/data/precomm_rank_" + str(dist.get_rank()) + ".pt"
             print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " Flow.f shape: " + str(self.flow.f.shape))
             torch.save(self.flow.f, filename)
@@ -251,7 +251,7 @@ class Simulation:
             self._collide_and_stream(self)
         #    if overlap_counter == overlap:
         #        print(overlap_counter)
-            if self.dist == "mpi":
+            if self.disrtributed == "mpi":
                 self._exchange_messages()
         #        overlap_counter = 1
         #        print(overlap_counter)

@@ -22,9 +22,9 @@ class TaylorGreenVortex(ExtFlow):
                  stencil: Optional['Stencil'] = None,
                  equilibrium: Optional['Equilibrium'] = None,
                  initialize_fneq: bool = True,
-                 dist: Optional['dist'] = None):
+                 dist: Optional['disrtributed'] = None):
         self.initialize_fneq = initialize_fneq
-        self.dist = dist 
+        self.disrtributed = disrtributed 
         if self.dist == "mpi":
             print("-----------------Resolution: " + str(resolution) + "------------------")
             # Split the linspace 
@@ -66,7 +66,7 @@ class TaylorGreenVortex(ExtFlow):
 
     @property
     def grid(self):
-        if self.dist == "mpi":
+        if self.disrtributed == "mpi":
             print("Multi node function")
             print(self.stencil.d)
             print(self.resolution)

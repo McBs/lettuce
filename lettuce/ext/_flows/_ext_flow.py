@@ -17,7 +17,7 @@ class ExtFlow(Flow, ABC):
                  reynolds_number, mach_number,
                  stencil: Optional['Stencil'] = None,
                  equilibrium: Optional['Equilibrium'] = None,
-                 dist: Optional['dist'] = None):
+                 disrtributed: Optional['disrtributed'] = None):
         # set stencil or default stencil based on dimension
         resolution = self.make_resolution(resolution, stencil)
         assert len(resolution) in [1, 2, 3], \
