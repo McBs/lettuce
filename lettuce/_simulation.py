@@ -51,7 +51,7 @@ class Simulation:
     #overlap_counter = 1
 
     def __init__(self, flow: 'Flow', collision: 'Collision',
-                 reporter: List['Reporter'],dist: Optional['dist'] = None):
+                 reporter: List['Reporter'],disrtributed: Optional['disrtributed'] = None):
         self.flow = flow
         self.flow.collision = collision
         self.context = flow.context
