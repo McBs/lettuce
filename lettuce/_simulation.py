@@ -241,6 +241,7 @@ class Simulation:
             filename = "/home/mbecke3g/data/precomm_rank_" + str(dist.get_rank()) + ".pt"
             print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " Flow.f shape: " + str(self.flow.f.shape))
             torch.save(self.flow.f, filename)
+            print("uppderfill big in slimulation: " + self.flow.upperfill_big + "------------------------")
         else:
             filename = "/home/mbecke3g/data/precomm_serial" + ".pt"
             print("Serial:  Flow.f shape: " + str(self.flow.f.shape))
