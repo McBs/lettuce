@@ -208,7 +208,7 @@ class Simulation:
         torch.save(send_slice_right, filename)
 
         recv_slice_right = torch.empty_like(send_slice_right)
-        send_slice_left = self.flow.f[:,1, :].clone()
+        send_slice_left = self.flow.f[:,0, :].clone()
         recv_slice_left = torch.empty_like(send_slice_left)
         send_req_right = dist.isend(tensor=send_slice_right, dst=right_neighbor)
         recv_req_right = dist.irecv(tensor=recv_slice_right, src=left_neighbor)
@@ -220,7 +220,7 @@ class Simulation:
         send_req_left.wait()
         recv_req_left.wait()
 
-        self.flow.f[:,1,:]=recv_slice_left[:,1,:]
+        self.flow.f[:,0,:]=recv_slice_left[:,0,:]
         
         self.flow.f[:,-1,:]=recv_slice_left[:,-1,:]
 
