@@ -220,9 +220,9 @@ class Simulation:
         send_req_left.wait()
         recv_req_left.wait()
 
-        self.flow.f[:,0,:]=recv_slice_left[:,0,:]
+        self.flow.f[:,0,:]=recv_slice_left
         
-        self.flow.f[:,-1,:]=recv_slice_left[:,-1,:]
+        self.flow.f[:,-1,:]=recv_slice_left
 
 
 
