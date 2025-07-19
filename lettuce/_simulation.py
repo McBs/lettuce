@@ -211,14 +211,14 @@ class Simulation:
         send_slice_left = self.flow.f[:,0, :].clone()
         recv_slice_left = torch.empty_like(send_slice_left)
 
-        send_req_right = dist.send(tensor=send_slice_right, dst=right_neighbor)
-        recv_req_right = dist.recv(tensor=recv_slice_right, src=left_neighbor)
+        send_req_right = dist.isend(tensor=send_slice_right, dst=right_neighbor)
+        recv_req_right = dist.irecv(tensor=recv_slice_right, src=left_neighbor)
 
         send_req_right.wait()
         recv_req_right.wait()
 
-        send_req_left = dist.send(tensor=send_slice_left, dst=left_neighbor)
-        recv_req_left = dist.recv(tensor=recv_slice_left, src=right_neighbor)
+        send_req_left = dist.isend(tensor=send_slice_left, dst=left_neighbor)
+        recv_req_left = dist.irecv(tensor=recv_slice_left, src=right_neighbor)
         
         send_req_left.wait()
         recv_req_left.wait()
