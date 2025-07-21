@@ -229,7 +229,7 @@ class Simulation:
 
         self.flow.f[:,-16,:]=recv_slice_left.detach()
         
-        self.flow.f[:,1,:]=recv_slice_right.detach()
+        self.flow.f[:,0,:]=recv_slice_right.detach()
 
 
 
