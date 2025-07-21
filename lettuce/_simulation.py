@@ -229,7 +229,7 @@ class Simulation:
        
         self.flow.f[:,0,:]=recv_slice_right.clone().detach()
 
-        self.flow.f[:,-17,:]=recv_slice_left.clone().detach()
+        #self.flow.f[:,-16,:]=recv_slice_left.clone().detach()
 
 
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " recv_slice " + str(recv_slice_left))
