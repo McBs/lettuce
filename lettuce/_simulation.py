@@ -206,7 +206,7 @@ class Simulation:
         filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
         torch.save(send_slice_right, filename)
-
+        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right[1][2].item()))
         recv_slice_right = torch.empty_like(send_slice_right)
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
 
