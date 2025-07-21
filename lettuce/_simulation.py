@@ -208,7 +208,11 @@ class Simulation:
         torch.save(send_slice_right, filename)
 
         recv_slice_right = torch.empty_like(send_slice_right)
+        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+
         send_slice_left = self.flow.f[:,0, :].cpu().clone().detach()
+        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
+
         recv_slice_left = torch.empty_like(send_slice_left)
 
         send_req_right = dist.isend(tensor=send_slice_right, dst=right_neighbor)
