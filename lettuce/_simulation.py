@@ -202,7 +202,7 @@ class Simulation:
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
         
-        send_slice_right = self.flow.f[:,-7, :].cpu().contiguous().detach()
+        send_slice_right = self.flow.f[:,-16, :].cpu().clone()
         filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
         torch.save(send_slice_right, filename)
@@ -210,7 +210,7 @@ class Simulation:
         recv_slice_right = torch.empty_like(send_slice_right)
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
 
-        send_slice_left = self.flow.f[:,6, :].cpu().contiguous().detach()
+        send_slice_left = self.flow.f[:,15, :].cpu().clone()
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
 
         recv_slice_left = torch.empty_like(send_slice_left)
@@ -227,9 +227,9 @@ class Simulation:
         send_req_left.wait()
         recv_req_left.wait()
 
-        self.flow.f[:,0,:]=recv_slice_left.detach()
+        self.flow.f[:,-16,:]=recv_slice_left.detach()
         
-        self.flow.f[:,-1,:]=recv_slice_right.detach()
+        self.flow.f[:,1,:]=recv_slice_right.detach()
 
 
 
