@@ -226,11 +226,10 @@ class Simulation:
         
         send_req_left.wait()
         recv_req_left.wait()
-
-        self.flow.f[:,-16,:]=recv_slice_left.detach()
-        
+       
         self.flow.f[:,0,:]=recv_slice_right.detach()
 
+        self.flow.f[:,-16,:]=recv_slice_left.detach()
 
 
         print("Rank: " + str(rank) + " World Size: " + str(world_size) + " recv_slice " + str(recv_slice_left))
