@@ -204,7 +204,7 @@ class Simulation:
         
         print("-------------------Overlap: " + str(self.flow.overlap) + "---------------------")
 
-        send_slice_right = self.flow.f[:,-16, :].cpu().clone().detach()
+        send_slice_right = self.flow.f[:,-self.flow.overlap, :].cpu().clone().detach()
         filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
         torch.save(send_slice_right, filename)
@@ -212,7 +212,7 @@ class Simulation:
         recv_slice_right = torch.empty_like(send_slice_right)
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
 
-        send_slice_left = self.flow.f[:,15, :].cpu().clone().detach()
+        send_slice_left = self.flow.f[:,self.flow.overlap-1, :].cpu().clone().detach()
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
 
         recv_slice_left = torch.empty_like(send_slice_left)
