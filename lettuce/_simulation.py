@@ -227,8 +227,10 @@ class Simulation:
         send_req_left.wait()
         recv_req_left.wait()
        
-        self.flow.f[:,0,:]=recv_slice_right.clone().detach()
+        #This looks like it works
+        #self.flow.f[:,0,:]=recv_slice_right.clone().detach()
 
+        #This doesn't seem to work
         #self.flow.f[:,-16,:]=recv_slice_left.clone().detach()
 
 
