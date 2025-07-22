@@ -202,6 +202,8 @@ class Simulation:
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
         
+        print("-------------------Overlap: " + str(self.flow.overlap) + "---------------------")
+
         send_slice_right = self.flow.f[:,-16, :].cpu().clone().detach()
         filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
         print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
