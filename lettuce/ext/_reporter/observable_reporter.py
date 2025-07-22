@@ -31,6 +31,8 @@ class MaximumVelocity(Observable):
         return torch.norm(self.flow.u_pu, dim=0).max()
 
 
+#To DO pro rank energy abpeichern und erngy von hand zusammenrechenen
+#mpi observable reporter gather energy form each rank and add and give out.
 class IncompressibleKineticEnergy(Observable):
     """Total kinetic energy of an incompressible flow."""
 
