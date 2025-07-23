@@ -204,7 +204,7 @@ class Simulation:
         
         print("-------------------Overlap: " + str(self.flow.overlap) + "---------------------")
         if self.flow.remainder > 0:
-            if rank < self.flow.remainder
+            if rank < self.flow.remainder:
                 if rank = remainder -1
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
                     send_slice_right = self.flow.f[:,-big_small_overlap, :].cpu().clone().detach()
