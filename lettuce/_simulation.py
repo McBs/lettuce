@@ -205,7 +205,7 @@ class Simulation:
         print("-------------------Overlap: " + str(self.flow.overlap) + "---------------------")
         if self.flow.remainder > 0:
             if rank < self.flow.remainder:
-                if rank = remainder -1
+                if rank == remainder -1
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
                     send_slice_right = self.flow.f[:,-big_small_overlap, :].cpu().clone().detach()
                     filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
@@ -223,7 +223,7 @@ class Simulation:
                     print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
                     recv_slice_right = torch.empty_like(send_slice_right)
                     print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
-                if rank = 0:
+                if rank == 0:
                     c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
                     send_slice_left = self.flow.f[:,c_origin_overlap-1, :].cpu().clone().detach()
                     print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
@@ -235,7 +235,7 @@ class Simulation:
                     print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
                     recv_slice_left = torch.empty_like(send_slice_left)
             else:
-                if rank = world_size - 1:
+                if rank == world_size - 1:
                     c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
                     send_slice_right = self.flow.f[:,-c_origin_overlap, :].cpu().clone().detach()
                     filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
@@ -248,7 +248,7 @@ class Simulation:
                     small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
                     send_slice_right = self.flow.f[:,-small_split_overlap, :].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
-                if rank = self.flow.remainder:
+                if rank == self.flow.remainder:
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
                     send_slice_left = self.flow.f[:,big_small_overlap-1, :].cpu().clone().detach()
                     recv_slice_left = torch.empty_like(send_slice_left)
