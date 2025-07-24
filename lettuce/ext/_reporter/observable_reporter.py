@@ -3,11 +3,13 @@ from abc import ABC, abstractmethod
 from typing import Optional
 
 import torch
+import torch.distributed as dist
 import numpy as np
 
 from ... import Reporter, Flow
 from ...util import torch_gradient
 from packaging import version
+
 
 __all__ = ['Observable', 'ObservableReporter', 'MaximumVelocity',
            'IncompressibleKineticEnergy', 'Enstrophy', 'EnergySpectrum',
@@ -41,6 +43,12 @@ class IncompressibleKineticEnergy(Observable):
         kinE = self.flow.units.convert_incompressible_energy_to_pu(
             torch.sum(self.flow.incompressible_energy()))
         kinE *= dx ** self.flow.stencil.d
+        #if self.flow.dist == "mpi":
+            dist.gather
+            kinESum = 
+        #else:
+        #    
+        kinE.shape
         return kinE
 
 
