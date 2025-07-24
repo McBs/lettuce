@@ -49,7 +49,7 @@ class IncompressibleKineticEnergy(Observable):
         #else:
         #    
         kinE.shape
-        pritn(kinE)
+        print(kinE)
         return kinE
 
 
