@@ -44,11 +44,12 @@ class IncompressibleKineticEnergy(Observable):
             torch.sum(self.flow.incompressible_energy()))
         kinE *= dx ** self.flow.stencil.d
         #if self.flow.dist == "mpi":
-            dist.gather
-            kinESum = 
+        #    dist.gather
+        #    kinESum = 
         #else:
         #    
         kinE.shape
+        pritn(kinE)
         return kinE
 
 
