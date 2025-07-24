@@ -44,9 +44,12 @@ class IncompressibleKineticEnergy(Observable):
             torch.sum(self.flow.incompressible_energy()))
         kinE *= dx ** self.flow.stencil.d
         if self.flow.disrtributed == "mpi":
-            kinE_list = [torch.zeros_like(kinE) for _ in range(dist.get_world_size())]
+            kinE_list = None
+            rank = dist.get_rank()
+            if rank == 0:
+                kinE_list = [torch.zeros_like(kinE) for _ in range(dist.get_world_size())]
             dist.gather(kinE, kinE_list, dst=0)
-            if dist.get_rank() == 0:
+            if rank == 0:
                 return sum(kinE_list)
         return kinE
 
