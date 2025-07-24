@@ -48,8 +48,8 @@ class IncompressibleKineticEnergy(Observable):
         #    kinESum = 
         #else:
         #    
-        kinE.shape
-        print(kinE)
+        print("KinE shape: " + str(kinE.shape))
+        print("kinE string: " + str(kinE))
         return kinE
 
 
