@@ -209,3 +209,32 @@ class ObservableReporter(Reporter):
                 self.out.append(entry)
             else:
                 print(*entry, file=self.out)
+
+class ObservableReporter_MPI(ObservableReporter):
+    def __init__(self, observable, interval=1, out=sys.stdout):
+        super().__init__(interval)
+        
+    def __call__(self, simulation: 'Simulation'):
+        if simulation.flow.i % self.interval == 0:
+            if simulation.flow.remainder > 0:
+                observed = self.observable.context.convert_to_ndarray(
+                    self.observable(simulation.flow.f[:,8:,:]))
+            else:
+                if dist.get_rank() < simulation.flow.remainder:
+                    observed = self.observable.context.convert_to_ndarray(
+                        self.observable(simulation.flow.f[:,self.flow.lowerfill_big:,:]))
+                else:
+                    observed = self.observable.context.convert_to_ndarray(
+                        self.observable(simulation.flow.f[:,self.flow.lowerfill_small:,:]))
+            assert len(observed.shape) < 2
+            if len(observed.shape) == 0:
+                observed = [observed.item()]
+            else:
+                observed = observed.tolist()
+            entry = ([simulation.flow.i,
+                      simulation.units.convert_time_to_pu(simulation.flow.i)]
+                     + observed)
+            if isinstance(self.out, list):
+                self.out.append(entry)
+            else:
+                print(*entry, file=self.out)
