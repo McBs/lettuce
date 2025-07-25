@@ -218,7 +218,7 @@ class ObservableReporter_MPI(ObservableReporter):
     def __call__(self, simulation: 'Simulation'):
         if simulation.flow.i % self.interval == 0:
             print("Observable remainder: " + str(simulation.flow.remainder))
-            if simulation.flow.remainder > 0:
+            if int(simulation.flow.remainder) > 0:
                 observed = self.observable.context.convert_to_ndarray(
                     self.observable(simulation.flow.f[:,8:,:]))
             else:
