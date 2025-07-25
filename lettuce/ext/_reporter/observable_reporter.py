@@ -228,6 +228,7 @@ class ObservableReporter_MPI(ObservableReporter):
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:,:]))
             else:
+                print("Observable: " + str(simulation.flow.f[:,8:,:]))
                 observed = self.observable.context.convert_to_ndarray(
                     self.observable(simulation.flow.f[:,8:,:]))
             assert len(observed.shape) < 2
