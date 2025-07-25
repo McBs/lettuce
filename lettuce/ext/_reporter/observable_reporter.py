@@ -195,7 +195,9 @@ class ObservableReporter(Reporter):
 
     def __call__(self, simulation: 'Simulation'):
         if simulation.flow.i % self.interval == 0:
-            print("Observable: " + str(self.observable(simulation.flow.f)))
+            print("Observable: " + str(simulation.flow.f))
+            print("Observable Shape: " + str(simulation.flow.f.shape))
+
             observed = self.observable.context.convert_to_ndarray(
                 self.observable(simulation.flow.f))
             assert len(observed.shape) < 2
