@@ -288,11 +288,11 @@ class ObservableReporter_MPI(ObservableReporter):
             print("Observable remainder: " + str(simulation.flow.remainder))
             if simulation.flow.remainder > 0:
                 if dist.get_rank() < simulation.flow.remainder:
-                    print("Observable: " + str(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,:]))
+                    print("Observable: " + str(simulation.flow.f.shape))
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,:]))
                 else:
-                    print("Observable: " + str(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,:]))
+                    print("Observable: " + str(simulation.flow.f.shape))
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_big,:]))
             else:
