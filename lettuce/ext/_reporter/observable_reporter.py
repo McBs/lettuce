@@ -37,7 +37,7 @@ class Observable_MPI(ABC):
                 else:
                         self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
         else:
-            self.flow = self.flow.f[:,8:-8,:]
+            self.flow.f = self.flow.f[:,8:-8,:]
     @abstractmethod
     def __call__(self, f: Optional[torch.Tensor] = None):
         ...
