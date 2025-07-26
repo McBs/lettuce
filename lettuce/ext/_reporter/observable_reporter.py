@@ -70,7 +70,7 @@ class IncompressibleKineticEnergy(Observable):
         return kinE
 
 
-class IncompressibleKineticEnergy(Observable_MPI):
+class IncompressibleKineticEnergy_MPI(Observable_MPI):
     """Total kinetic energy of an incompressible flow."""
 
     def __call__(self, f: Optional[torch.Tensor] = None):
