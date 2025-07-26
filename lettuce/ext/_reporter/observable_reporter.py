@@ -31,8 +31,8 @@ class Observable_MPI(ABC):
         self.context = flow.context
         self.flow = flow
         rank = dist.get_rank()
-        if simulation.flow.remainder > 0:
-                if rank < simulation.flow.remainder:
+        if self.flow.remainder > 0:
+                if rank < self.flow.remainder:
                         self.flow.f = self.flow.f[:,self.flow.lowerfill_big,-self.upperfill_big:]
                 else:
                         self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
