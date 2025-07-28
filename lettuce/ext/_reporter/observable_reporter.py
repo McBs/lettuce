@@ -295,7 +295,7 @@ class ObservableReporter_MPI(ObservableReporter):
     def __call__(self, simulation: 'Simulation'):
         if simulation.flow.i % self.interval == 0:
             print("Observable remainder: " + str(simulation.flow.remainder))
-            if self.flow.stencil.d == 2:
+            if simulation.flow.stencil.d == 2:
 
                 if simulation.flow.remainder > 0:
                     if dist.get_rank() < simulation.flow.remainder:
@@ -314,7 +314,7 @@ class ObservableReporter_MPI(ObservableReporter):
                     torch.save(simulation.flow.f[:,8:-8,:], "/home/mbecke3g/data/observable.pt" )
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,8:-8,:]))
-            if self.flow.stencil.d == 3:
+            if simulation.flow.stencil.d == 3:
                 if simulation.flow.remainder > 0:
                     if dist.get_rank() < simulation.flow.remainder:
                         print("Observable: " + str(simulation.flow.f.shape))
