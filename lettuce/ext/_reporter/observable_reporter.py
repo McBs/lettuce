@@ -34,7 +34,7 @@ class Observable_MPI(ABC):
         if self.flow.stencil.d == 2:
             if self.flow.remainder > 0:
                     if rank < self.flow.remainder:
-                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big,-self.flow.upperfill_big,:]
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:]
                     else:
                             self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
             else:
@@ -42,7 +42,7 @@ class Observable_MPI(ABC):
         if self.flow.stencil.d == 3:
             if self.flow.remainder > 0:
                     if rank < self.flow.remainder:
-                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big,-self.flow.upperfill_big,:,:]
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:,:]
                     else:
                             self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:,:]
             else:
