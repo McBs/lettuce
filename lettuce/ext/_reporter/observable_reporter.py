@@ -31,13 +31,22 @@ class Observable_MPI(ABC):
         self.context = flow.context
         self.flow = flow
         rank = dist.get_rank()
-        if self.flow.remainder > 0:
-                if rank < self.flow.remainder:
-                        self.flow.f = self.flow.f[:,self.flow.lowerfill_big,-self.flow.upperfill_big:]
-                else:
-                        self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
-        else:
-            self.flow.f = self.flow.f[:,8:-8,:]
+        if self.flow.stencil.d == 2:
+            if self.flow.remainder > 0:
+                    if rank < self.flow.remainder:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big,-self.flow.upperfill_big,:]
+                    else:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
+            else:
+                self.flow.f = self.flow.f[:,8:-8,:]
+        if self.flow.stencil.d == 3:
+            if self.flow.remainder > 0:
+                    if rank < self.flow.remainder:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big,-self.flow.upperfill_big,:,:]
+                    else:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:,:]
+            else:
+                self.flow.f = self.flow.f[:,8:-8,:,:]
     @abstractmethod
     def __call__(self, f: Optional[torch.Tensor] = None):
         ...
@@ -286,23 +295,43 @@ class ObservableReporter_MPI(ObservableReporter):
     def __call__(self, simulation: 'Simulation'):
         if simulation.flow.i % self.interval == 0:
             print("Observable remainder: " + str(simulation.flow.remainder))
-            if simulation.flow.remainder > 0:
-                if dist.get_rank() < simulation.flow.remainder:
-                    print("Observable: " + str(simulation.flow.f.shape))
-                    observed = self.observable.context.convert_to_ndarray(
-                        self.observable(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,:]))
-                else:
-                    print("Observable: " + str(simulation.flow.f.shape))
-                    observed = self.observable.context.convert_to_ndarray(
-                        self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_big,:]))
-            else:
-                print("Observable: " + str(simulation.flow.f[:,8:-8,:]))
-                print("Observable Shape: " + str(simulation.flow.f[:,8:-8,:].shape))
-                print("Observable self: " + str(self.observable(simulation.flow.f[:,8:-8,:])))
+            if self.flow.stencil.d == 2:
 
-                torch.save(simulation.flow.f[:,8:-8,:], "/home/mbecke3g/data/observable.pt" )
-                observed = self.observable.context.convert_to_ndarray(
-                    self.observable(simulation.flow.f[:,8:-8,:]))
+                if simulation.flow.remainder > 0:
+                    if dist.get_rank() < simulation.flow.remainder:
+                        print("Observable: " + str(simulation.flow.f.shape))
+                        observed = self.observable.context.convert_to_ndarray(
+                            self.observable(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,:]))
+                    else:
+                        print("Observable: " + str(simulation.flow.f.shape))
+                        observed = self.observable.context.convert_to_ndarray(
+                            self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_big,:]))
+                else:
+                    print("Observable: " + str(simulation.flow.f[:,8:-8,:]))
+                    print("Observable Shape: " + str(simulation.flow.f[:,8:-8,:].shape))
+                    print("Observable self: " + str(self.observable(simulation.flow.f[:,8:-8,:])))
+
+                    torch.save(simulation.flow.f[:,8:-8,:], "/home/mbecke3g/data/observable.pt" )
+                    observed = self.observable.context.convert_to_ndarray(
+                        self.observable(simulation.flow.f[:,8:-8,:]))
+            if self.flow.stencil.d == 3:
+                if simulation.flow.remainder > 0:
+                    if dist.get_rank() < simulation.flow.remainder:
+                        print("Observable: " + str(simulation.flow.f.shape))
+                        observed = self.observable.context.convert_to_ndarray(
+                            self.observable(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,:,:]))
+                    else:
+                        print("Observable: " + str(simulation.flow.f.shape))
+                        observed = self.observable.context.convert_to_ndarray(
+                            self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_big,:,:]))
+                else:
+                    print("Observable: " + str(simulation.flow.f[:,8:-8,:,:]))
+                    print("Observable Shape: " + str(simulation.flow.f[:,8:-8,:.:].shape))
+                    print("Observable self: " + str(self.observable(simulation.flow.f[:,8:-8,:,:])))
+
+                    torch.save(simulation.flow.f[:,8:-8,:,:], "/home/mbecke3g/data/observable.pt" )
+                    observed = self.observable.context.convert_to_ndarray(
+                        self.observable(simulation.flow.f[:,8:-8,:,:]))
             assert len(observed.shape) < 2
             if len(observed.shape) == 0:
                 observed = [observed.item()]
