@@ -206,68 +206,144 @@ class Simulation:
             if rank < self.flow.remainder:
                 if rank == self.flow.remainder -1:
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-                    #if self.flow.stencil.d
-                    send_slice_right = self.flow.f[:,-big_small_overlap, :].cpu().clone().detach()
-                    filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
-                    torch.save(send_slice_right, filename)
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
-                    recv_slice_right = torch.empty_like(send_slice_right)
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+                    if self.flow.stencil.d == 2:
+                        send_slice_right = self.flow.f[:,-big_small_overlap, :].cpu().clone().detach()
+                        filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                        torch.save(send_slice_right, filename)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                        recv_slice_right = torch.empty_like(send_slice_right)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+                    elif self.flow.stencil.d == 3:
+                        send_slice_right = self.flow.f[:,-big_small_overlap, :, :].cpu().clone().detach()
+                        filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                        torch.save(send_slice_right, filename)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                        recv_slice_right = torch.empty_like(send_slice_right)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
                 else:
-                    big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
-                    send_slice_right = self.flow.f[:,-big_split_overlap, :].cpu().clone().detach()
-                    filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
-                    torch.save(send_slice_right, filename)
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
-                    recv_slice_right = torch.empty_like(send_slice_right)
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+                    if self.flow.stencil.d == 2:
+                        big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
+                        send_slice_right = self.flow.f[:,-big_split_overlap, :].cpu().clone().detach()
+                        filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                        torch.save(send_slice_right, filename)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                        recv_slice_right = torch.empty_like(send_slice_right)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+                    if self.flow.stencil.d == 3:
+                        big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
+                        send_slice_right = self.flow.f[:,-big_split_overlap, :, :].cpu().clone().detach()
+                        filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                        torch.save(send_slice_right, filename)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                        recv_slice_right = torch.empty_like(send_slice_right)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
                 if rank == 0:
-                    c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-                    send_slice_left = self.flow.f[:,c_origin_overlap-1, :].cpu().clone().detach()
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
-                    recv_slice_left = torch.empty_like(send_slice_left)
-
+                    if self.flow.stencil.d == 2:
+                        c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                        send_slice_left = self.flow.f[:,c_origin_overlap-1, :].cpu().clone().detach()
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
+                        recv_slice_left = torch.empty_like(send_slice_left)
+                    if self.flow.stencil.d == 3:
+                        c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                        send_slice_left = self.flow.f[:,c_origin_overlap-1, :, :].cpu().clone().detach()
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
+                        recv_slice_left = torch.empty_like(send_slice_left)
                 else:
-                    big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
-                    send_slice_left = self.flow.f[:,big_split_overlap-1, :].cpu().clone().detach()
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
-                    recv_slice_left = torch.empty_like(send_slice_left)
+                    if self.flow.stencil.d == 2:
+                        big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
+                        send_slice_left = self.flow.f[:,big_split_overlap-1, :].cpu().clone().detach()
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
+                        recv_slice_left = torch.empty_like(send_slice_left)
+                    if self.flow.stencil.d == 3:
+                        big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
+                        send_slice_left = self.flow.f[:,big_split_overlap-1, :, :].cpu().clone().detach()
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
             else:
                 if rank == world_size - 1:
-                    c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-                    send_slice_right = self.flow.f[:,-c_origin_overlap, :].cpu().clone().detach()
-                    filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
-                    torch.save(send_slice_right, filename)
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
-                    recv_slice_right = torch.empty_like(send_slice_right)
-                    print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
-                else:
-                    small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
-                    send_slice_right = self.flow.f[:,-small_split_overlap, :].cpu().clone().detach()
-                    recv_slice_right = torch.empty_like(send_slice_right)
-                if rank == self.flow.remainder:
-                    big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-                    send_slice_left = self.flow.f[:,big_small_overlap-1, :].cpu().clone().detach()
-                    recv_slice_left = torch.empty_like(send_slice_left)
-                else:
-                    small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
-                    send_slice_left = self.flow.f[:,small_split_overlap-1, :].cpu().clone().detach()
-                    recv_slice_left = torch.empty_like(send_slice_left)
-        else:
-            send_slice_right = self.flow.f[:,-self.flow.overlap, :].cpu().clone().detach()
-            filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
-            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
-            torch.save(send_slice_right, filename)
-            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
-            recv_slice_right = torch.empty_like(send_slice_right)
-            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+                    if self.flow.stencil.d == 2:
 
-            send_slice_left = self.flow.f[:,self.flow.overlap-1, :].cpu().clone().detach()
-            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
-            recv_slice_left = torch.empty_like(send_slice_left)
+                        c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                        send_slice_right = self.flow.f[:,-c_origin_overlap, :].cpu().clone().detach()
+                        filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                        torch.save(send_slice_right, filename)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                        recv_slice_right = torch.empty_like(send_slice_right)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+                    if self.flow.stencil.d == 3:
+                        c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                        send_slice_right = self.flow.f[:,-c_origin_overlap, :, :].cpu().clone().detach()
+                        filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                        torch.save(send_slice_right, filename)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                        recv_slice_right = torch.empty_like(send_slice_right)
+                        print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+                else:
+                    if self.flow.stencil.d == 2:
+
+                        small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
+                        send_slice_right = self.flow.f[:,-small_split_overlap, :].cpu().clone().detach()
+                        recv_slice_right = torch.empty_like(send_slice_right)
+                    if self.flow.stencil.d == 3:
+                        small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
+                        send_slice_right = self.flow.f[:,-small_split_overlap, :, :].cpu().clone().detach()
+                        recv_slice_right = torch.empty_like(send_slice_right)
+
+                if rank == self.flow.remainder:
+                    if self.flow.stencil.d == 2:
+
+                        big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                        send_slice_left = self.flow.f[:,big_small_overlap-1, :].cpu().clone().detach()
+                        recv_slice_left = torch.empty_like(send_slice_left)
+                    if self.flow.stencil.d == 3:
+                        big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                        send_slice_left = self.flow.f[:,big_small_overlap-1, :, :].cpu().clone().detach()
+                        recv_slice_left = torch.empty_like(send_slice_left)
+
+
+                else:
+                    if self.flow.stencil.d == 2:
+
+                        small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
+                        send_slice_left = self.flow.f[:,small_split_overlap-1, :].cpu().clone().detach()
+                        recv_slice_left = torch.empty_like(send_slice_left)
+                    if self.flow.stencil.d == 3:
+                        small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
+                        send_slice_left = self.flow.f[:,small_split_overlap-1, :, :].cpu().clone().detach()
+                        recv_slice_left = torch.empty_like(send_slice_left)
+
+        else:
+            if self.flow.stencil.d == 2:
+
+                send_slice_right = self.flow.f[:,-self.flow.overlap, :].cpu().clone().detach()
+                filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                torch.save(send_slice_right, filename)
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                recv_slice_right = torch.empty_like(send_slice_right)
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+
+                send_slice_left = self.flow.f[:,self.flow.overlap-1, :].cpu().clone().detach()
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
+                recv_slice_left = torch.empty_like(send_slice_left)
+            if self.flow.stencil.d == 3:
+
+                send_slice_right = self.flow.f[:,-self.flow.overlap, :, :].cpu().clone().detach()
+                filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
+                torch.save(send_slice_right, filename)
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right s 1, y2: " + str(send_slice_right))
+                recv_slice_right = torch.empty_like(send_slice_right)
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " recv_slice_right shape: " + str(recv_slice_right.shape))
+
+                send_slice_left = self.flow.f[:,self.flow.overlap-1, :, :].cpu().clone().detach()
+                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_left shape: " + str(send_slice_left.shape))
+                recv_slice_left = torch.empty_like(send_slice_left)
 
         send_req_right = dist.isend(tensor=send_slice_right, dst=right_neighbor)
         recv_req_right = dist.irecv(tensor=recv_slice_right, src=left_neighbor)
@@ -308,7 +384,7 @@ class Simulation:
             print("Serial:  Flow.f shape: " + str(self.flow.f.shape))
             torch.save(self.flow.f, filename)
 
-        print("------------Stencil: Dimention: " + str(self.flow.stencil.d) + "---------------")
+        print("------------Stencil: Dimension: " + str(self.flow.stencil.d) + "---------------")
 
 
         for _ in range(num_steps):
