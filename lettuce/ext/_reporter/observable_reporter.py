@@ -326,7 +326,7 @@ class ObservableReporter_MPI(ObservableReporter):
                             self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_big,:,:]))
                 else:
                     print("Observable: " + str(simulation.flow.f[:,8:-8,:,:]))
-                    print("Observable Shape: " + str(simulation.flow.f[:,8:-8,:.:].shape))
+                    print("Observable Shape: " + str(simulation.flow.f[:,8:-8,:,:].shape))
                     print("Observable self: " + str(self.observable(simulation.flow.f[:,8:-8,:,:])))
 
                     torch.save(simulation.flow.f[:,8:-8,:,:], "/home/mbecke3g/data/observable.pt" )
