@@ -202,11 +202,11 @@ class Simulation:
         left_neighbor  = (rank - 1) % world_size
         right_neighbor = (rank + 1) % world_size
         
-        print("-------------------Overlap: " + str(self.flow.overlap) + "---------------------")
         if self.flow.remainder > 0:
             if rank < self.flow.remainder:
                 if rank == self.flow.remainder -1:
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                    #if self.flow.stencil.d
                     send_slice_right = self.flow.f[:,-big_small_overlap, :].cpu().clone().detach()
                     filename = "/home/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + "send_slice_right.pt"
                     print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " send_slice_right shape: " + str(send_slice_right.shape))
@@ -307,6 +307,9 @@ class Simulation:
             filename = "/home/mbecke3g/data/precomm_serial" + ".pt"
             print("Serial:  Flow.f shape: " + str(self.flow.f.shape))
             torch.save(self.flow.f, filename)
+
+        pritn("Stencil: " + str(self.flow.stencil))
+
 
         for _ in range(num_steps):
             self._collide_and_stream(self)
