@@ -308,7 +308,7 @@ class Simulation:
             print("Serial:  Flow.f shape: " + str(self.flow.f.shape))
             torch.save(self.flow.f, filename)
 
-        pritn("Stencil: " + str(self.flow.stencil))
+        print("Stencil: " + str(self.flow.stencil))
 
 
         for _ in range(num_steps):
