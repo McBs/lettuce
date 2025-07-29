@@ -311,7 +311,7 @@ class ObservableReporter_MPI(ObservableReporter):
                     print("Observable Shape: " + str(simulation.flow.f[:,8:-8,:].shape))
                     print("Observable self: " + str(self.observable(simulation.flow.f[:,8:-8,:])))
 
-                    torch.save(simulation.flow.f[:,8:-8,:], "/home/mbecke3g/data/observable.pt" )
+                    torch.save(simulation.flow.f[:,8:-8,:], "/work/mbecke3g/data/observable.pt" )
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,8:-8,:]))
             if simulation.flow.stencil.d == 3:
@@ -329,7 +329,7 @@ class ObservableReporter_MPI(ObservableReporter):
                     print("Observable Shape: " + str(simulation.flow.f[:,8:-8,:,:].shape))
                     print("Observable self: " + str(self.observable(simulation.flow.f[:,8:-8,:,:])))
 
-                    torch.save(simulation.flow.f[:,8:-8,:,:], "/home/mbecke3g/data/observable.pt" )
+                    torch.save(simulation.flow.f[:,8:-8,:,:], "/work/mbecke3g/data/observable.pt" )
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,8:-8,:,:]))
             assert len(observed.shape) < 2

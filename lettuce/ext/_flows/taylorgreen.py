@@ -128,7 +128,7 @@ class TaylorGreenVortex(ExtFlow):
 
             else:
                 splits = [x_axis[i*self.split_size : (i+1)*self.split_size] for i in range(dist.get_world_size())]
-                filename = "/home/mbecke3g/data/split" + str(dist.get_rank()) + ".pt"
+                filename = "/work/mbecke3g/data/split" + str(dist.get_rank()) + ".pt"
                 torch.save(splits, filename)
                 extended_splits = []
                 for i in range(dist.get_world_size()):
@@ -147,7 +147,7 @@ class TaylorGreenVortex(ExtFlow):
 
             xyz = (extended_splits[dist.get_rank()],) + yz
 
-            filename = "/home/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
+            filename = "/work/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
@@ -159,11 +159,11 @@ class TaylorGreenVortex(ExtFlow):
                                     device=self.context.device,
                                     dtype=self.context.dtype)
                         for n in range(self.stencil.d))
-            filename = "/home/mbecke3g/data/xyz_serial.pt"
+            filename = "/work/mbecke3g/data/xyz_serial.pt"
             torch.save(xyz, filename)
             print("------xyz (single)-----")
             print(xyz)
-            filename = "/home/mbecke3g/data/meshgrid_serial.pt"
+            filename = "/work/mbecke3g/data/meshgrid_serial.pt"
             torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')
 
