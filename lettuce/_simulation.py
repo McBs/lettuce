@@ -275,7 +275,7 @@ class Simulation:
                     if self.flow.stencil.d == 3:
                         send_slice_left = self.flow.f[:,big_small_overlap-1, :, :].cpu().clone().detach()
 
-                   recv_slice_left = torch.empty_like(send_slice_left)
+                    recv_slice_left = torch.empty_like(send_slice_left)
 
 
                 else:
