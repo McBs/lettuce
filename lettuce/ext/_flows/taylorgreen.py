@@ -73,8 +73,6 @@ class TaylorGreenVortex(ExtFlow):
     def grid(self):
         if self.disrtributed == "mpi":
             print("Multi node function")
-            print(self.stencil.d)
-            print(self.resolution)
             endpoints = [2 * torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
             #create linspace for x-axis
@@ -100,16 +98,9 @@ class TaylorGreenVortex(ExtFlow):
                 
                 self.overlap = 2 * min(self.upperfill_big, self.lowerfill_big, self.upperfill_small, self.lowerfill_small)
 
-                print("Fills")
-                print("uppsefill_big = " + str(self.upperfill_big))
-                print("lowerfill_big = " + str(self.lowerfill_big))
-                print("upperfill_small = " + str(self.upperfill_small))
-                print("lowerfill_small = " + str(self.lowerfill_small))
-
         
                 extended_splits = []
 
-                print("range(remainder):" + str(range(self.remainder)))
                 for i in range(self.remainder):
                     left_neighbor = bigsplits[i-1][-self.lowerfill_big:] if i > 0 else smallsplits[-1][-self.lowerfill_big:]  # Get last value of previous (or last split for first one)
                     right_neighbor = bigsplits[i+1][:self.upperfill_big] if i < self.remainder - 1 else smallsplits[0][:self.upperfill_big]  # Get first value of next (or first split for last one)
@@ -117,7 +108,6 @@ class TaylorGreenVortex(ExtFlow):
                     extended_split = torch.cat([left_neighbor, bigsplits[i], right_neighbor])
                     extended_splits.append(extended_split)
 
-                print("len(range(remainder, dist.get_world_size())):" + str(len(range(self.remainder, dist.get_world_size()))))
                 for i in range(len(range(self.remainder, dist.get_world_size()))):
                     left_neighbor = smallsplits[i-1][-self.lowerfill_small:] if i > 0 else bigsplits[-1][-self.lowerfill_small:]  # Get last value of previous (or last split for first one)
                     right_neighbor = smallsplits[i+1][:self.upperfill_small] if i < len(range(self.remainder, dist.get_world_size())) - 1 else bigsplits[0][:self.upperfill_small]  # Get first value of next (or first split for last one)
@@ -147,8 +137,7 @@ class TaylorGreenVortex(ExtFlow):
 
             xyz = (extended_splits[dist.get_rank()],) + yz
 
-            filename = "/work/mbecke3g/data/meshgrid" + str(dist.get_rank()) + ".pt"
-            torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
+
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
             print("singel node function")
@@ -159,12 +148,8 @@ class TaylorGreenVortex(ExtFlow):
                                     device=self.context.device,
                                     dtype=self.context.dtype)
                         for n in range(self.stencil.d))
-            filename = "/work/mbecke3g/data/xyz_serial.pt"
-            torch.save(xyz, filename)
+
             print("------xyz (single)-----")
-            print(xyz)
-            filename = "/work/mbecke3g/data/meshgrid_serial.pt"
-            torch.save(torch.meshgrid(*xyz, indexing='ij'), filename)
             return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):

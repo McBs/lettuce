@@ -318,8 +318,6 @@ class Simulation:
         self.flow.f[:,-1,:]=recv_slice_left.clone().detach()
 
 
-        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " recv_slice " + str(recv_slice_left))
-        print("Rank: " + str(rank) + " World Size: " + str(world_size) + " send_slice " + str(recv_slice_right))
         
 
 
@@ -329,14 +327,7 @@ class Simulation:
         if self.flow.i == 0:
             self._report()
 
-        if self.disrtributed == "mpi":
-            filename = "/work/mbecke3g/data/precomm_rank_" + str(dist.get_rank()) + ".pt"
-            print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " Flow.f shape: " + str(self.flow.f.shape))
-            torch.save(self.flow.f, filename)
-        else:
-            filename = "/work/mbecke3g/data/precomm_serial" + ".pt"
-            print("Serial:  Flow.f shape: " + str(self.flow.f.shape))
-            torch.save(self.flow.f, filename)
+        
 
         print("------------Stencil: Dimension: " + str(self.flow.stencil.d) + "---------------")
 
@@ -353,15 +344,6 @@ class Simulation:
         #        print(overlap_counter)
         #        overlap_counter += 1
         #        print(overlap_counter)
-            print(dist)
-            if self.disrtributed == "mpi":
-                filename = "/work/mbecke3g/data/" + str(self.flow.i) + "_rank_" + str(dist.get_rank()) + ".pt"
-                print("Rank: " + str(dist.get_rank()) + " World Size: " + str(dist.get_world_size()) + " Flow.f shape: " + str(self.flow.f.shape))
-                torch.save(self.flow.f, filename)
-            else:
-                filename = "/work/mbecke3g/data/" + str(self.flow.i) + "serial" + ".pt"
-                print("Serial:  Flow.f shape: " + str(self.flow.f.shape))
-                torch.save(self.flow.f, filename)
             self.flow.i += 1
             self._report()
 
