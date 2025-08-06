@@ -289,6 +289,7 @@ class Simulation:
                     recv_slice_left = torch.empty_like(send_slice_left)
 
         else:
+            
             if self.flow.stencil.d == 2:
                 send_slice_right = self.flow.f[:,-self.flow.overlap, :].cpu().clone().detach()
                 send_slice_left = self.flow.f[:,self.flow.overlap-1, :].cpu().clone().detach()
