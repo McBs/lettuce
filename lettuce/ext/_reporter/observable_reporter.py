@@ -30,23 +30,7 @@ class Observable_MPI(ABC):
     def __init__(self, flow: 'Flow'):
         self.context = flow.context
         self.flow = flow
-        rank = dist.get_rank()
-        if self.flow.stencil.d == 2:
-            if self.flow.remainder > 0:
-                    if rank < self.flow.remainder:
-                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:]
-                    else:
-                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
-            else:
-                self.flow.f = self.flow.f[:,8:-8,:]
-        if self.flow.stencil.d == 3:
-            if self.flow.remainder > 0:
-                    if rank < self.flow.remainder:
-                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:,:]
-                    else:
-                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:,:]
-            else:
-                self.flow.f = self.flow.f[:,8:-8,:,:]
+        
     @abstractmethod
     def __call__(self, f: Optional[torch.Tensor] = None):
         ...
@@ -75,6 +59,23 @@ class IncompressibleKineticEnergy_MPI(Observable_MPI):
     """Total kinetic energy of an incompressible flow."""
 
     def __call__(self, f: Optional[torch.Tensor] = None):
+        rank = dist.get_rank()
+        if self.flow.stencil.d == 2:
+            if self.flow.remainder > 0:
+                    if rank < self.flow.remainder:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:]
+                    else:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
+            else:
+                self.flow.f = self.flow.f[:,8:-8,:]
+        if self.flow.stencil.d == 3:
+            if self.flow.remainder > 0:
+                    if rank < self.flow.remainder:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:,:]
+                    else:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:,:]
+            else:
+                self.flow.f = self.flow.f[:,8:-8,:,:]
         dx = self.flow.units.convert_length_to_pu(1.0)
         kinE = self.flow.units.convert_incompressible_energy_to_pu(
             torch.sum(self.flow.incompressible_energy()))
@@ -114,34 +115,6 @@ class Enstrophy(Observable):
             )
         return vorticity * dx ** self.flow.stencil.d
 
-
-class EnergySpectrum(Observable):
-    """The kinetic energy spectrum"""
-
-    def __init__(self, flow: Flow):
-        super(EnergySpectrum, self).__init__(flow)
-        self.dx = self.flow.units.convert_length_to_pu(1.0)
-        self.dimensions = self.flow.resolution
-        frequencies = [self.context.convert_to_tensor(
-            np.fft.fftfreq(dim, d=1 / dim)
-        ) for dim in self.dimensions]
-        wavenumbers = torch.stack(torch.meshgrid(*frequencies, indexing='ij'))
-        wavenorms = torch.norm(wavenumbers, dim=0)
-
-        if self.flow.stencil.d == 3:
-            self.norm = self.dimensions[0] * np.sqrt(2 * np.pi) / self.dx ** 2
-        else:
-            self.norm = self.dimensions[0] / self.dx
-
-        self.wavenumbers = torch.arange(int(torch.max(wavenorms)))
-        self.wavemask = (
-                (wavenorms[..., None] > self.wavenumbers.to(
-                    dtype=self.context.dtype, device=self.context.device)
-                 - 0.5) &
-                (wavenorms[..., None] <= self.wavenumbers.to(
-                    dtype=self.context.dtype, device=self.context.device)
-                 + 0.5)
-        )
 
 class EnergySpectrum(Observable):
     """The kinetic energy spectrum"""
