@@ -30,6 +30,23 @@ class Observable_MPI(ABC):
     def __init__(self, flow: 'Flow'):
         self.context = flow.context
         self.flow = flow
+        rank = dist.get_rank()
+        if self.flow.stencil.d == 2:
+            if self.flow.remainder > 0:
+                    if rank < self.flow.remainder:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:]
+                    else:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:]
+            else:
+                self.flow.f = self.flow.f[:,8:-8,:]
+        if self.flow.stencil.d == 3:
+            if self.flow.remainder > 0:
+                    if rank < self.flow.remainder:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_big:-self.flow.upperfill_big,:,:]
+                    else:
+                            self.flow.f = self.flow.f[:,self.flow.lowerfill_small:-self.flow.upperfill_small,:,:]
+            else:
+                self.flow.f = self.flow.f[:,8:-8,:,:]
         
     @abstractmethod
     def __call__(self, f: Optional[torch.Tensor] = None):
