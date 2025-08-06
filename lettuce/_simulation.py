@@ -289,14 +289,14 @@ class Simulation:
                     recv_slice_left = torch.empty_like(send_slice_left)
 
         else:
-            send_slice_right = self.flow.f[:,-self.flow.overlap, :].cpu().clone().detach()
-            recv_slice_right = torch.empty_like(send_slice_right)
-
             if self.flow.stencil.d == 2:
+                send_slice_right = self.flow.f[:,-self.flow.overlap, :].cpu().clone().detach()
                 send_slice_left = self.flow.f[:,self.flow.overlap-1, :].cpu().clone().detach()
             if self.flow.stencil.d == 3:
+                send_slice_right = self.flow.f[:,-self.flow.overlap, :, :].cpu().clone().detach()
                 send_slice_left = self.flow.f[:,self.flow.overlap-1, :, :].cpu().clone().detach()
 
+            recv_slice_right = torch.empty_like(send_slice_right)
             recv_slice_left = torch.empty_like(send_slice_left)
 
         send_req_right = dist.isend(tensor=send_slice_right, dst=right_neighbor)
