@@ -190,9 +190,44 @@ class Flow(ABC):
                               ) -> torch.Tensor:
         """incompressible kinetic energy"""
         if f is None:
-            f = self.f[:,8:-8,:,:]
+            pritn("f is none")
+            if self.f.remainder > 0:
+                if dist.get_rank() < simulation.flow.remainder:
+                    if self.stencil.d == 2:
+                        f = self.f[:,self.lowerfill_big:-self.upperfill_big,:]
+                    if self.stencil.d == 3:
+                        f = self.f[:,self.lowerfill_big:-self.upperfill_big,:,:]
+
+                else:
+                    if self.stencil.d == 2:
+                        f = self.f[:,self.lowerfill_small:-self.upperfill_big,:]
+                    if self.stencil.d == 3:
+                        f = self.f[:,self.lowerfill_small:-self.upperfill_big,:,:]
+            else:
+                if self.stencil.d == 2:
+                    f = self.f[:,8:-8,:]
+                if self.stencil.d == 3:
+                    f = self.f[:,8:-8,:,:]
         else:
-            f = f[:,8:-8,:,:]
+#            if self.f.remainder > 0:
+#                if dist.get_rank() < simulation.flow.remainder:
+#                    if self.stencil.d == 2:
+#                        f = self.f[:,self.lowerfill_big:-self.upperfill_big,:]
+#                    if self.stencil.d == 3:
+#                        f = self.f[:,self.lowerfill_big:-self.upperfill_big,:,:]
+
+#                else:
+#                    if self.stencil.d == 2:
+#                        f = self.f[:,self.lowerfill_small:-self.upperfill_big,:]
+#                    if self.stencil.d == 3:
+#                       f = self.f[:,self.lowerfill_small:-self.upperfill_big,:,:]
+#            else:
+#                if f.stencil.d == 2:
+#                    f = f[:,8:-8,:]
+#                if f.stencil.d == 3:
+#                    f = f[:,8:-8,:,:]
+#            f = f[:,8:-8,:,:]
+            f = f
         return 0.5 * torch.einsum("d...,d...->...", [self.u(f), self.u(f)])
 
     def entropy(self, f: Optional[torch.Tensor] = None) -> torch.Tensor:
