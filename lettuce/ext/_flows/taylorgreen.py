@@ -30,15 +30,12 @@ class TaylorGreenVortex(ExtFlow):
             # Split the linspace 
             self.split_size = resolution // dist.get_world_size()
             self.remainder = resolution % dist.get_world_size()
-            if self.remainder > 0:
-
-                self.upperfill_big = 8
-                self.lowerfill_big = 8
-                self.upperfill_small = 8
-                self.lowerfill_small = 8
-                self.overlap = 8
-            else:
-                self.overlap = 16
+            self.upperfill_big = 8
+            self.lowerfill_big = 8
+            self.upperfill_small = 8
+            self.lowerfill_small = 8
+            self.overlap = 16
+            
 
         if stencil is None and not isinstance(resolution, list):
             warnings.warn("Requiring information about dimensionality!"
