@@ -202,12 +202,14 @@ class Flow(ABC):
                     if self.stencil.d == 2:
                         f = self.f[:,self.lowerfill_big:-self.upperfill_big,:]
                     if self.stencil.d == 3:
+                        print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_big:-self.upperfill_big,:,:].shape) )
                         f = self.f[:,self.lowerfill_big:-self.upperfill_big,:,:]
 
                 else:
                     if self.stencil.d == 2:
                         f = self.f[:,self.lowerfill_small:-self.upperfill_small,:]
                     if self.stencil.d == 3:
+                        print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_small:-self.upperfill_small,:,:].shape) )
                         f = self.f[:,self.lowerfill_small:-self.upperfill_small,:,:]
             else:
                 if self.stencil.d == 2:
