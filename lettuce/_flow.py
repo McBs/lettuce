@@ -190,7 +190,7 @@ class Flow(ABC):
                               ) -> torch.Tensor:
         """incompressible kinetic energy"""
         if f is None:
-            pritn("f is none")
+            print("f is none")
             if self.f.remainder > 0:
                 if dist.get_rank() < simulation.flow.remainder:
                     if self.stencil.d == 2:
