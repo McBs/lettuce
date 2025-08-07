@@ -191,12 +191,13 @@ class Flow(ABC):
         """incompressible kinetic energy"""
         if f is None:
             print("Self remainder: " + str(self.remainder))
-            print("Self lowerfill_big: " + str(self.lowerfill_big))
-            print("Self upperfill_big: " + str(self.upperfill_big))
-            print("Self lowerfill_small: " + str(self.lowerfill_small))
-            print("Self upperfill_small: " + str(self.upperfill_small))
+            
 
             if self.remainder > 0:
+                print("Self lowerfill_big: " + str(self.lowerfill_big))
+                print("Self upperfill_big: " + str(self.upperfill_big))
+                print("Self lowerfill_small: " + str(self.lowerfill_small))
+                print("Self upperfill_small: " + str(self.upperfill_small))
                 if dist.get_rank() < self.remainder:
                     if self.stencil.d == 2:
                         f = self.f[:,self.lowerfill_big:-self.upperfill_big,:]
