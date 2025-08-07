@@ -31,7 +31,6 @@ class TaylorGreenVortex(ExtFlow):
             self.split_size = resolution // dist.get_world_size()
             self.remainder = resolution % dist.get_world_size()
             if self.remainder > 0:
-
                 self.upperfill_big = 8
                 self.lowerfill_big = 8
                 self.upperfill_small = 8
