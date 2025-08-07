@@ -205,9 +205,9 @@ class Flow(ABC):
 
                 else:
                     if self.stencil.d == 2:
-                        f = self.f[:,self.upperfill_small:-self.upperfill_small,:]
+                        f = self.f[:,self.lowerfill_small:-self.upperfill_small,:]
                     if self.stencil.d == 3:
-                        f = self.f[:,self.upperfill_small:-self.upperfill_small,:,:]
+                        f = self.f[:,self.lowerfill_small:-self.upperfill_small,:,:]
             else:
                 if self.stencil.d == 2:
                     f = self.f[:,8:-8,:]

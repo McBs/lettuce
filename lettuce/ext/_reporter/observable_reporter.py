@@ -263,9 +263,9 @@ class ObservableReporter_MPI(ObservableReporter):
                         observed = self.observable.context.convert_to_ndarray(
                             self.observable(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,:,:]))
                     else:
-                        print("Observable: " + str(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_big,:,:].shape))
+                        print("Observable: " + str(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_small,:,:].shape))
                         observed = self.observable.context.convert_to_ndarray(
-                            self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_big,:,:]))
+                            self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_small,:,:]))
                 else:
                     print("Observable: " + str(simulation.flow.f[:,8:-8,:,:].shape))
                     observed = self.observable.context.convert_to_ndarray(
