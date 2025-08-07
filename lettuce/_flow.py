@@ -192,7 +192,7 @@ class Flow(ABC):
         if f is None:
             print("f is none")
             if self.remainder > 0:
-                if dist.get_rank() < simulation.flow.remainder:
+                if dist.get_rank() < self.remainder:
                     if self.stencil.d == 2:
                         f = self.f[:,self.lowerfill_big:-self.upperfill_big,:]
                     if self.stencil.d == 3:
