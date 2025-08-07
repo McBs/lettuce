@@ -59,6 +59,8 @@ class IncompressibleKineticEnergy_MPI(Observable_MPI):
     """Total kinetic energy of an incompressible flow."""
 
     def __call__(self, f: Optional[torch.Tensor] = None):
+        print("IncompressibleKiniticEnergyCalled")
+        print(self.flow.f.shape)
         rank = dist.get_rank()
         if self.flow.stencil.d == 2:
             if self.flow.remainder > 0:
