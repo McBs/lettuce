@@ -345,6 +345,7 @@ class Simulation:
         #        print(overlap_counter)
         #        overlap_counter += 1
         #        print(overlap_counter)
+            print(self.flow.f.shape)
             self.flow.i += 1
             self._report()
 
