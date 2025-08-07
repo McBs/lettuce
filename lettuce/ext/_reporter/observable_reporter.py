@@ -61,7 +61,7 @@ class IncompressibleKineticEnergy_MPI(Observable_MPI):
     def __call__(self, f: Optional[torch.Tensor] = None):
         dx = self.flow.units.convert_length_to_pu(1.0)
         kinE = self.flow.units.convert_incompressible_energy_to_pu(
-            torch.sum(self.flow.incompressible_energy()))
+            torch.sum(self.flow.incompressible_energy_mpi()))
         kinE *= dx ** self.flow.stencil.d
         #if self.flow.disrtributed == "mpi":
         #    kinE_list = None
