@@ -352,7 +352,7 @@ class Simulation:
         #        print(overlap_counter)
             self.flow.i += 1
             self._report()
-            if self.flow.i == 10
+            if self.flow.i == 10:
                 safe_f()
 
 
