@@ -319,8 +319,13 @@ class Simulation:
         self.flow.f[:,-1,:]=recv_slice_left.clone().detach()
 
 
-        
-
+    def safe_f():
+        path = "/home/user/data/"
+        if self.disrtributed == "mpi": 
+            string = path + "F_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R" + str(self.flow.reynolds_number) + "Res" + str(self.flow.resolution) + ".pt"  
+        else:
+            string = path + "F_Serial_R" + str(self.flow.reynolds_number) + "Res" + str(self.flow.resolution) + ".pt"
+        torch.save(self.flow.f, string)   
 
     def __call__(self, num_steps):
         beg = timer()
@@ -345,9 +350,11 @@ class Simulation:
         #        print(overlap_counter)
         #        overlap_counter += 1
         #        print(overlap_counter)
-            print(self.flow.f.shape)
             self.flow.i += 1
             self._report()
+            if self.flow.i == 10
+                safe_f()
+
 
         end = timer()
         return num_steps * self.flow.rho().numel() / 1e6 / (end - beg)
