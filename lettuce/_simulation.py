@@ -319,7 +319,7 @@ class Simulation:
         self.flow.f[:,-1,:]=recv_slice_left.clone().detach()
 
 
-    def safe_f():
+    def safe_f(self):
         path = "/home/user/data/"
         if self.disrtributed == "mpi": 
             string = path + "F_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R" + str(self.flow.reynolds_number) + "Res" + str(self.flow.resolution) + ".pt"  
