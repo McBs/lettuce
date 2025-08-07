@@ -191,7 +191,7 @@ class Flow(ABC):
         """incompressible kinetic energy"""
         if f is None:
             print("f is none")
-            if self.f.remainder > 0:
+            if self.remainder > 0:
                 if dist.get_rank() < simulation.flow.remainder:
                     if self.stencil.d == 2:
                         f = self.f[:,self.lowerfill_big:-self.upperfill_big,:]
