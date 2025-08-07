@@ -115,8 +115,6 @@ class TaylorGreenVortex(ExtFlow):
 
             else:
                 splits = [x_axis[i*self.split_size : (i+1)*self.split_size] for i in range(dist.get_world_size())]
-                filename = "/work/mbecke3g/data/split" + str(dist.get_rank()) + ".pt"
-                torch.save(splits, filename)
                 extended_splits = []
                 for i in range(dist.get_world_size()):
                     left_neighbor = splits[i-1][-8:] if i > 0 else splits[-1][-8:]  # Get last value of previous (or last split for first one)
