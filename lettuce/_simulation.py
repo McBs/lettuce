@@ -324,7 +324,7 @@ class Simulation:
         if self.disrtributed == "mpi": 
             string = path + "F_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R100Res" + str(self.flow.resolution) + ".pt"  
         else:
-            string = path + "F_Serial_R" + str(self.flow.reynolds_number) + "Res" + str(self.flow.resolution) + ".pt"
+            string = path + "F_Serial_R100Res" + str(self.flow.resolution) + ".pt"
         torch.save(self.flow.f, string)   
 
     def __call__(self, num_steps):
