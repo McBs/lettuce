@@ -215,7 +215,7 @@ class ObservableReporter(Reporter):
     def __call__(self, simulation: 'Simulation'):
         if simulation.flow.i % self.interval == 0:
 
-            print("Simulation flow i shape: " + str(simulation.flow.i.shape))
+            print("Simulation flow f shape: " + str(simulation.flow.f.shape))
 
             observed = self.observable.context.convert_to_ndarray(
                 self.observable(simulation.flow.f))
