@@ -353,7 +353,7 @@ class Simulation:
             self.flow.i += 1
             self._report()
             if self.flow.i == 10:
-                safe_f()
+                self.safe_f()
 
 
         end = timer()
