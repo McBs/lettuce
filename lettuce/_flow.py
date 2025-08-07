@@ -185,6 +185,15 @@ class Flow(ABC):
         """incompressible kinetic energy"""
         f = self.f if f is None else f
         return 0.5 * torch.einsum("d...,d...->...", [self.u(f), self.u(f)])
+    
+    def incompressible_energy_mpi(self, f: Optional[torch.Tensor] = None
+                              ) -> torch.Tensor:
+        """incompressible kinetic energy"""
+        if f is None:
+            f = self.f[:,8:-8,:,:]
+        else:
+            f = f[:,8:-8,:,:]
+        return 0.5 * torch.einsum("d...,d...->...", [self.u(f), self.u(f)])
 
     def entropy(self, f: Optional[torch.Tensor] = None) -> torch.Tensor:
         """entropy according to the H-theorem"""
