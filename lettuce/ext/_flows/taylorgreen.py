@@ -35,7 +35,7 @@ class TaylorGreenVortex(ExtFlow):
                 self.lowerfill_big = 8
                 self.upperfill_small = 8
                 self.lowerfill_small = 8
-                self.oveif self.remainder > 0:rlap = 8
+                self.oveif self.remainder > 0
             else:
                 self.overlap = 16
 
