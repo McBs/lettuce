@@ -190,7 +190,12 @@ class Flow(ABC):
                               ) -> torch.Tensor:
         """incompressible kinetic energy"""
         if f is None:
-            print("f is none")
+            print("Self remainder: " + str(self.remainder))
+            print("Self lowerfill_big: " + str(self.lowerfill_big))
+            print("Self upperfill_big: " + str(self.upperfill_big))
+            print("Self lowerfill_small: " + str(self.lowerfill_small))
+            print("Self upperfill_small: " + str(self.upperfill_small))
+
             if self.remainder > 0:
                 if dist.get_rank() < self.remainder:
                     if self.stencil.d == 2:
@@ -200,9 +205,9 @@ class Flow(ABC):
 
                 else:
                     if self.stencil.d == 2:
-                        f = self.f[:,self.lowerfill_small:-self.upperfill_big,:]
+                        f = self.f[:,self.lowerfill_small:-self.upperfill_small,:]
                     if self.stencil.d == 3:
-                        f = self.f[:,self.lowerfill_small:-self.upperfill_big,:,:]
+                        f = self.f[:,self.lowerfill_small:-self.upperfill_small,:,:]
             else:
                 if self.stencil.d == 2:
                     f = self.f[:,8:-8,:]
