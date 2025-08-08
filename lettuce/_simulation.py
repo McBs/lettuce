@@ -214,7 +214,7 @@ class Simulation:
                     recv_slice_right = torch.empty_like(send_slice_right)
 
                 if rank == 0:
-                    c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                    c_origin_overlap = self.flow.upperfill_small + self.flow.lowerfill_big
                     send_slice_left = self.flow.f[:,c_origin_overlap-1,...].cpu().clone().detach()
                     recv_slice_left = torch.empty_like(send_slice_left)
 
