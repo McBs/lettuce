@@ -216,7 +216,8 @@ class Simulation:
                 if rank == 0:
                     c_origin_overlap = self.flow.upperfill_small + self.flow.lowerfill_big
                     send_slice_left = self.flow.f[:,c_origin_overlap-1,...].cpu().clone().detach()
-                    recv_slice_left = torch.empty_like(send_slice_left)
+                    test = self.flow.upperfill_big + self.flow.lowerfill_small
+                    recv_slice_left = torch.empty_like(self.flow.f[:,c_test-1,...].cpu().clone().detach())
 
                 else:
                     big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
@@ -225,11 +226,10 @@ class Simulation:
 
             else:
                 if rank == world_size - 1:
-
                     c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
                     send_slice_right = self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach()
-                    recv_slice_right = torch.empty_like(send_slice_right)
-                else:
+                    test = self.flow.upperfill_small + self.flow.lowerfill_big
+                    recv_slice_right = torch.empty_like(self.flow.f[:,-test
                     small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
                     send_slice_right = self.flow.f[:,-small_split_overlap,...].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
