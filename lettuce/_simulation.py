@@ -206,96 +206,50 @@ class Simulation:
             if rank < self.flow.remainder:
                 if rank == self.flow.remainder -1:
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_right = self.flow.f[:,-big_small_overlap, :].cpu().clone().detach()
-                    elif self.flow.stencil.d == 3:
-                        send_slice_right = self.flow.f[:,-big_small_overlap, :, :].cpu().clone().detach()
-
+                    send_slice_right = self.flow.f[:,-big_small_overlap,...].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
                 else:
                     big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_right = self.flow.f[:,-big_split_overlap, :].cpu().clone().detach()
-                    if self.flow.stencil.d == 3:
-                        send_slice_right = self.flow.f[:,-big_split_overlap, :, :].cpu().clone().detach()
-                    
+                    send_slice_right = self.flow.f[:,-big_split_overlap,...].cpu().clone().detach()      
                     recv_slice_right = torch.empty_like(send_slice_right)
 
                 if rank == 0:
                     c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_left = self.flow.f[:,c_origin_overlap-1, :].cpu().clone().detach()
-
-                    if self.flow.stencil.d == 3:
-                        c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-                        send_slice_left = self.flow.f[:,c_origin_overlap-1, :, :].cpu().clone().detach()
-
+                    send_slice_left = self.flow.f[:,c_origin_overlap-1,...].cpu().clone().detach()
                     recv_slice_left = torch.empty_like(send_slice_left)
 
                 else:
                     big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_left = self.flow.f[:,big_split_overlap-1, :].cpu().clone().detach()
-
-                    if self.flow.stencil.d == 3:
-                        send_slice_left = self.flow.f[:,big_split_overlap-1, :, :].cpu().clone().detach()
-
+                    send_slice_left = self.flow.f[:,big_split_overlap-1,...].cpu().clone().detach()
                     recv_slice_left = torch.empty_like(send_slice_left)
 
             else:
                 if rank == world_size - 1:
 
                     c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_right = self.flow.f[:,-c_origin_overlap, :].cpu().clone().detach()
-                    if self.flow.stencil.d == 3:
-                        send_slice_right = self.flow.f[:,-c_origin_overlap, :, :].cpu().clone().detach()
-
+                    send_slice_right = self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
                 else:
                     small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_right = self.flow.f[:,-small_split_overlap, :].cpu().clone().detach()
-                    if self.flow.stencil.d == 3:
-                        send_slice_right = self.flow.f[:,-small_split_overlap, :, :].cpu().clone().detach()
-
+                    send_slice_right = self.flow.f[:,-small_split_overlap,...].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
 
                 if rank == self.flow.remainder:
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_left = self.flow.f[:,big_small_overlap-1, :].cpu().clone().detach()
-                    if self.flow.stencil.d == 3:
-                        send_slice_left = self.flow.f[:,big_small_overlap-1, :, :].cpu().clone().detach()
-
+                    send_slice_left = self.flow.f[:,big_small_overlap-1,...].cpu().clone().detach()
                     recv_slice_left = torch.empty_like(send_slice_left)
 
 
                 else:
                     small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
-
-                    if self.flow.stencil.d == 2:
-                        send_slice_left = self.flow.f[:,small_split_overlap-1, :].cpu().clone().detach()
-                    if self.flow.stencil.d == 3:
-                        send_slice_left = self.flow.f[:,small_split_overlap-1, :, :].cpu().clone().detach()
-                    
+                    send_slice_left = self.flow.f[:,small_split_overlap-1,...].cpu().clone().detach() 
                     recv_slice_left = torch.empty_like(send_slice_left)
 
         else:
             
-            if self.flow.stencil.d == 2:
-                send_slice_right = self.flow.f[:,-self.flow.overlap, :].cpu().clone().detach()
-                send_slice_left = self.flow.f[:,self.flow.overlap-1, :].cpu().clone().detach()
-            if self.flow.stencil.d == 3:
-                send_slice_right = self.flow.f[:,-self.flow.overlap, :, :].cpu().clone().detach()
-                send_slice_left = self.flow.f[:,self.flow.overlap-1, :, :].cpu().clone().detach()
+
+            send_slice_right = self.flow.f[:,-self.flow.overlap,...].cpu().clone().detach()
+            send_slice_left = self.flow.f[:,self.flow.overlap-1,...].cpu().clone().detach()
 
             recv_slice_right = torch.empty_like(send_slice_right)
             recv_slice_left = torch.empty_like(send_slice_left)
