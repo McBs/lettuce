@@ -203,6 +203,7 @@ class Simulation:
         right_neighbor = (rank + 1) % world_size
         
         if self.flow.remainder > 0:
+
             if rank < self.flow.remainder:
                 if rank == self.flow.remainder -1:
                     big_small_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
@@ -214,11 +215,9 @@ class Simulation:
                     recv_slice_right = torch.empty_like(send_slice_right)
 
                 if rank == 0:
-                    c_origin_overlap = self.flow.upperfill_small + self.flow.lowerfill_big
-                    print("rank 0 overlap coodinaten ursprung: " + str(c_origin_overlap))
+                    c_origin_overlap = 2 * min(self.flow.upperfill_small, self.flow.lowerfill_big)
                     send_slice_left = self.flow.f[:,c_origin_overlap-1,...].cpu().clone().detach()
-                    test = self.flow.upperfill_big + self.flow.lowerfill_small
-                    recv_slice_left = torch.empty_like(self.flow.f[:,test-1,...].cpu().clone().detach())
+                    recv_slice_left = orch.empty_like(send_slice_left)
 
                 else:
                     big_split_overlap = self.flow.upperfill_big + self.flow.lowerfill_big
@@ -227,11 +226,9 @@ class Simulation:
 
             else:
                 if rank == world_size - 1:
-                    c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
-                    print("max rank overlap coodinaten ursprung: " + str(c_origin_overlap))
+                    c_origin_overlap = 2 * min(self.flow.upperfill_big, self.flow.lowerfill_small)
                     send_slice_right = self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach()
-                    test = self.flow.upperfill_small + self.flow.lowerfill_big
-                    recv_slice_right = torch.empty_like(self.flow.f[:,-test,...].cpu().clone().detach())
+                    recv_slice_right = torch.empty_like(send_slice_right)
                 else:
                     small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
                     send_slice_right = self.flow.f[:,-small_split_overlap,...].cpu().clone().detach()
