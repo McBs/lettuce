@@ -215,6 +215,7 @@ class Simulation:
 
                 if rank == 0:
                     c_origin_overlap = self.flow.upperfill_small + self.flow.lowerfill_big
+                    print("rank 0 overlap coodinaten ursprung: " + str(c_origin_overlap))
                     send_slice_left = self.flow.f[:,c_origin_overlap-1,...].cpu().clone().detach()
                     test = self.flow.upperfill_big + self.flow.lowerfill_small
                     recv_slice_left = torch.empty_like(self.flow.f[:,test-1,...].cpu().clone().detach())
@@ -227,6 +228,7 @@ class Simulation:
             else:
                 if rank == world_size - 1:
                     c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
+                    print("max rank overlap coodinaten ursprung: " + str(c_origin_overlap))
                     send_slice_right = self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach()
                     test = self.flow.upperfill_small + self.flow.lowerfill_big
                     recv_slice_right = torch.empty_like(self.flow.f[:,-test,...].cpu().clone().detach())
@@ -305,9 +307,7 @@ class Simulation:
         #        print(overlap_counter)
             self.flow.i += 1
             self._report()
-            if self.flow.i == 5:
-                self.safe_f()
-            if self.flow.i == 6:
+            if self.flow.i == 0:
                 self.safe_f()
 
         end = timer()
