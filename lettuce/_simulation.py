@@ -305,8 +305,8 @@ class Simulation:
         #        print(overlap_counter)
             self.flow.i += 1
             self._report()
-            if self.flow.i == 1:
-                self.safe_f()
+        #    if self.flow.i == 1:
+        #        self.safe_f()
 
         end = timer()
         return num_steps * self.flow.rho().numel() / 1e6 / (end - beg)
