@@ -322,9 +322,9 @@ class Simulation:
     def safe_f(self):
         path = "/home/user/data/"
         if self.disrtributed == "mpi": 
-            string = path + "F_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R100Res" + str(self.flow.resolution) + ".pt"  
+            string = path + "F_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R100Res" + str(self.flow.resolution[0]) + ".pt"  
         else:
-            string = path + "F_Serial_R100Res" + str(self.flow.resolution) + ".pt"
+            string = path + "F_Serial_R100Res" + str(self.flow.resolution[0]) + ".pt"
         torch.save(self.flow.f, string)   
 
     def __call__(self, num_steps):
