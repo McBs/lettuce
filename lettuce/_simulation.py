@@ -226,6 +226,7 @@ class Simulation:
 
             else:
                 if rank == world_size - 1:
+                    print("Rank: " + str(dist.get_rank()) + " upperfil_big: " + str(self.flow.upperfill_big) + " lowerfill_small: " + str(self.flow.lowerfill_small) + " 2 * min: " +str(2 * min(self.flow.upperfill_big, self.flow.lowerfill_small)))
                     c_origin_overlap = 2 * min(self.flow.upperfill_big, self.flow.lowerfill_small)
                     send_slice_right = self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
