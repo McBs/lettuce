@@ -229,7 +229,8 @@ class Simulation:
                     c_origin_overlap = self.flow.upperfill_big + self.flow.lowerfill_small
                     send_slice_right = self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach()
                     test = self.flow.upperfill_small + self.flow.lowerfill_big
-                    recv_slice_right = torch.empty_like(self.flow.f[:,-test
+                    recv_slice_right = torch.empty_like(self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach())
+                else:
                     small_split_overlap =  self.flow.lowerfill_small + self.flow.upperfill_small
                     send_slice_right = self.flow.f[:,-small_split_overlap,...].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
