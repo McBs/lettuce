@@ -199,23 +199,16 @@ class Flow(ABC):
                 print("Self lowerfill_small: " + str(self.lowerfill_small))
                 print("Self upperfill_small: " + str(self.upperfill_small))
                 if dist.get_rank() < self.remainder:
-                    if self.stencil.d == 2:
-                        f = self.f[:,self.lowerfill_big:-self.upperfill_big,:]
-                    if self.stencil.d == 3:
-                        print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_big:-self.upperfill_big,:,:].shape) )
-                        f = self.f[:,self.lowerfill_big:-self.upperfill_big,:,:]
+                    
+                    print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_big:-self.upperfill_big,...].shape) )
+                    f = self.f[:,self.lowerfill_big:-self.upperfill_big,...]
 
                 else:
-                    if self.stencil.d == 2:
-                        f = self.f[:,self.lowerfill_small:-self.upperfill_small,:]
-                    if self.stencil.d == 3:
-                        print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_small:-self.upperfill_small,:,:].shape) )
-                        f = self.f[:,self.lowerfill_small:-self.upperfill_small,:,:]
+                    print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_small:-self.upperfill_small,...].shape) )
+                    f = self.f[:,self.lowerfill_small:-self.upperfill_small,...]
             else:
-                if self.stencil.d == 2:
-                    f = self.f[:,8:-8,:]
-                if self.stencil.d == 3:
-                    f = self.f[:,8:-8,:,:]
+                
+                f = self.f[:,8:-8,...]
         else:
 #            if self.f.remainder > 0:
 #                if dist.get_rank() < simulation.flow.remainder:
