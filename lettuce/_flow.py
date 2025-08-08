@@ -198,8 +198,7 @@ class Flow(ABC):
                 print("Self upperfill_big: " + str(self.upperfill_big))
                 print("Self lowerfill_small: " + str(self.lowerfill_small))
                 print("Self upperfill_small: " + str(self.upperfill_small))
-                if dist.get_rank() < self.remainder:
-                    
+                if dist.get_rank() < self.remainder: 
                     print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_big:-self.upperfill_big,...].shape) )
                     f = self.f[:,self.lowerfill_big:-self.upperfill_big,...]
 
