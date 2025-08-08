@@ -266,11 +266,9 @@ class Simulation:
         send_req_left.wait()
         recv_req_left.wait()
        
-        #This looks like it works
-        self.flow.f[:,0,:]=recv_slice_right.clone().detach()
+        self.flow.f[:,0,...]=recv_slice_right.clone().detach()
 
-        #This doesn't seem to work
-        self.flow.f[:,-1,:]=recv_slice_left.clone().detach()
+        self.flow.f[:,-1,...]=recv_slice_left.clone().detach()
 
 
     def safe_f(self):
