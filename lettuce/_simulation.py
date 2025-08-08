@@ -275,9 +275,9 @@ class Simulation:
     def safe_f(self):
         path = "/home/user/data/"
         if self.disrtributed == "mpi": 
-            string = path + "F_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R100Res" + str(self.flow.resolution[0]) + ".pt"  
+            string = path + "F" + str(self.flow.i) + "_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R100Res" + str(self.flow.resolution[0]) + ".pt"  
         else:
-            string = path + "F_Serial_R100Res" + str(self.flow.resolution[0]) + ".pt"
+            string = path + "F" + str(self.flow.i) + "_Serial_R100Res" + str(self.flow.resolution[0]) + ".pt"
         torch.save(self.flow.f, string)   
 
     def __call__(self, num_steps):
@@ -305,9 +305,10 @@ class Simulation:
         #        print(overlap_counter)
             self.flow.i += 1
             self._report()
-            if self.flow.i == 10:
+            if self.flow.i == 5:
                 self.safe_f()
-
+            if self.flow.i == 6:
+                self.safe_f()
 
         end = timer()
         return num_steps * self.flow.rho().numel() / 1e6 / (end - beg)
