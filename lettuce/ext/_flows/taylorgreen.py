@@ -60,12 +60,12 @@ class TaylorGreenVortex(ExtFlow):
             return resolution
 
     def make_units(self, reynolds_number, mach_number,
-                   resolution) -> 'UnitConversion':
+                    resolution) ->'UnitConversion':
         return UnitConversion(
             reynolds_number=reynolds_number,
             mach_number=mach_number,
-            characteristic_length_lu=resolution[0],
-            characteristic_length_pu=2 * torch.pi,
+            characteristic_length_lu=resolution[0]/(2 *3.14159265359),
+            characteristic_length_pu=1,
             characteristic_velocity_pu=1)
 
     @property
