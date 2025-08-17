@@ -226,7 +226,6 @@ class Simulation:
 
             else:
                 if rank == world_size - 1:
-                    print("Rank: " + str(dist.get_rank()) + " upperfil_big: " + str(self.flow.upperfill_big) + " lowerfill_small: " + str(self.flow.lowerfill_small) + " 2 * min: " +str(2 * min(self.flow.upperfill_big, self.flow.lowerfill_small)))
                     c_origin_overlap = self.flow.upperfill_small + self.flow.lowerfill_big
                     send_slice_right = self.flow.f[:,-c_origin_overlap,...].cpu().clone().detach()
                     recv_slice_right = torch.empty_like(send_slice_right)
@@ -272,41 +271,20 @@ class Simulation:
         self.flow.f[:,-1,...]=recv_slice_left.clone().detach()
 
 
-    def safe_f(self):
-        path = "/home/user/data/"
-        if self.disrtributed == "mpi": 
-            string = path + "F" + str(self.flow.i) + "_" + str(dist.get_world_size()) + "_nodes_rank_" + str(dist.get_rank()) + "R100Res" + str(self.flow.resolution[0]) + ".pt"  
-        else:
-            string = path + "F" + str(self.flow.i) + "_Serial_R100Res" + str(self.flow.resolution[0]) + ".pt"
-        torch.save(self.flow.f, string)   
-
     def __call__(self, num_steps):
         beg = timer()
 
         if self.flow.i == 0:
             self._report()
 
-        
-
-        print("------------Stencil: Dimension: " + str(self.flow.stencil.d) + "---------------")
-
-
         for _ in range(num_steps):
             self._collide_and_stream(self)
-        #    if overlap_counter == overlap:
-        #        print(overlap_counter)
+
             if self.disrtributed == "mpi":
                 self._exchange_messages()
-        #        overlap_counter = 1
-        #        print(overlap_counter)
-        #    else:
-        #        print(overlap_counter)
-        #        overlap_counter += 1
-        #        print(overlap_counter)
+
             self.flow.i += 1
             self._report()
-        #    if self.flow.i == 1:
-        #        self.safe_f()
 
         end = timer()
         return num_steps * self.flow.rho().numel() / 1e6 / (end - beg)

@@ -106,7 +106,6 @@ class Flow(ABC):
         ...
 
     def initialize(self):
-        print("--------------------Flow initalize---------")
         """initializing in equilibrium"""
         initial_p, initial_u = self.initial_pu()
         
@@ -190,20 +189,13 @@ class Flow(ABC):
                               ) -> torch.Tensor:
         """incompressible kinetic energy"""
         if f is None:
-            print("Self remainder: " + str(self.remainder))
             
 
             if self.remainder > 0:
-                print("Self lowerfill_big: " + str(self.lowerfill_big))
-                print("Self upperfill_big: " + str(self.upperfill_big))
-                print("Self lowerfill_small: " + str(self.lowerfill_small))
-                print("Self upperfill_small: " + str(self.upperfill_small))
                 if dist.get_rank() < self.remainder: 
-                    print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_big:-self.upperfill_big,...].shape) )
                     f = self.f[:,self.lowerfill_big:-self.upperfill_big,...]
 
                 else:
-                    print("Rank: " + str(dist.get_rank()) + " Shape: " + str(self.f[:,self.lowerfill_small:-self.upperfill_small,...].shape) )
                     f = self.f[:,self.lowerfill_small:-self.upperfill_small,...]
             else:
                 

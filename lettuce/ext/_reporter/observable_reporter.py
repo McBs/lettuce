@@ -214,9 +214,6 @@ class ObservableReporter(Reporter):
 
     def __call__(self, simulation: 'Simulation'):
         if simulation.flow.i % self.interval == 0:
-
-            print("Simulation flow f shape: " + str(simulation.flow.f.shape))
-
             observed = self.observable.context.convert_to_ndarray(
                 self.observable(simulation.flow.f))
             assert len(observed.shape) < 2
@@ -246,17 +243,12 @@ class ObservableReporter_MPI(ObservableReporter):
             
             if simulation.flow.remainder > 0:
                 if dist.get_rank() < simulation.flow.remainder:
-
-                    print("Observable: " + str(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,...].shape))
-
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,simulation.flow.lowerfill_big:-simulation.flow.upperfill_big,...]))
                 else:
-                    print("Observable: " + str(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_small,...].shape))
                     observed = self.observable.context.convert_to_ndarray(
                         self.observable(simulation.flow.f[:,simulation.flow.lowerfill_small:-simulation.flow.upperfill_small,...]))
             else:
-                print("Observable: " + str(simulation.flow.f[:,8:-8,...].shape))
                 observed = self.observable.context.convert_to_ndarray(
                     self.observable(simulation.flow.f[:,8:-8,...]))
             
