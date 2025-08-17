@@ -26,7 +26,6 @@ class TaylorGreenVortex(ExtFlow):
         self.initialize_fneq = initialize_fneq
         self.disrtributed = disrtributed 
         if self.disrtributed == "mpi":
-            print("-----------------Resolution: " + str(resolution) + "------------------")
             # Split the linspace 
             self.split_size = resolution // dist.get_world_size()
             self.remainder = resolution % dist.get_world_size()
@@ -71,7 +70,6 @@ class TaylorGreenVortex(ExtFlow):
     @property
     def grid(self):
         if self.disrtributed == "mpi":
-            print("Multi node function")
             endpoints = [2 * torch.pi * (1 - 1 / n ) for n in
                         self.resolution] 
             #create linspace for x-axis
@@ -137,7 +135,6 @@ class TaylorGreenVortex(ExtFlow):
 
             return torch.meshgrid(*xyz, indexing='ij')    
         else:
-            print("singel node function")
             endpoints = [2 * torch.pi * (1 - 1 / n) for n in
                         self.resolution]  # like endpoint=False in np.linspace
             xyz = tuple(torch.linspace(0, endpoints[n],
@@ -146,7 +143,6 @@ class TaylorGreenVortex(ExtFlow):
                                     dtype=self.context.dtype)
                         for n in range(self.stencil.d))
 
-            print("------xyz (single)-----")
             return torch.meshgrid(*xyz, indexing='ij')
 
     def initial_pu(self) -> (torch.Tensor, torch.Tensor):
