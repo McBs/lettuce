@@ -1,7 +1,6 @@
 from ._ext_flow import *
 
 from .taylorgreen import *
-from .taylorgreen_mpi import *
 from .couette import *
 from .poiseuille import *
 from .doublyshear import *
