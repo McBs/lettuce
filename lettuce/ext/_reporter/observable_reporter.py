@@ -15,7 +15,6 @@ __all__ = ['Observable', 'ObservableReporter', 'MaximumVelocity',
            'IncompressibleKineticEnergy', 'Enstrophy', 'EnergySpectrum',
            'Mass']
 
-#maybe here?
 class Observable(ABC):
     def __init__(self, flow: 'Flow'):
         self.context = flow.context
